@@ -209,3 +209,32 @@ class RenderSizeReporter extends RenderProxyBox {
     }
   }
 }
+
+/// The Legend positioned in the chart: [DefaultLegendContent] laid out as
+/// [layout], or the custom `content` built from [payload], whose size is
+/// measured after layout and reported through [onCustomSize].
+Widget legendLayer(
+  Legend legend, {
+  required LegendLayout? layout,
+  required List<LegendPayload> payload,
+  required Size chartSize,
+  required Margin margin,
+  required TextScaler scaler,
+  required Size? customSize,
+  required ValueChanged<Size> onCustomSize,
+}) {
+  if (layout != null) {
+    final pos = legendPosition(legend, chartSize, margin, layout.size);
+    return Positioned(
+      left: pos.dx,
+      top: pos.dy,
+      child: IgnorePointer(child: DefaultLegendContent(legend: legend, layout: layout, scaler: scaler)),
+    );
+  }
+  final pos = legendPosition(legend, chartSize, margin, customSize ?? Size.zero);
+  return Positioned(
+    left: pos.dx,
+    top: pos.dy,
+    child: SizeReporter(onSize: onCustomSize, child: legend.content!(payload)),
+  );
+}

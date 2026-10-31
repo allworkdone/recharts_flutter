@@ -1099,72 +1099,30 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
     return changed;
   }
 
-  Widget _buildLegend(Legend legend, LegendLayout? layout, Size size, TextScaler scaler) {
-    if (layout != null) {
-      final pos = legendPosition(legend, size, widget.margin, layout.size);
-      return Positioned(
-        left: pos.dx,
-        top: pos.dy,
-        child: IgnorePointer(child: DefaultLegendContent(legend: legend, layout: layout, scaler: scaler)),
-      );
-    }
-    final payload = legendPayloadOf(collectItems(widget.children), legend);
-    final box = _customLegendSize ?? Size.zero;
-    final pos = legendPosition(legend, size, widget.margin, box);
-    return Positioned(
-      left: pos.dx,
-      top: pos.dy,
-      child: SizeReporter(
-        onSize: (s) {
-          if (mounted && s != _customLegendSize) setState(() => _customLegendSize = s);
-        },
-        child: legend.content!(payload),
-      ),
-    );
-  }
+  Widget _buildLegend(Legend legend, LegendLayout? layout, Size size, TextScaler scaler) => legendLayer(legend,
+      layout: layout,
+      payload: layout != null ? const [] : legendPayloadOf(collectItems(widget.children), legend),
+      chartSize: size,
+      margin: widget.margin,
+      scaler: scaler,
+      customSize: _customLegendSize,
+      onCustomSize: (s) {
+        if (mounted && s != _customLegendSize) setState(() => _customLegendSize = s);
+      });
 
-  Widget _buildTooltip(Tooltip tooltip, CartesianModel m, bool reducedMotion) {
-    final animate = tooltip.isAnimationActive ?? !reducedMotion;
-    return ListenableBuilder(
-      listenable: _view,
-      builder: (context, _) {
-        final v = _view.value;
-        final label = v.itemEventType ? null : v.label;
-        final content = tooltip.content != null
-            ? tooltip.content!(TooltipContentProps(
-                active: v.active,
-                payload: v.payload,
-                label: label,
-                coordinate: v.coordinate,
-                activeIndex: v.activeIndex,
-              ))
-            : DefaultTooltipContent(
-                payload: v.payload,
-                label: label,
-                separator: tooltip.separator,
-                contentStyle: tooltip.contentStyle,
-                itemStyle: tooltip.itemStyle,
-                labelStyle: tooltip.labelStyle,
-                itemSorter: tooltip.itemSorter,
-                formatter: tooltip.formatter,
-                labelFormatter: tooltip.labelFormatter,
-              );
-        return TooltipBoundingBox(
-          vsync: this,
-          active: v.active,
-          hasPayload: v.payload.isNotEmpty,
-          coordinate: v.coordinate,
-          viewBox: m.viewBox,
-          offset: tooltip.offset,
-          allowEscapeViewBox: tooltip.allowEscapeViewBox,
-          reverseDirection: tooltip.reverseDirection,
-          position: tooltip.position,
-          animate: animate,
-          animationDuration: tooltip.animationDuration,
-          animationEasing: tooltip.animationEasing,
-          child: content,
-        );
-      },
-    );
-  }
+  Widget _buildTooltip(Tooltip tooltip, CartesianModel m, bool reducedMotion) => ListenableBuilder(
+        listenable: _view,
+        builder: (context, _) {
+          final v = _view.value;
+          return tooltipLayer(tooltip,
+              vsync: this,
+              reducedMotion: reducedMotion,
+              viewBox: m.viewBox,
+              active: v.active,
+              payload: v.payload,
+              label: v.itemEventType ? null : v.label,
+              coordinate: v.coordinate,
+              activeIndex: v.activeIndex);
+        },
+      );
 }

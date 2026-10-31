@@ -296,3 +296,52 @@ class RenderTooltipBoundingBox extends RenderShiftedBox {
     super.dispose();
   }
 }
+
+/// The Tooltip as every chart renders it: the custom `content` or
+/// [DefaultTooltipContent], in a [TooltipBoundingBox] over [viewBox].
+Widget tooltipLayer(
+  Tooltip tooltip, {
+  required TickerProvider vsync,
+  required bool reducedMotion,
+  required Rect viewBox,
+  required bool active,
+  required List<TooltipPayloadEntry> payload,
+  Object? label,
+  Offset? coordinate,
+  int? activeIndex,
+}) {
+  final content = tooltip.content != null
+      ? tooltip.content!(TooltipContentProps(
+          active: active,
+          payload: payload,
+          label: label,
+          coordinate: coordinate,
+          activeIndex: activeIndex,
+        ))
+      : DefaultTooltipContent(
+          payload: payload,
+          label: label,
+          separator: tooltip.separator,
+          contentStyle: tooltip.contentStyle,
+          itemStyle: tooltip.itemStyle,
+          labelStyle: tooltip.labelStyle,
+          itemSorter: tooltip.itemSorter,
+          formatter: tooltip.formatter,
+          labelFormatter: tooltip.labelFormatter,
+        );
+  return TooltipBoundingBox(
+    vsync: vsync,
+    active: active,
+    hasPayload: payload.isNotEmpty,
+    coordinate: coordinate,
+    viewBox: viewBox,
+    offset: tooltip.offset,
+    allowEscapeViewBox: tooltip.allowEscapeViewBox,
+    reverseDirection: tooltip.reverseDirection,
+    position: tooltip.position,
+    animate: tooltip.isAnimationActive ?? !reducedMotion,
+    animationDuration: tooltip.animationDuration,
+    animationEasing: tooltip.animationEasing,
+    child: content,
+  );
+}
