@@ -153,7 +153,6 @@ class SeriesAnimator<T> {
   EasingFunction _easing = (t) => t;
   bool _active = true;
   bool _running = false;
-  double _beginFraction = 0;
   VoidCallback? onAnimationEnd;
 
   List<T>? target;
@@ -215,21 +214,28 @@ class SeriesAnimator<T> {
       _running = false;
       return true;
     }
-    final int totalMs = math.max(0, begin) + math.max(0, duration);
-    final total = totalMs;
-    _beginFraction = total == 0 ? 0 : math.max(0, begin) / total;
-    controller.duration = Duration(milliseconds: totalMs == 0 ? 1 : totalMs);
+    controller.duration = Duration(milliseconds: math.max(1, duration));
     _running = true;
-    // AnimationHandle.tick moves INIT -> PENDING -> ACTIVE on successive
-    // frames, so Recharts reaches progress 0 one frame after the frame that
-    // could have started it. Starting the ticker from the next frame's
+    // AnimationHandle.tick moves INIT -> PENDING on the frame that mounts the
+    // item and PENDING -> ACTIVE (progress 0) on the first later frame at
+    // least `begin` ms after it. Starting the ticker from that frame's
     // callback gives the same timeline.
     controller.value = 0;
     final id = animationId;
-    _pendingStart = SchedulerBinding.instance.scheduleFrameCallback((_) {
+    final binding = SchedulerBinding.instance;
+    final pendingSince = binding.schedulerPhase == SchedulerPhase.idle ? null : binding.currentFrameTimeStamp;
+    final beginTime = Duration(milliseconds: math.max(0, begin));
+    void tick(Duration now) {
       _pendingStart = null;
-      if (_running && id == animationId) controller.forward(from: 0);
-    });
+      if (!_running || id != animationId) return;
+      if (now - (pendingSince ?? now) < beginTime) {
+        _pendingStart = binding.scheduleFrameCallback(tick);
+        return;
+      }
+      controller.forward(from: 0);
+    }
+
+    _pendingStart = binding.scheduleFrameCallback(tick);
     if (onAnimationStart != null) SchedulerBinding.instance.addPostFrameCallback((_) => onAnimationStart());
     return true;
   }
@@ -237,8 +243,7 @@ class SeriesAnimator<T> {
   /// `animationElapsedTime`: easing(round(progress)) as JavascriptAnimation computes it.
   double get t {
     if (!_active) return 1;
-    final v = controller.value;
-    final progress = _beginFraction >= 1 ? 1.0 : ((v - _beginFraction) / (1 - _beginFraction)).clamp(0.0, 1.0);
+    final progress = controller.value;
     if (progress >= 1) return 1;
     return _easing(round4(progress));
   }
