@@ -220,7 +220,8 @@ class LabelProps {
 
 typedef LabelPainter = void Function(Canvas canvas, LabelProps props);
 
-/// src/component/Label.tsx. Pass it as `label` to [XAxis], [YAxis] or [ReferenceLine].
+/// src/component/Label.tsx. Pass it as `label` to [XAxis], [YAxis] or [ReferenceLine];
+/// a plain String or num there is `Label(value: ...)`.
 class Label {
   const Label({
     this.value,
@@ -395,8 +396,8 @@ abstract class CartesianAxisElement extends RechartsElement {
   final TextAnchor? textAnchor;
   final double? fontSize;
 
-  /// A String, a num or a [Label], drawn in the axis box. It never changes the
-  /// axis size, except through `YAxis(width: 'auto')`.
+  /// A String, a num, a [Label] or a [LabelPainter], drawn in the axis box. It
+  /// never changes the axis size, except through `YAxis(width: 'auto')`.
   final Object? label;
 
   bool get isX;
@@ -750,7 +751,7 @@ class ReferenceLine extends RechartsElement {
   final double strokeWidth;
   final List<double>? strokeDasharray;
 
-  /// A String, a num or a [Label], positioned in the line's box.
+  /// A String, a num, a [Label] or a [LabelPainter], positioned in the line's box.
   final Object? label;
   final BandPosition position;
 }
