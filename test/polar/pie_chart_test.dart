@@ -135,6 +135,21 @@ void main() {
     });
   });
 
+  testWidgets('label text above a sector takes the pointer, like SVG text', (tester) async {
+    final probe = Probe();
+    await tester.pumpWidget(host(PieChart(width: 400, height: 400, children: [
+      const Pie(isAnimationActive: false, data: sectorsData, dataKey: 'cy', children: [LabelList(dataKey: 'name')]),
+      Tooltip(isAnimationActive: false, content: probe.build),
+    ])));
+    // LabelList 'middle': the name at the sector's middle radius.
+    final mouse = await mouseAt(tester, const Offset(263, 154));
+    expect(probe.visible, isFalse);
+    await mouse.moveTo(at(36, 120));
+    await tester.pump();
+    expect(probe.rows, ['A : 250']);
+    await mouse.removePointer();
+  });
+
   testWidgets('TwoLevelPieChart: only the hovered Pie shows its active shape', (tester) async {
     final active = <String>[];
     void shape(String name) => active.add(name);

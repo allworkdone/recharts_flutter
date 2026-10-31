@@ -38,6 +38,10 @@ class PolarFrame {
   final TextStyle textStyle;
   final TextScaler textScaler;
   final Map<String, SeriesAnimator<PieSector>> pieAnimators;
+
+  /// Where the labels layer last drew text: SVG text sits above the sectors
+  /// and takes the pointer from them.
+  final List<Rect> labelBoxes = [];
 }
 
 /// `isActive` of a sector in PieSectors.
@@ -96,6 +100,7 @@ class PolarPainter extends CustomPainter {
           _paintPie(canvas, p);
         }
       case PolarLayer.labels:
+        frame.labelBoxes.clear();
         for (final p in m.pies) {
           _paintPieLabels(canvas, p);
         }
@@ -190,8 +195,9 @@ class PolarPainter extends CustomPainter {
           ? label.formatter!(props)
           : (pie.dataKey == 'value' ? s.value : getValueByDataKey(s.payload, pie.dataKey));
       if (value == null) continue;
-      paintSvgText(canvas, jsString(value), end.dx, end.dy,
-          style: style, textAnchor: textAnchor, scaler: frame.textScaler);
+      final text = jsString(value);
+      paintSvgText(canvas, text, end.dx, end.dy, style: style, textAnchor: textAnchor, scaler: frame.textScaler);
+      frame.labelBoxes.add(svgTextBox(text, end.dx, end.dy, style, frame.textScaler, textAnchor: textAnchor));
     }
   }
 
@@ -208,7 +214,8 @@ class PolarPainter extends CustomPainter {
           endAngle: s.endAngle);
       final entry = LabelListEntry(value: s.value, payload: s.payload, viewBox: Rect.zero, fill: s.fill);
       final label = labelOfEntry(list, entry, i);
-      paintPolarLabel(canvas, label, viewBox, index: i, baseStyle: frame.textStyle, scaler: frame.textScaler);
+      paintPolarLabel(canvas, label, viewBox,
+          index: i, baseStyle: frame.textStyle, scaler: frame.textScaler, boxes: frame.labelBoxes);
     }
   }
 }
@@ -244,7 +251,7 @@ class PolarPainter extends CustomPainter {
 /// `<Label viewBox={polar}>`.
 // ponytail: the radial positions draw nothing; their textPath arrives with RadialBar.
 void paintPolarLabel(Canvas canvas, Label label, PolarViewBox viewBox,
-    {int? index, required TextStyle baseStyle, required TextScaler scaler}) {
+    {int? index, required TextStyle baseStyle, required TextScaler scaler, List<Rect>? boxes}) {
   final pos = getAttrsOfPolarLabel(viewBox, label.offset, label.position);
   if (pos == null) return;
   final style = labelTextStyle(label, baseStyle);
@@ -269,12 +276,36 @@ void paintPolarLabel(Canvas canvas, Label label, PolarViewBox viewBox,
   if (label.value == null) return;
   final value = label.formatter == null ? label.value : label.formatter!(label.value);
   if (value == null) return;
-  paintSvgText(canvas, jsString(value), pos.x, pos.y,
+  final text = jsString(value), textAnchor = label.textAnchor ?? pos.textAnchor;
+  paintSvgText(canvas, text, pos.x, pos.y,
       style: style,
-      textAnchor: label.textAnchor ?? pos.textAnchor,
+      textAnchor: textAnchor,
       verticalAnchor: pos.verticalAnchor,
       angle: label.angle,
       breakAll: label.textBreakAll,
       measureStyle: baseStyle,
       scaler: scaler);
+  if (label.angle == 0) {
+    boxes?.add(svgTextBox(text, pos.x, pos.y, style, scaler, textAnchor: textAnchor, verticalAnchor: pos.verticalAnchor));
+  }
+}
+
+/// The glyph cells of a one-line `<Text>` (the box SVG hit tests), placed
+/// like [paintSvgText] places it.
+Rect svgTextBox(String text, double x, double y, TextStyle style, TextScaler scaler,
+    {TextAnchor textAnchor = TextAnchor.start, TextVerticalAnchor verticalAnchor = TextVerticalAnchor.end}) {
+  final tp = textPainterFor(text, style, scaler);
+  final em = scaler.scale(style.fontSize ?? 14);
+  final baseline = y +
+      switch (verticalAnchor) {
+        TextVerticalAnchor.start => 0.71 * em,
+        TextVerticalAnchor.middle => 0.355 * em,
+        TextVerticalAnchor.end => 0.0,
+      };
+  final left = switch (textAnchor) {
+    TextAnchor.start => x,
+    TextAnchor.middle => x - tp.width / 2,
+    TextAnchor.end => x - tp.width,
+  };
+  return Rect.fromLTWH(left, baseline - tp.computeDistanceToActualBaseline(TextBaseline.alphabetic), tp.width, tp.height);
 }

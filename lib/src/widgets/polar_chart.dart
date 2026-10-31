@@ -385,6 +385,8 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin {
   _SectorHit? _sectorAt(Offset p) {
     final m = _model, frame = _frame;
     if (m == null || frame == null) return null;
+    // Labels are painted above the sectors.
+    if (frame.labelBoxes.any((r) => r.contains(p))) return null;
     final h = _view.value;
     for (final pie in m.pies.reversed) {
       if (pie.settings.hide || pie.sectors == null) continue;
@@ -656,5 +658,4 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin {
       child: Focus(focusNode: _focusNode, onKeyEvent: _onKey, child: content),
     );
   }
-
 }
