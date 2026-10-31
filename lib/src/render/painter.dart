@@ -22,11 +22,19 @@ import '../components.dart';
 import '../core/curve.dart';
 import '../engine/axis.dart';
 import '../engine/get_ticks.dart';
+import '../engine/funnel.dart';
 import '../engine/model.dart';
 import '../util.dart';
 import 'label.dart';
 import 'shapes.dart';
 import 'svg_text.dart';
+
+/// The trapezoids to draw now (the animation's step, else the target ones).
+List<FunnelTrapezoid>? currentTrapezoids(ChartFrame frame, FunnelModel f, {bool record = false}) {
+  final a = frame.funnelAnimators[f.id];
+  if (a == null) return f.trapezoids;
+  return record ? a.step(interpolateFunnelTrapezoids) : a.peek(interpolateFunnelTrapezoids);
+}
 
 enum ChartLayer { background, cursorBelow, main, activeBar, overlay, labels }
 
@@ -114,6 +122,7 @@ class ChartFrame {
     required this.lineAnimators,
     required this.lineLengths,
     this.areaBaseLines = const {},
+    this.funnelAnimators = const {},
   });
   final CartesianModel model;
   final List<RechartsElement> children;
@@ -125,6 +134,9 @@ class ChartFrame {
   final Map<String, SeriesAnimator<LinePoint>> lineAnimators;
   final Map<String, AnimatedLineLength> lineLengths;
   final Map<String, AreaBaseLineAnimation> areaBaseLines;
+
+  /// Funnel trapezoids by funnel id.
+  final Map<String, SeriesAnimator<FunnelTrapezoid>> funnelAnimators;
 
   /// The tick text style: inherited font + `fontSize` + tick props, filled with `stroke`.
   TextStyle tickStyle(CartesianAxisElement? axis) {
@@ -313,6 +325,17 @@ class CartesianPainter extends CustomPainter {
         }
       });
     }
+    // Funnels (no zIndex: the default layer), in document order.
+    for (final f in m.funnels) {
+      if (f.settings.hide) continue;
+      final ts = currentTrapezoids(frame, f, record: true);
+      if (ts == null) continue;
+      final active = hover?.value.activeIndex;
+      for (final t in ts) {
+        if (!trapezoidVisible(t)) continue;
+        _paintTrapezoid(canvas, f.settings, t, f.settings.activeShape != null && active == t.index);
+      }
+    }
     // Lines and reference lines (z 400), in document order.
     for (final c in frame.children) {
       if (c is Line) {
@@ -344,6 +367,18 @@ class CartesianPainter extends CustomPainter {
     }
     for (final c in frame.children) {
       if (c is ReferenceDot) _paintReferenceDot(canvas, c);
+    }
+  }
+
+  /// FunnelTrapezoid: the default shape, with the SvgStyle `activeShape` merged over it.
+  void _paintTrapezoid(Canvas canvas, Funnel f, FunnelTrapezoid t, bool active) {
+    final a = active && f.activeShape is SvgStyle ? f.activeShape as SvgStyle : null;
+    final path = trapezoidPath(t.x, t.y, t.upperWidth, t.lowerWidth, t.height);
+    canvas.drawPath(path, fillPaint(a?.fill ?? t.fill, opacity: a?.fillOpacity ?? t.fillOpacity ?? 1));
+    final stroke = a?.stroke ?? t.stroke;
+    if (stroke != null) {
+      drawStroke(canvas, path, strokePaint(stroke, a?.strokeWidth ?? t.strokeWidth ?? 1, opacity: a?.strokeOpacity ?? 1),
+          a?.strokeDasharray);
     }
   }
 
@@ -600,6 +635,10 @@ class CartesianPainter extends CustomPainter {
         if (r == null) continue;
         paintLabel(canvas, parseLabel(c.label), Rect.fromPoints(r.p1, r.p2),
             baseStyle: frame.textStyle, scaler: frame.textScaler);
+      } else if (c is Funnel) {
+        final f = m.funnels.where((f) => identical(f.settings, c)).firstOrNull;
+        if (f == null || f.settings.hide || (frame.funnelAnimators[f.id]?.isAnimating ?? false)) continue;
+        paintFunnelLabelLists(canvas, f, baseStyle: frame.textStyle, scaler: frame.textScaler);
       } else if (c is ReferenceArea && c.label != null) {
         final r = m.referenceAreas.where((r) => r.settings == c).firstOrNull;
         if (r == null) continue;

@@ -42,6 +42,8 @@ Widget buildChart(Map<String, dynamic> chart, {double? width, double? height}) {
         syncId: p.raw['syncId'], accessibilityLayer: p.raw['accessibilityLayer'] != false,
         children: children,
       );
+    case 'FunnelChart':
+      return FunnelChart(width: w, height: h, data: data, margin: margin, syncId: p.raw['syncId'], accessibilityLayer: p.raw['accessibilityLayer'] != false, children: children);
     case 'ComposedChart':
       return ComposedChart(
         width: w,
@@ -270,6 +272,32 @@ RechartsElement? _child(Map<String, dynamic> node) {
         isAnimationActive: p.boolean('isAnimationActive'),
         animationBegin: p.dbl('animationBegin')?.toInt() ?? 0,
         animationDuration: p.dbl('animationDuration')?.toInt() ?? 400,
+        animationEasing: p.str('animationEasing') ?? 'ease',
+        label: _labelList(p.raw['label']) ?? false,
+        children: [
+          for (final c in (node['children'] as List? ?? const []).cast<Map<String, dynamic>>())
+            if (c['type'] == 'Cell') _cell(_Props(c['props'] as Map<String, dynamic>? ?? const {})) else ?_child(c),
+        ],
+      );
+    case 'Funnel':
+      return Funnel(
+        dataKey: p.raw['dataKey'] as Object,
+        data: (p.raw['data'] as List?)?.cast<Object?>(),
+        nameKey: p.raw['nameKey'] ?? 'name',
+        name: p.raw['name'],
+        hide: p.boolean('hide') ?? false,
+        fill: p.color('fill') ?? const Color(0xFF808080),
+        fillOpacity: p.dbl('fillOpacity'),
+        stroke: p.raw.containsKey('stroke') ? p.color('stroke') : const Color(0xFFFFFFFF),
+        strokeWidth: p.dbl('strokeWidth'),
+        width: p.raw['width'],
+        reversed: p.boolean('reversed') ?? false,
+        lastShapeType: _enum(LastShapeType.values, p.str('lastShapeType')) ?? LastShapeType.triangle,
+        activeShape: p.svgOrBool('activeShape'),
+        tooltipType: p.str('tooltipType'),
+        isAnimationActive: p.boolean('isAnimationActive'),
+        animationBegin: p.dbl('animationBegin')?.toInt() ?? 400,
+        animationDuration: p.dbl('animationDuration')?.toInt() ?? 1500,
         animationEasing: p.str('animationEasing') ?? 'ease',
         label: _labelList(p.raw['label']) ?? false,
         children: [

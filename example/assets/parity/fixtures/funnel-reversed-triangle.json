@@ -1,0 +1,102 @@
+{
+ "width": 500,
+ "height": 300,
+ "chart": {
+  "type": "FunnelChart",
+  "props": {},
+  "children": [
+   {
+    "type": "Tooltip",
+    "props": {}
+   },
+   {
+    "type": "Legend",
+    "props": {}
+   },
+   {
+    "type": "Funnel",
+    "props": {
+     "dataKey": "value",
+     "data": [
+      {
+       "value": 100,
+       "name": "Impressions"
+      },
+      {
+       "value": 80,
+       "name": "Clicks"
+      },
+      {
+       "value": 50,
+       "name": "Visits"
+      },
+      {
+       "value": 40,
+       "name": "Inquiries"
+      },
+      {
+       "value": 26,
+       "name": "Orders"
+      }
+     ],
+     "reversed": true,
+     "lastShapeType": "triangle",
+     "isAnimationActive": false,
+     "fill": "#8884d8",
+     "activeShape": {
+      "fill": "orange",
+      "stroke": "blue",
+      "strokeWidth": 2
+     }
+    },
+    "children": [
+     {
+      "type": "LabelList",
+      "props": {
+       "position": "insideTop",
+       "dataKey": "name",
+       "fill": "#fff",
+       "stroke": "none"
+      }
+     }
+    ]
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-bottom",
+   "type": "hover",
+   "x": 250,
+   "y": 270
+  },
+  {
+   "id": "hover-mid",
+   "type": "hover",
+   "x": 250,
+   "y": 150
+  },
+  {
+   "id": "hover-right-edge",
+   "type": "hover",
+   "x": 485,
+   "y": 30
+  },
+  {
+   "id": "hover-leave",
+   "type": "hover",
+   "x": 250,
+   "y": 150,
+   "then": [
+    {
+     "id": "off",
+     "type": "hover",
+     "x": 2,
+     "y": 2
+    }
+   ]
+  }
+ ],
+ "name": "funnel-reversed-triangle",
+ "description": "Reversed funnel with a triangle last shape, activeShape and default LabelList."
+}

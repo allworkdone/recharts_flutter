@@ -30,6 +30,7 @@ import '../components.dart';
 import '../core/curve.dart';
 import '../core/js_math.dart' show jsRound;
 import '../engine/axis.dart' show GraphicalItem;
+import '../engine/funnel.dart';
 import '../engine/model.dart';
 import '../render/label.dart';
 import '../render/painter.dart';
@@ -175,6 +176,25 @@ class AreaChart extends CategoricalChart {
   String get chartName => 'AreaChart';
 }
 
+class FunnelChart extends CategoricalChart {
+  const FunnelChart({
+    super.key,
+    super.width,
+    super.height,
+    super.data,
+    super.margin,
+    super.syncId,
+    super.accessibilityLayer,
+    super.onClick,
+    super.onMouseEnter,
+    super.onMouseMove,
+    super.onMouseLeave,
+    super.children,
+  });
+  @override
+  String get chartName => 'FunnelChart';
+}
+
 /// The Brush panorama: the Brush's chart child cloned with the brush size,
 /// `padding` as margin and the full data (`compact`). Recharts renders it in
 /// the main chart's store, so axis settings, chart name and layout come from
@@ -296,6 +316,7 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
   final Map<String, SeriesAnimator<LinePoint>> _lineAnimators = {};
   final Map<String, AnimatedLineLength> _lineLengths = {};
   final Map<String, AreaBaseLineAnimation> _areaBaseLines = {};
+  final Map<String, SeriesAnimator<FunnelTrapezoid>> _funnelAnimators = {};
   final _ViewNotifier _view = _ViewNotifier();
 
   _Interaction _hover = const _Interaction();
@@ -350,6 +371,9 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
       a.dispose();
     }
     for (final a in _lineAnimators.values) {
+      a.dispose();
+    }
+    for (final a in _funnelAnimators.values) {
       a.dispose();
     }
     _view.dispose();
@@ -442,7 +466,8 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
 
   /// `combineTooltipEventType`: `shared={false}` selects 'item' where the
   /// chart validates it, and only BarChart does.
-  bool _isItemEventType(CartesianModel m) => m.tooltipSettings?.shared == false && m.chartName == 'BarChart';
+  bool _isItemEventType(CartesianModel m) =>
+      m.chartName == 'FunnelChart' || (m.tooltipSettings?.shared == false && m.chartName == 'BarChart');
 
   _Interaction _interactionState(CartesianModel m) {
     final tooltip = m.tooltipSettings;
@@ -471,6 +496,17 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
     return m.items.where((i) => i.id == id);
   }
 
+  /// `combineTooltipPayloadConfigurations` for a FunnelChart: the hovered funnel, else the first.
+  List<TooltipPayloadEntry> _funnelPayload(CartesianModel m, int? activeIndex) {
+    if (activeIndex == null || m.funnels.isEmpty) return const [];
+    final id = (m.tooltipSettings?.trigger == TooltipTrigger.click ? _itemClick : _itemHover).itemId;
+    final funnels = id == null ? [m.funnels.first] : m.funnels.where((f) => f.id == id);
+    return [
+      for (final f in funnels)
+        if (!f.settings.hide) ?funnelTooltipEntry(f, m.chartData, activeIndex),
+    ];
+  }
+
   _TooltipView _computeView(CartesianModel m) {
     final tooltip = m.tooltipSettings;
     final item = _isItemEventType(m);
@@ -480,8 +516,9 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
     final finalIsActive = tooltip?.active ?? isActive;
     var coordinate = state.coordinate;
     if (coordinate == null && tooltip?.defaultIndex != null) coordinate = _coordinateForIndex(m, tooltip!.defaultIndex!);
-    final payload =
-        tooltipPayloadOf(m, activeIndex, items: item ? _itemPayloadConfigurations(m) : null, itemEventType: item);
+    final payload = m.chartName == 'FunnelChart'
+        ? _funnelPayload(m, activeIndex)
+        : tooltipPayloadOf(m, activeIndex, items: item ? _itemPayloadConfigurations(m) : null, itemEventType: item);
     var finalPayload = finalIsActive ? payload : const <TooltipPayloadEntry>[];
     if (tooltip?.filterNull ?? true) {
       finalPayload = [
@@ -697,6 +734,16 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
     final m = _model, frame = _frame;
     if (m == null || frame == null) return null;
     final h = _view.value;
+    for (final f in m.funnels.reversed) {
+      if (f.settings.hide) continue;
+      for (final t in (currentTrapezoids(frame, f) ?? const <FunnelTrapezoid>[]).reversed) {
+        if (!trapezoidVisible(t)) continue;
+        if (trapezoidPath(t.x, t.y, t.upperWidth, t.lowerWidth, t.height).contains(p)) {
+          final target = f.trapezoids.where((x) => x.index == t.index).firstOrNull ?? t;
+          return (id: f.id, dataKey: f.settings.dataKey, index: t.index, tooltipPosition: target.tooltipPosition, background: false);
+        }
+      }
+    }
     final bars = [
       for (final s in m.series)
         if (s.item.element case final Bar bar when !s.item.hide) (s, bar),
@@ -873,6 +920,23 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
         _lineLengths.putIfAbsent(id, AnimatedLineLength.new);
       }
     }
+    final liveFunnels = <String>{};
+    for (final f in m.funnels) {
+      final el = f.settings;
+      liveFunnels.add(f.id);
+      _funnelAnimators
+          .putIfAbsent(f.id, () => SeriesAnimator<FunnelTrapezoid>(this, matchBy: MatchBy.append))
+          .update(el.hide || f.trapezoids.isEmpty ? null : f.trapezoids,
+              active: el.isAnimationActive ?? !reducedMotion,
+              begin: el.animationBegin,
+              duration: el.animationDuration,
+              easing: el.animationEasing,
+              onAnimationStart: el.onAnimationStart,
+              onAnimationEnd: el.onAnimationEnd);
+    }
+    for (final id in _funnelAnimators.keys.where((k) => !liveFunnels.contains(k)).toList()) {
+      _funnelAnimators.remove(id)!.dispose();
+    }
     for (final id in _barAnimators.keys.where((k) => !live.contains(k)).toList()) {
       _barAnimators.remove(id)!.dispose();
     }
@@ -985,13 +1049,16 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
       lineAnimators: _lineAnimators,
       lineLengths: _lineLengths,
       areaBaseLines: _areaBaseLines,
+      funnelAnimators: _funnelAnimators,
     );
     final animations = Listenable.merge([
       for (final a in _barAnimators.values) a.controller,
       for (final a in _lineAnimators.values) a.controller,
+      for (final a in _funnelAnimators.values) a.controller,
     ]);
     // Bars move between the main and activeBar layers as the tooltip moves.
     final hasActiveBar = m.series.any((s) => s.item.element is Bar && (s.item.element as Bar).activeBar != false);
+    final hasActiveShape = m.funnels.any((f) => f.settings.activeShape != null);
     final animationsAndView = Listenable.merge([animations, _view]);
 
     Widget layer(ChartLayer l, {Listenable? repaint}) => Positioned.fill(
@@ -1034,7 +1101,7 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
             ),
           ),
         layer(ChartLayer.cursorBelow, repaint: _view),
-        layer(ChartLayer.main, repaint: hasActiveBar ? animationsAndView : animations),
+        layer(ChartLayer.main, repaint: hasActiveBar || hasActiveShape ? animationsAndView : animations),
         if (hasActiveBar) layer(ChartLayer.activeBar, repaint: animationsAndView),
         layer(ChartLayer.overlay, repaint: _view),
         // Repaints when a series finishes animating and its LabelLists appear.

@@ -852,6 +852,72 @@ class ReferenceLine extends RechartsElement {
   final BandPosition position;
 }
 
+enum LastShapeType { triangle, rectangle }
+
+/// src/cartesian/Funnel.tsx. Child of [FunnelChart]; [children] are [Cell]s and [LabelList]s.
+class Funnel extends RechartsElement {
+  const Funnel({
+    required this.dataKey,
+    this.data,
+    this.nameKey = 'name',
+    this.name,
+    this.hide = false,
+    this.fill = const Color(0xFF808080),
+    this.fillOpacity,
+    this.stroke = const Color(0xFFFFFFFF),
+    this.strokeWidth,
+    this.width,
+    this.reversed = false,
+    this.lastShapeType = LastShapeType.triangle,
+    this.legendType = LegendType.rect,
+    this.tooltipType,
+    this.formatter,
+    this.activeShape,
+    this.isAnimationActive,
+    this.animationBegin = 400,
+    this.animationDuration = 1500,
+    this.animationEasing = 'ease',
+    this.onAnimationStart,
+    this.onAnimationEnd,
+    this.id,
+    this.label = false,
+    this.children = const [],
+  });
+  final Object dataKey;
+  final List<Object?>? data;
+  final Object nameKey;
+  final Object? name;
+  final bool hide;
+  final Color fill;
+  final double? fillOpacity;
+  final Color? stroke;
+  final double? strokeWidth;
+
+  /// A number or a percent string of the plot width.
+  final Object? width;
+  final bool reversed;
+  final LastShapeType lastShapeType;
+  final LegendType legendType;
+  final String? tooltipType;
+  final TooltipFormatter? formatter;
+
+  /// Drawn over the active trapezoid: an [SvgStyle] merged over its props, or `true`.
+  final Object? activeShape;
+
+  /// `null` is `'auto'`.
+  final bool? isAnimationActive;
+  final int animationBegin;
+  final int animationDuration;
+  final Object animationEasing;
+  final VoidCallback? onAnimationStart;
+  final VoidCallback? onAnimationEnd;
+  final String? id;
+
+  /// `true`, a [LabelList], or a [LabelPainter].
+  final Object label;
+  final List<RechartsElement> children;
+}
+
 /// src/cartesian/ReferenceArea.tsx. A missing `x1`/`x2`/`y1`/`y2` spans the plot area on that side.
 class ReferenceArea extends RechartsElement {
   const ReferenceArea({

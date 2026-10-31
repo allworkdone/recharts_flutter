@@ -10,6 +10,7 @@ import 'dart:math' as math;
 import 'package:flutter/painting.dart';
 
 import '../components.dart';
+import '../engine/funnel.dart';
 import '../engine/model.dart';
 import '../util.dart';
 import 'svg_text.dart';
@@ -28,7 +29,11 @@ typedef CartesianLabelPosition = ({
 /// negative). With [clamp] and a [parentViewBox], the size the text may wrap
 /// in comes back as `width` / `height`.
 CartesianLabelPosition getCartesianPosition(Rect viewBox, LabelPosition position, double offset,
-    {Rect? parentViewBox, bool clamp = false}) {
+    {Rect? parentViewBox, bool clamp = false, ({double upper, double lower})? trapezoid}) {
+  if (trapezoid != null) {
+    return _trapezoidPosition(viewBox, trapezoid.upper, trapezoid.lower, position, offset,
+        parentViewBox: clamp ? parentViewBox : null);
+  }
   final x = viewBox.left, y = viewBox.top, width = viewBox.width, height = viewBox.height;
   final verticalSign = height >= 0 ? 1 : -1;
   final verticalOffset = verticalSign * offset;
@@ -74,6 +79,61 @@ CartesianLabelPosition getCartesianPosition(Rect viewBox, LabelPosition position
   };
 }
 
+/// `getCartesianPosition` for a Funnel's trapezoid view box: `x` is the top-left of the upper
+/// side, the lower side is centered under it.
+CartesianLabelPosition _trapezoidPosition(Rect viewBox, double upperWidth, double lowerWidth, LabelPosition position,
+    double offset,
+    {Rect? parentViewBox}) {
+  final x = viewBox.left, y = viewBox.top, height = viewBox.height;
+  final upperX = x;
+  final lowerX = x + (upperWidth - lowerWidth) / 2;
+  final middleX = (upperX + lowerX) / 2;
+  final midHeightWidth = (upperWidth + lowerWidth) / 2;
+  final centerX = upperX + upperWidth / 2;
+  final verticalSign = height >= 0 ? 1 : -1;
+  final verticalOffset = verticalSign * offset;
+  final verticalEnd = verticalSign > 0 ? TextVerticalAnchor.end : TextVerticalAnchor.start;
+  final verticalStart = verticalSign > 0 ? TextVerticalAnchor.start : TextVerticalAnchor.end;
+  final horizontalSign = upperWidth >= 0 ? 1 : -1;
+  final horizontalOffset = horizontalSign * offset;
+  final horizontalEnd = horizontalSign > 0 ? TextAnchor.end : TextAnchor.start;
+  final horizontalStart = horizontalSign > 0 ? TextAnchor.start : TextAnchor.end;
+  final p = parentViewBox;
+
+  CartesianLabelPosition at(double px, double py, TextAnchor h, TextVerticalAnchor v, {double? w, double? hh}) =>
+      (x: px, y: py, horizontalAnchor: h, verticalAnchor: v, width: w, height: hh);
+
+  switch (position) {
+    case LabelPosition.top:
+      return at(upperX + upperWidth / 2, y - verticalOffset, TextAnchor.middle, verticalEnd,
+          w: p == null ? null : upperWidth, hh: p == null ? null : math.max(y - p.top, 0));
+    case LabelPosition.bottom:
+      return at(lowerX + lowerWidth / 2, y + height + verticalOffset, TextAnchor.middle, verticalStart,
+          w: p == null ? null : lowerWidth, hh: p == null ? null : math.max(p.top + p.height - (y + height), 0));
+    case LabelPosition.left:
+      final lx = middleX - horizontalOffset;
+      return at(lx, y + height / 2, horizontalEnd, TextVerticalAnchor.middle,
+          w: p == null ? null : math.max(lx - p.left, 0), hh: p == null ? null : height);
+    case LabelPosition.right:
+      final rx = middleX + midHeightWidth + horizontalOffset;
+      return at(rx, y + height / 2, horizontalStart, TextVerticalAnchor.middle,
+          w: p == null ? null : math.max(p.left + p.width - rx, 0), hh: p == null ? null : height);
+    default:
+  }
+  final w = p == null ? null : midHeightWidth, h = p == null ? null : height;
+  return switch (position) {
+    LabelPosition.insideLeft => at(middleX + horizontalOffset, y + height / 2, horizontalStart, TextVerticalAnchor.middle, w: w, hh: h),
+    LabelPosition.insideRight => at(middleX + midHeightWidth - horizontalOffset, y + height / 2, horizontalEnd, TextVerticalAnchor.middle, w: w, hh: h),
+    LabelPosition.insideTop => at(upperX + upperWidth / 2, y + verticalOffset, TextAnchor.middle, verticalStart, w: w, hh: h),
+    LabelPosition.insideBottom => at(lowerX + lowerWidth / 2, y + height - verticalOffset, TextAnchor.middle, verticalEnd, w: w, hh: h),
+    LabelPosition.insideTopLeft => at(upperX + horizontalOffset, y + verticalOffset, horizontalStart, verticalStart, w: w, hh: h),
+    LabelPosition.insideTopRight => at(upperX + upperWidth - horizontalOffset, y + verticalOffset, horizontalEnd, verticalStart, w: w, hh: h),
+    LabelPosition.insideBottomLeft => at(lowerX + horizontalOffset, y + height - verticalOffset, horizontalStart, verticalEnd, w: w, hh: h),
+    LabelPosition.insideBottomRight => at(lowerX + lowerWidth - horizontalOffset, y + height - verticalOffset, horizontalEnd, verticalEnd, w: w, hh: h),
+    _ => at(centerX, y + height / 2, TextAnchor.middle, TextVerticalAnchor.middle, w: w, hh: h),
+  };
+}
+
 /// `parseLabel`: the `label` prop of an axis or ReferenceLine.
 Label? parseLabel(Object? label) => switch (label) {
       Label l => l,
@@ -96,11 +156,13 @@ typedef LabelLayout = ({
   double? width,
 });
 
-LabelLayout? layoutLabel(Label label, Rect viewBox, {Rect? parentViewBox}) {
+LabelLayout? layoutLabel(Label label, Rect viewBox,
+    {Rect? parentViewBox, ({double upper, double lower})? trapezoid}) {
   if (label.value == null) return null;
   final value = label.formatter == null ? label.value : label.formatter!(label.value);
   if (value == null) return null;
-  final pos = getCartesianPosition(viewBox, label.position, label.offset, parentViewBox: parentViewBox, clamp: true);
+  final pos = getCartesianPosition(viewBox, label.position, label.offset,
+      parentViewBox: parentViewBox, clamp: true, trapezoid: trapezoid);
   return (
     text: jsString(value),
     x: pos.x,
@@ -113,11 +175,16 @@ LabelLayout? layoutLabel(Label label, Rect viewBox, {Rect? parentViewBox}) {
 
 /// Draws [label] in [viewBox] (`<Label viewBox>`); [baseStyle] is the inherited text style.
 void paintLabel(Canvas canvas, Label? label, Rect viewBox,
-    {Rect? parentViewBox, int? index, required TextStyle baseStyle, required TextScaler scaler}) {
+    {Rect? parentViewBox,
+    int? index,
+    ({double upper, double lower})? trapezoid,
+    required TextStyle baseStyle,
+    required TextScaler scaler}) {
   if (label == null) return;
   final style = labelTextStyle(label, baseStyle);
   if (label.content != null) {
-    final pos = getCartesianPosition(viewBox, label.position, label.offset, parentViewBox: parentViewBox, clamp: true);
+    final pos = getCartesianPosition(viewBox, label.position, label.offset,
+        parentViewBox: parentViewBox, clamp: true, trapezoid: trapezoid);
     label.content!(
       canvas,
       LabelProps(
@@ -134,7 +201,7 @@ void paintLabel(Canvas canvas, Label? label, Rect viewBox,
     );
     return;
   }
-  final l = layoutLabel(label, viewBox, parentViewBox: parentViewBox);
+  final l = layoutLabel(label, viewBox, parentViewBox: parentViewBox, trapezoid: trapezoid);
   if (l == null) return;
   paintSvgText(canvas, l.text, l.x, l.y,
       style: style,
@@ -213,6 +280,29 @@ Label labelOfEntry(LabelList list, LabelListEntry entry, int index) {
     formatter: list.formatter,
     content: list.content,
   );
+}
+
+/// Funnel: `LabelListFromLabelProp` then its `LabelList` children (FunnelLabelListProvider entries).
+void paintFunnelLabelLists(Canvas canvas, FunnelModel f, {required TextStyle baseStyle, required TextScaler scaler}) {
+  final fromProp = switch (f.settings.label) {
+    true => const LabelList(),
+    LabelList l => l,
+    LabelPainter p => LabelList(content: p),
+    _ => null,
+  };
+  final lists = [?fromProp, ...f.settings.children.whereType<LabelList>()];
+  for (final list in lists) {
+    for (final t in f.trapezoids) {
+      final e = LabelListEntry(
+          value: t.name, payload: t.payload, viewBox: t.labelViewBox, fill: t.fill, parentViewBox: t.parentViewBox);
+      paintLabel(canvas, labelOfEntry(list, e, t.index), e.viewBox,
+          parentViewBox: e.parentViewBox,
+          index: t.index,
+          trapezoid: (upper: t.upperWidth, lower: t.lowerWidth),
+          baseStyle: baseStyle,
+          scaler: scaler);
+    }
+  }
 }
 
 void paintLabelLists(Canvas canvas, SeriesModel s, Size chartSize,

@@ -20,6 +20,7 @@ import '../core/curve.dart';
 import '../core/scale.dart';
 import '../util.dart';
 import 'axis.dart';
+import 'funnel.dart';
 import 'get_ticks.dart';
 
 class ChartOffset {
@@ -163,6 +164,7 @@ class CartesianModel {
     required this.referenceLines,
     this.referenceAreas = const [],
     this.referenceDots = const [],
+    this.funnels = const [],
     required this.tooltipAxis,
     required this.tooltipTicks,
     required this.tooltipSettings,
@@ -184,6 +186,9 @@ class CartesianModel {
   final List<ReferenceLineModel> referenceLines;
   final List<ReferenceAreaModel> referenceAreas;
   final List<ReferenceDotModel> referenceDots;
+
+  /// FunnelChart only.
+  final List<FunnelModel> funnels;
   final AxisRuntime tooltipAxis;
   final List<TickItem> tooltipTicks;
   final Tooltip? tooltipSettings;
@@ -559,6 +564,17 @@ CartesianModel computeCartesianModel({
     dotModels.add(ReferenceDotModel(r, Offset(cx, cy)));
   }
 
+  // Funnels (collectItems skips them: they have no axes)
+  final funnelModels = <FunnelModel>[];
+  if (chartName == 'FunnelChart') {
+    var n = 0;
+    for (final c in children) {
+      if (c is Funnel) {
+        funnelModels.add(FunnelModel(c.id ?? 'recharts-funnel-${n++}', c, c.hide ? const [] : computeFunnelTrapezoids(c, data, offset)));
+      }
+    }
+  }
+
   // Tooltip axis ticks (combineTicksOfTooltipAxis).
   final tooltipAxis = layout == ChartLayout.horizontal ? xRt(tooltipAxisId) : yRt(tooltipAxisId);
   final tooltipTicks = _tooltipTicks(tooltipAxis);
@@ -575,6 +591,7 @@ CartesianModel computeCartesianModel({
     referenceLines: refModels,
     referenceAreas: areaModels,
     referenceDots: dotModels,
+    funnels: funnelModels,
     tooltipAxis: tooltipAxis,
     tooltipTicks: tooltipTicks,
     tooltipSettings: tooltip,
