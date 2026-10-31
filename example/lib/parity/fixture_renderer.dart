@@ -116,7 +116,7 @@ RechartsElement? _child(Map<String, dynamic> node) {
         allowDecimals: p.boolean('allowDecimals') ?? true,
         allowDuplicatedCategory: p.boolean('allowDuplicatedCategory') ?? true,
         angle: p.dbl('angle') ?? 0,
-        width: p.dbl('width') ?? 60,
+        width: p.raw['width'] == 'auto' ? 'auto' : p.dbl('width') ?? 60,
         hide: p.boolean('hide') ?? false,
         interval: p.interval() ?? AxisInterval.preserveEnd,
         minTickGap: p.dbl('minTickGap') ?? 5,

@@ -1,7 +1,9 @@
 // Ports of src/component/Label.tsx and LabelList.tsx for cartesian charts:
 // getCartesianPosition (src/cartesian/getCartesianPosition.tsx, rectangles
 // only), parseLabel / LabelListFromLabelProp, BarLabelListProvider and
-// LineLabelListProvider entries.
+// LineLabelListProvider entries; plus getCalculatedYAxisWidth
+// (src/util/YAxisUtils.tsx) and the updateYAxisWidth reducer
+// (src/state/cartesianAxisSlice.ts) behind `YAxis(width: 'auto')`.
 
 import 'dart:math' as math;
 
@@ -222,5 +224,77 @@ void paintLabelLists(Canvas canvas, SeriesModel s, Size chartSize,
       paintLabel(canvas, labelOfEntry(list, e, i), e.viewBox,
           parentViewBox: e.parentViewBox, index: i, baseStyle: baseStyle, scaler: scaler);
     }
+  }
+}
+
+// ---------------------------------------------------------------- YAxis width 'auto'
+
+/// Blink's SVG text line box: rounded ascent + rounded descent.
+double _lineBoxHeight(TextStyle style, TextScaler scaler) {
+  final tp = textPainterFor('x', style, scaler);
+  final ascent = tp.computeDistanceToActualBaseline(TextBaseline.alphabetic);
+  return (ascent + 0.5).floorToDouble() + (tp.height - ascent + 0.5).floorToDouble();
+}
+
+/// `getBoundingClientRect().width` of a `<text>`: its bbox (advance width by
+/// line boxes 1em apart) rotated by [angle].
+double _clientWidth(List<String> lines, TextStyle style, TextScaler scaler, double angle) {
+  var w = 0.0;
+  for (final l in lines) {
+    w = math.max(w, measureText(l, style, scaler).width);
+  }
+  if (angle == 0) return w;
+  final h = (lines.length - 1) * scaler.scale(style.fontSize ?? 14) + _lineBoxHeight(style, scaler);
+  final a = angle * math.pi / 180;
+  return (w * math.cos(a)).abs() + (h * math.sin(a)).abs();
+}
+
+/// `getCalculatedYAxisWidth`: widest rendered tick label + tickSize +
+/// tickMargin, plus the label and a 5px gap when a label renders, rounded.
+double getCalculatedYAxisWidth(AxisLayout a,
+    {required TextStyle tickStyle, required TextStyle baseStyle, required TextScaler scaler}) {
+  final s = a.settings;
+  var maxTickWidth = 0.0;
+  // Only the default tick (`.recharts-cartesian-axis-tick-value`) is measured.
+  if (s.tick != false && s.tick is! TickPainter) {
+    for (var i = 0; i < a.ticks.length; i++) {
+      final t = a.ticks[i];
+      final text = '${s.tickFormatter != null ? s.tickFormatter!(t.value, i) : jsString(t.value)}${s.unit ?? ''}';
+      final lines = [for (final l in getWordsByLines(text, style: tickStyle, scaler: scaler)) l.words.join(' ')];
+      maxTickWidth = math.max(maxTickWidth, _clientWidth(lines, tickStyle, scaler, s.angle));
+    }
+  }
+  var labelWidth = 0.0;
+  var hasLabel = false;
+  final label = parseLabel(s.label);
+  final l = label == null || label.content != null ? null : layoutLabel(label, a.rect);
+  if (l != null) {
+    hasLabel = true;
+    final lines = [
+      for (final w in getWordsByLines(l.text, width: l.width, breakAll: label!.textBreakAll, style: baseStyle, scaler: scaler))
+        w.words.join(label.textBreakAll ? '' : ' '),
+    ];
+    labelWidth = _clientWidth(lines, labelTextStyle(label, baseStyle), scaler, label.angle);
+  }
+  return jsRound(maxTickWidth + s.tickSize + s.tickMargin + labelWidth + (hasLabel ? 5 : 0));
+}
+
+/// A `YAxis(width: 'auto')` entry of the axis state: the measured width and
+/// `widthHistory`, reset whenever the axis settings are replaced.
+class AutoYAxisWidth {
+  AutoYAxisWidth(this.settings);
+  final YAxis settings;
+  double? width;
+  List<double> history = const [];
+
+  /// `updateYAxisWidth`: ignores a <= 1px A -> B -> A -> B oscillation.
+  /// Returns whether the width changed.
+  bool update(double next) {
+    final h = history;
+    if (h.length == 3 && h[0] == h[2] && next == h[1] && next != width && (next - h[0]).abs() <= 1) return false;
+    history = [...h, next].skip(math.max(0, h.length + 1 - 3)).toList();
+    final changed = next != width;
+    width = next;
+    return changed;
   }
 }

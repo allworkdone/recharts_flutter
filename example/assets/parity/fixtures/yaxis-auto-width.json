@@ -1,0 +1,117 @@
+{
+ "name": "yaxis-auto-width",
+ "description": "YAxis width auto: wide ticks plus a rotated label on the left, no label on the right.",
+ "width": 500,
+ "height": 300,
+ "chart": {
+  "type": "LineChart",
+  "props": {
+   "data": [
+    {
+     "name": "Jan",
+     "revenue": 1250000,
+     "units": 12
+    },
+    {
+     "name": "Feb",
+     "revenue": 2380000,
+     "units": 35
+    },
+    {
+     "name": "Mar",
+     "revenue": 3410000,
+     "units": 48
+    },
+    {
+     "name": "Apr",
+     "revenue": 1890000,
+     "units": 27
+    },
+    {
+     "name": "May",
+     "revenue": 4520000,
+     "units": 98
+    },
+    {
+     "name": "Jun",
+     "revenue": 3960000,
+     "units": 76
+    }
+   ],
+   "margin": {
+    "top": 5,
+    "right": 5,
+    "left": 5,
+    "bottom": 5
+   }
+  },
+  "children": [
+   {
+    "type": "CartesianGrid",
+    "props": {
+     "strokeDasharray": "3 3"
+    }
+   },
+   {
+    "type": "XAxis",
+    "props": {
+     "dataKey": "name"
+    }
+   },
+   {
+    "type": "YAxis",
+    "props": {
+     "width": "auto",
+     "label": {
+      "value": "Revenue (USD)",
+      "angle": -90,
+      "position": "insideLeft"
+     }
+    }
+   },
+   {
+    "type": "YAxis",
+    "props": {
+     "yAxisId": "units",
+     "orientation": "right",
+     "width": "auto"
+    }
+   },
+   {
+    "type": "Tooltip",
+    "props": {}
+   },
+   {
+    "type": "Line",
+    "props": {
+     "type": "monotone",
+     "dataKey": "revenue",
+     "stroke": "#8884d8"
+    }
+   },
+   {
+    "type": "Line",
+    "props": {
+     "type": "monotone",
+     "dataKey": "units",
+     "yAxisId": "units",
+     "stroke": "#82ca9d"
+    }
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-mar",
+   "type": "hover",
+   "x": 200,
+   "y": 150
+  },
+  {
+   "id": "hover-right",
+   "type": "hover",
+   "x": 440,
+   "y": 150
+  }
+ ]
+}

@@ -1,13 +1,16 @@
 // Coordinates ported from Recharts 3.10.1 specs: getCartesianPosition.spec.ts,
-// YAxis.label.spec.tsx, Bar.spec.tsx ('label'), LabelList.spec.tsx and
-// Line.animation.spec.tsx (expectedUvLabels). The chart specs run in jsdom,
-// where text measures 0x0 unless getBoundingClientRect is mocked.
+// YAxis.label.spec.tsx, Bar.spec.tsx ('label'), Line.animation.spec.tsx
+// (expectedUvLabels), YAxis.spec.tsx ('dynamically calculated width') and
+// cartesianAxisSlice.spec.ts. The chart specs run in jsdom, where text
+// measures 0x0 unless getBoundingClientRect is mocked.
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:recharts_flutter/recharts_flutter.dart';
 import 'package:recharts_flutter/src/engine/model.dart';
 import 'package:recharts_flutter/src/render/label.dart';
+import 'package:recharts_flutter/src/render/painter.dart';
+import 'package:recharts_flutter/src/render/svg_text.dart';
 
 CartesianModel model(String chartName, double w, double h, List<Object?> data, List<RechartsElement> children) =>
     computeCartesianModel(
@@ -168,7 +171,24 @@ void main() {
     expect(seriesLabelLists(const Bar(dataKey: 'uv', label: true, children: [child])).last, same(child));
   });
 
+  test('updateYAxisWidth stops a <= 1px oscillation (cartesianAxisSlice.spec.ts)', () {
+    final w = AutoYAxisWidth(const YAxis(width: 'auto'));
+    for (final next in [50.0, 51.0, 50.0]) {
+      expect(w.update(next), isTrue);
+    }
+    expect(w.update(51), isFalse);
+    expect(w.width, 50);
+
+    final wide = AutoYAxisWidth(const YAxis(width: 'auto'));
+    for (final next in [50.0, 52.0, 50.0, 52.0]) {
+      wide.update(next);
+    }
+    expect(wide.width, 52);
+  });
+
   group('widget', () {
+    tearDown(() => debugTextMeasurerOverride = null);
+
     Widget host(Widget chart) => MediaQuery(
           data: const MediaQueryData(),
           child: Directionality(
@@ -176,6 +196,36 @@ void main() {
             child: DefaultTextStyle(style: const TextStyle(fontSize: 12), child: Align(alignment: Alignment.topLeft, child: chart)),
           ),
         );
+
+    CartesianModel paintedModel(WidgetTester tester) =>
+        (tester.widget<CustomPaint>(find.byType(CustomPaint).first).painter! as CartesianPainter).frame.model;
+
+    testWidgets('YAxis width auto: widest tick + tickSize + tickMargin (YAxis.spec.tsx)', (tester) async {
+      debugTextMeasurerOverride = (_, _) => const Size(80, 30);
+      const data = [
+        {'name': 'Page A', 'uv': 400, 'pv': 2400, 'amt': 2400},
+        {'name': 'Page B', 'uv': 300, 'pv': 1398, 'amt': 2400},
+        {'name': 'Page C', 'uv': 200, 'pv': 9800, 'amt': 2400},
+        {'name': 'Page D', 'uv': 278, 'pv': 3908, 'amt': 2400},
+        {'name': 'Page E', 'uv': 189, 'pv': 4800, 'amt': 2400},
+      ];
+      await tester.pumpWidget(host(const BarChart(width: 400, height: 300, data: data, children: [
+        YAxis(width: 'auto', ticks: [0, 800, 1600, 2400]),
+        Bar(dataKey: 'amt', isAnimationActive: false),
+      ])));
+      final m = paintedModel(tester);
+      expect(m.axes.single.rect.width, 88);
+      expect(m.offset.left, 5 + 88);
+    });
+
+    testWidgets('YAxis width auto adds the label width and a 5px gap', (tester) async {
+      debugTextMeasurerOverride = (_, _) => const Size(80, 30);
+      await tester.pumpWidget(host(const LineChart(width: 400, height: 300, data: pageData, children: [
+        YAxis(width: 'auto', label: 'Views'),
+        Line(dataKey: 'uv', isAnimationActive: false),
+      ])));
+      expect(paintedModel(tester).axes.single.rect.width, 80 + 6 + 2 + 80 + 5);
+    });
 
     testWidgets('LabelList stays hidden while the line animates, then shows', (tester) async {
       final seen = <Offset>[];

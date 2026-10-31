@@ -264,6 +264,7 @@ CartesianModel computeCartesianModel({
   bool panorama = false,
   ChartOffset? rootOffset,
   Size? rootSize,
+  Map<Object, double> yAxisWidths = const {},
 }) {
   final chartWidth = size.width, chartHeight = size.height;
   final xAxes = _byId(children.whereType<XAxis>());
@@ -279,10 +280,13 @@ CartesianModel computeCartesianModel({
   final dataEnd = dataEndIndex ?? (data.isEmpty ? 0 : data.length - 1);
   final displayedData = jsSlice(data, dataStartIndex, dataEnd + 1);
 
+  // YAxis width: a number, or the measured 'auto' width (DEFAULT_Y_AXIS_WIDTH until measured).
+  double yWidth(YAxis a) => a.width is num ? (a.width as num).toDouble() : yAxisWidths[a.id] ?? 60;
+
   // selectChartOffsetInternal; the panorama's viewBox is the brush minus its padding.
   double sumY(AxisOrientation o) => yAxes.values
       .where((a) => a.orientation == o && !a.mirror && !a.hide)
-      .fold(0.0, (r, a) => r + a.width);
+      .fold(0.0, (r, a) => r + yWidth(a));
   double sumX(AxisOrientation o) => xAxes.values
       .where((a) => a.orientation == o && !a.mirror && !a.hide)
       .fold(0.0, (r, a) => r + a.height);
@@ -410,9 +414,9 @@ CartesianModel computeCartesianModel({
     final start = a.orientation == AxisOrientation.left ? offset.left : chartWidth - offset.right;
     final needSpace =
         (a.orientation == AxisOrientation.left && !a.mirror) || (a.orientation == AxisOrientation.right && a.mirror);
-    final x = steps<YAxis>(yAxes.values, a.orientation, a.mirror, start, needSpace, (y) => y.width)[a.id] ?? 0;
+    final x = steps<YAxis>(yAxes.values, a.orientation, a.mirror, start, needSpace, yWidth)[a.id] ?? 0;
     if (a.hide || panorama) continue;
-    final rect = Rect.fromLTWH(x, offset.top, a.width, offset.height);
+    final rect = Rect.fromLTWH(x, offset.top, yWidth(a), offset.height);
     axes.add(AxisLayout(yRt(a.id), rect, _visibleTicks(yRt(a.id), axisViewBox, measureFor(a))));
   }
 

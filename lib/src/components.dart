@@ -396,7 +396,7 @@ abstract class CartesianAxisElement extends RechartsElement {
   final double? fontSize;
 
   /// A String, a num or a [Label], drawn in the axis box. It never changes the
-  /// axis size.
+  /// axis size, except through `YAxis(width: 'auto')`.
   final Object? label;
 
   bool get isX;
@@ -481,12 +481,15 @@ class YAxis extends CartesianAxisElement {
     super.textAnchor,
     super.fontSize,
     super.label,
-  }) : super(id: yAxisId);
+  })  : assert(width is num || width == 'auto'),
+        super(id: yAxisId);
 
   Object get yAxisId => id;
 
-  /// Recharts also accepts `'auto'`; only numbers are supported here.
-  final double width;
+  /// A number, or `'auto'` to size the axis to its widest tick label plus
+  /// `tickSize + tickMargin`, plus the label and a 5px gap when [label] is set
+  /// (`getCalculatedYAxisWidth`). Until measured, `'auto'` counts as 60.
+  final Object width;
 
   @override
   bool get isX => false;

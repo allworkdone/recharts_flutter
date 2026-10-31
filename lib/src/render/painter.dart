@@ -397,7 +397,7 @@ class CartesianPainter extends CustomPainter {
           textAnchor: anchor,
           verticalAnchor: vAnchor,
           angle: s.angle,
-          width: s is YAxis ? s.width : null,
+          width: s is YAxis && s.width is num ? (s.width as num).toDouble() : null,
           scaler: frame.textScaler);
     }
   }
