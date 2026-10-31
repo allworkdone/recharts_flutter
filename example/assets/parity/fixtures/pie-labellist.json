@@ -1,0 +1,102 @@
+{
+ "name": "pie-labellist",
+ "description": "LabelList children of a donut: names at the middle radius, values outside.",
+ "width": 400,
+ "height": 400,
+ "chart": {
+  "type": "PieChart",
+  "props": {},
+  "children": [
+   {
+    "type": "Pie",
+    "props": {
+     "data": [
+      {
+       "name": "Group A",
+       "value": 400
+      },
+      {
+       "name": "Group B",
+       "value": 300
+      },
+      {
+       "name": "Group C",
+       "value": 300
+      },
+      {
+       "name": "Group D",
+       "value": 200
+      }
+     ],
+     "dataKey": "value",
+     "innerRadius": 50,
+     "outerRadius": 120
+    },
+    "children": [
+     {
+      "type": "Cell",
+      "props": {
+       "fill": "#0088FE"
+      }
+     },
+     {
+      "type": "Cell",
+      "props": {
+       "fill": "#00C49F"
+      }
+     },
+     {
+      "type": "Cell",
+      "props": {
+       "fill": "#FFBB28"
+      }
+     },
+     {
+      "type": "Cell",
+      "props": {
+       "fill": "#FF8042"
+      }
+     },
+     {
+      "type": "LabelList",
+      "props": {
+       "dataKey": "name",
+       "fill": "#ffffff"
+      }
+     },
+     {
+      "type": "LabelList",
+      "props": {
+       "position": "outside",
+       "offset": 12
+      }
+     }
+    ]
+   },
+   {
+    "type": "Tooltip",
+    "props": {}
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-a",
+   "type": "hover",
+   "x": 280,
+   "y": 160
+  },
+  {
+   "id": "hover-name",
+   "type": "hover",
+   "x": 242,
+   "y": 126
+  },
+  {
+   "id": "hover-outside",
+   "type": "hover",
+   "x": 380,
+   "y": 380
+  }
+ ]
+}

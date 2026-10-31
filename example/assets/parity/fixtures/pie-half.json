@@ -1,0 +1,96 @@
+{
+ "name": "pie-half",
+ "description": "Half pie from 180 to 0 degrees with labels and a Legend.",
+ "width": 400,
+ "height": 300,
+ "chart": {
+  "type": "PieChart",
+  "props": {},
+  "children": [
+   {
+    "type": "Pie",
+    "props": {
+     "data": [
+      {
+       "name": "Group A",
+       "value": 400
+      },
+      {
+       "name": "Group B",
+       "value": 300
+      },
+      {
+       "name": "Group C",
+       "value": 300
+      },
+      {
+       "name": "Group D",
+       "value": 200
+      }
+     ],
+     "dataKey": "value",
+     "startAngle": 180,
+     "endAngle": 0,
+     "cy": "70%",
+     "outerRadius": 100,
+     "fill": "#8884d8",
+     "label": true
+    },
+    "children": [
+     {
+      "type": "Cell",
+      "props": {
+       "fill": "#0088FE"
+      }
+     },
+     {
+      "type": "Cell",
+      "props": {
+       "fill": "#00C49F"
+      }
+     },
+     {
+      "type": "Cell",
+      "props": {
+       "fill": "#FFBB28"
+      }
+     },
+     {
+      "type": "Cell",
+      "props": {
+       "fill": "#FF8042"
+      }
+     }
+    ]
+   },
+   {
+    "type": "Tooltip",
+    "props": {}
+   },
+   {
+    "type": "Legend",
+    "props": {}
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-a",
+   "type": "hover",
+   "x": 148,
+   "y": 167
+  },
+  {
+   "id": "hover-c",
+   "type": "hover",
+   "x": 236,
+   "y": 149
+  },
+  {
+   "id": "hover-outside",
+   "type": "hover",
+   "x": 350,
+   "y": 60
+  }
+ ]
+}
