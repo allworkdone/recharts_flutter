@@ -1,0 +1,17 @@
+{
+  "name": "recharts-flutter-fixtures-gen",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "gen": "esbuild gen.mjs --bundle --platform=node --format=esm --main-fields=module,main --outfile=.build/gen.mjs --log-level=warning && node .build/gen.mjs"
+  },
+  "dependencies": {
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-is": "19.1.0",
+    "recharts": "3.10.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.12"
+  }
+}

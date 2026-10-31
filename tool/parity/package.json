@@ -1,0 +1,11 @@
+{
+  "name": "parity",
+  "private": true,
+  "type": "module",
+  "scripts": { "build": "vite build web" },
+  "dependencies": {
+    "react": "^19", "react-dom": "^19", "recharts": "3.10.1",
+    "vite": "^7", "@vitejs/plugin-react": "^5",
+    "playwright": "^1", "pixelmatch": "^7", "pngjs": "^7"
+  }
+}

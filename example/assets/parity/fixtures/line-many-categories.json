@@ -1,0 +1,306 @@
+{
+ "name": "line-many-categories",
+ "description": "60 categories exercising tick thinning with preserveEnd.",
+ "width": 500,
+ "height": 300,
+ "chart": {
+  "type": "LineChart",
+  "props": {
+   "data": [
+    {
+     "name": "Day 1",
+     "value": 500
+    },
+    {
+     "name": "Day 2",
+     "value": 587
+    },
+    {
+     "name": "Day 3",
+     "value": 672
+    },
+    {
+     "name": "Day 4",
+     "value": 665
+    },
+    {
+     "name": "Day 5",
+     "value": 744
+    },
+    {
+     "name": "Day 6",
+     "value": 727
+    },
+    {
+     "name": "Day 7",
+     "value": 794
+    },
+    {
+     "name": "Day 8",
+     "value": 855
+    },
+    {
+     "name": "Day 9",
+     "value": 818
+    },
+    {
+     "name": "Day 10",
+     "value": 862
+    },
+    {
+     "name": "Day 11",
+     "value": 809
+    },
+    {
+     "name": "Day 12",
+     "value": 837
+    },
+    {
+     "name": "Day 13",
+     "value": 857
+    },
+    {
+     "name": "Day 14",
+     "value": 779
+    },
+    {
+     "name": "Day 15",
+     "value": 785
+    },
+    {
+     "name": "Day 16",
+     "value": 695
+    },
+    {
+     "name": "Day 17",
+     "value": 689
+    },
+    {
+     "name": "Day 18",
+     "value": 680
+    },
+    {
+     "name": "Day 19",
+     "value": 578
+    },
+    {
+     "name": "Day 20",
+     "value": 565
+    },
+    {
+     "name": "Day 21",
+     "value": 463
+    },
+    {
+     "name": "Day 22",
+     "value": 452
+    },
+    {
+     "name": "Day 23",
+     "value": 354
+    },
+    {
+     "name": "Day 24",
+     "value": 350
+    },
+    {
+     "name": "Day 25",
+     "value": 351
+    },
+    {
+     "name": "Day 26",
+     "value": 269
+    },
+    {
+     "name": "Day 27",
+     "value": 283
+    },
+    {
+     "name": "Day 28",
+     "value": 216
+    },
+    {
+     "name": "Day 29",
+     "value": 246
+    },
+    {
+     "name": "Day 30",
+     "value": 285
+    },
+    {
+     "name": "Day 31",
+     "value": 242
+    },
+    {
+     "name": "Day 32",
+     "value": 297
+    },
+    {
+     "name": "Day 33",
+     "value": 270
+    },
+    {
+     "name": "Day 34",
+     "value": 339
+    },
+    {
+     "name": "Day 35",
+     "value": 415
+    },
+    {
+     "name": "Day 36",
+     "value": 405
+    },
+    {
+     "name": "Day 37",
+     "value": 488
+    },
+    {
+     "name": "Day 38",
+     "value": 484
+    },
+    {
+     "name": "Day 39",
+     "value": 571
+    },
+    {
+     "name": "Day 40",
+     "value": 568
+    },
+    {
+     "name": "Day 41",
+     "value": 652
+    },
+    {
+     "name": "Day 42",
+     "value": 734
+    },
+    {
+     "name": "Day 43",
+     "value": 721
+    },
+    {
+     "name": "Day 44",
+     "value": 793
+    },
+    {
+     "name": "Day 45",
+     "value": 768
+    },
+    {
+     "name": "Day 46",
+     "value": 826
+    },
+    {
+     "name": "Day 47",
+     "value": 877
+    },
+    {
+     "name": "Day 48",
+     "value": 829
+    },
+    {
+     "name": "Day 49",
+     "value": 863
+    },
+    {
+     "name": "Day 50",
+     "value": 798
+    },
+    {
+     "name": "Day 51",
+     "value": 816
+    },
+    {
+     "name": "Day 52",
+     "value": 827
+    },
+    {
+     "name": "Day 53",
+     "value": 740
+    },
+    {
+     "name": "Day 54",
+     "value": 738
+    },
+    {
+     "name": "Day 55",
+     "value": 642
+    },
+    {
+     "name": "Day 56",
+     "value": 632
+    },
+    {
+     "name": "Day 57",
+     "value": 529
+    },
+    {
+     "name": "Day 58",
+     "value": 516
+    },
+    {
+     "name": "Day 59",
+     "value": 504
+    },
+    {
+     "name": "Day 60",
+     "value": 404
+    }
+   ],
+   "margin": {
+    "top": 5,
+    "right": 30,
+    "left": 20,
+    "bottom": 5
+   }
+  },
+  "children": [
+   {
+    "type": "CartesianGrid",
+    "props": {
+     "strokeDasharray": "3 3"
+    }
+   },
+   {
+    "type": "XAxis",
+    "props": {
+     "dataKey": "name",
+     "interval": "preserveEnd"
+    }
+   },
+   {
+    "type": "YAxis",
+    "props": {}
+   },
+   {
+    "type": "Tooltip",
+    "props": {}
+   },
+   {
+    "type": "Line",
+    "props": {
+     "type": "monotone",
+     "stroke": "#8884d8",
+     "dataKey": "value",
+     "dot": false
+    },
+    "children": []
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-c",
+   "type": "hover",
+   "x": 200,
+   "y": 150
+  },
+  {
+   "id": "hover-right",
+   "type": "hover",
+   "x": 470,
+   "y": 150
+  }
+ ]
+}
