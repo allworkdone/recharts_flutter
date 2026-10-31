@@ -14,6 +14,7 @@ import { getNiceTickValues, getTickValuesFixedDomain } from 'recharts/es6/util/s
 import { configBezier, createEasingFunction, createSpringEasing } from 'recharts/es6/animation/easing.js';
 import { getPath } from 'recharts/es6/shape/Curve.js';
 import { rechartsScaleFactory } from 'recharts/es6/util/scale/RechartsScale.js';
+import { stackOffsetSilhouette, stackOffsetWiggle, stack as d3stack } from 'victory-vendor/d3-shape';
 import { scaleLinear, scaleLog, scalePow, scaleBand, scalePoint } from 'victory-vendor/d3-scale';
 
 const outDir = new URL('../../../test/core/fixtures/', import.meta.url);
@@ -218,6 +219,64 @@ for (const [name, pts] of Object.entries(pointSets)) {
 write('curves.json', curves);
 
 // ---------------------------------------------------------------------------
+// Areas: Recharts' getPath with a baseLine (d3 area + curve factory).
+
+const areaCases = [];
+for (const [name, pts] of Object.entries(pointSets)) {
+  const points = pts.map(p => (p ? { x: p[0], y: p[1] } : { x: null, y: null }));
+  // Array baselines: [x, y] pairs, null = missing base, some NaN / shifted.
+  const mkBase = shift => pts.map((p, i) => (i % 4 === 2 ? null : i % 5 === 3 ? [i * 7, NaN] : [(p ? p[0] : 0) + shift, 80 + i * 3]));
+  const bases = [
+    { kind: 'number', base: 50 },
+    { kind: 'number', base: -12.3456 },
+    { kind: 'nan', base: NaN },
+    { kind: 'array', base: pts.map((p, i) => [(p ? p[0] : 0) * 0.5, 100 + i]) },
+    { kind: 'arrayNulls', base: mkBase(3) },
+  ];
+  for (const { kind, base } of bases) {
+    const baseLine = Array.isArray(base) ? base.map(b => (b ? { x: b[0], y: b[1] } : undefined)) : base;
+    for (const type of curveTypes) {
+      for (const layout of ['horizontal', 'vertical']) {
+        for (const connectNulls of [false, true]) {
+          areaCases.push({ name, kind, base, points: pts, type, layout, connectNulls, d: getPath({ type, points, baseLine, layout, connectNulls }) });
+        }
+      }
+    }
+  }
+}
+write('areas.json', areaCases);
+
+// ---------------------------------------------------------------------------
+// Stack offsets: d3 stack() on value matrices (rows = series), then the offset.
+
+const stackInputs = {
+  positive: [[1, 2, 3, 4], [2, 1, 4, 3], [3, 3, 1, 2]],
+  mixedSigns: [[1, -2, 3, -4], [-2, 1, -4, 3], [3, -3, 1, 2], [-1, 5, -2, 0]],
+  zeros: [[0, 0, 0, 0], [0, 1, 0, 2], [0, 0, 0, 0]],
+  allZero: [[0, 0, 0], [0, 0, 0]],
+  single: [[3, 1, 4, 1, 5]],
+  singlePoint: [[2], [3], [-1]],
+  twoSeries: [[5, 10, 15], [10, 5, 20]],
+  nan: [[1, NaN, 3, 4], [NaN, 2, NaN, 1], [2, 2, 2, NaN]],
+  decimals: [[0.1, 0.2, 0.3], [0.7, 0.01, 0.123], [1.5, 2.25, 0.3333]],
+  large: [[1e6, 2e6, -3e6, 4e6], [5e6, -1e6, 2e6, 3e6]],
+};
+const stackCases = [];
+for (const [name, rows] of Object.entries(stackInputs)) {
+  const keys = rows.map((_, i) => i);
+  const data = rows[0].map((_, j) => Object.fromEntries(rows.map((r, i) => [i, r[j]])));
+  for (const [offsetName, offset] of [['silhouette', stackOffsetSilhouette], ['wiggle', stackOffsetWiggle]]) {
+    for (const [orderName, order] of [['asc', null], ['reverse', series => series.map((_, i) => series.length - 1 - i)]]) {
+      const gen = d3stack().keys(keys).value((d, k) => d[k]).offset(offset);
+      if (order) gen.order(order);
+      const out = gen(data).map(s => Array.from(s, p => [p[0], p[1]]));
+      stackCases.push({ name, offset: offsetName, order: orderName, input: rows, out });
+    }
+  }
+}
+write('stack.json', stackCases);
+
+// ---------------------------------------------------------------------------
 // Easing
 
 const ts = [-0.5, -0.1, 0, 0.001, 0.01, 0.025];
@@ -263,4 +322,4 @@ write('js_math.json', {
   pow10,
 });
 
-console.log(`fixtures: ${nice.length} nice, ${linear.length + log.length + pow.length + band.length + point.length} scales, ${curves.length} curves`);
+console.log(`fixtures: ${nice.length} nice, ${linear.length + log.length + pow.length + band.length + point.length} scales, ${curves.length} curves, ${areaCases.length} areas, ${stackCases.length} stacks`);

@@ -73,6 +73,28 @@ void main() {
     m.expectNone();
   });
 
+  test('drawArea matches Recharts getPath with a baseLine for every curve type', () {
+    final areas = loadFixture('areas.json') as List;
+    final m = Mismatches();
+    Offset? off(Object? p) => p == null ? null : Offset(dn((p as List)[0])!, dn(p[1])!);
+    for (final c in areas) {
+      final points = [for (final p in c['points'] as List) off(p)];
+      final base = c['base'];
+      final Object baseLine = base is List ? [for (final b in base) off(b)] : dn(base)!;
+      final type = CurveType.values.byName(c['type'] as String);
+      final layout = ChartLayout.values.byName(c['layout'] as String);
+      final sink = _RecordingSink();
+      drawArea(sink, points, baseLine, type, layout: layout, connectNulls: c['connectNulls'] as bool);
+      final want = _parsePath(c['d'] as String?);
+      m.check(
+        _sameCalls(sink.calls, want),
+        () => '${c['name']} ${c['kind']} ${type.name} ${layout.name} connectNulls=${c['connectNulls']}:\n'
+            '  got  ${sink.calls}\n  want $want',
+      );
+    }
+    m.expectNone();
+  });
+
   test('linePath builds a Flutter Path', () {
     final path = linePath([const Offset(0, 0), const Offset(10, 20), const Offset(20, 5)], CurveType.monotone);
     expect(path.getBounds().right, 20);

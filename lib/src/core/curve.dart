@@ -100,6 +100,85 @@ Path linePath(
   return sink.path;
 }
 
+/// Recharts `getPath` with a `baseLine` (src/shape/Curve.tsx), drawn with the
+/// d3-shape `area()` generator. [baseLine] is either a number (the constant
+/// y0 in horizontal layout, x0 in vertical) or a `List<Offset?>` paired with
+/// [points] by index; a pair is drawn only when both ends are defined.
+/// [connectNulls] filters exactly as getPath does.
+void drawArea(
+  PathSink sink,
+  List<Offset?> points,
+  Object baseLine,
+  CurveType type, {
+  ChartLayout layout = ChartLayout.horizontal,
+  bool connectNulls = false,
+}) {
+  final vertical = layout == ChartLayout.vertical;
+  final isArray = baseLine is List;
+  // A NaN number baseLine is not isNumber() in Curve.tsx: plain line.
+  if (!isArray && (baseLine as num).isNaN) {
+    return drawLine(sink, points, type, layout: layout, connectNulls: connectNulls);
+  }
+  // Each entry: the point and its paired base (y0 horizontal, x0 vertical).
+  final bases = isArray ? baseLine as List<Offset?> : null;
+  final num0 = isArray ? 0.0 : (baseLine as num).toDouble();
+  var items = <(Offset?, Offset?)>[
+    for (var i = 0; i < points.length; i++) (points[i], isArray && i < bases!.length ? bases[i] : null),
+  ];
+  bool defined((Offset?, Offset?) e) => _defined(e.$1) && (!isArray || _defined(e.$2));
+  if (connectNulls) items = items.where(defined).toList();
+
+  final output = _getCurveFactory(type, layout)(_D3Path(sink));
+  final n = items.length;
+  final x0z = List<double>.filled(n, 0), y0z = List<double>.filled(n, 0);
+  var defined0 = false;
+  var j = 0;
+
+  for (var i = 0; i <= n; ++i) {
+    final d = i < n ? items[i] : null;
+    if (!(i < n && defined(d!)) == defined0) {
+      defined0 = !defined0;
+      if (defined0) {
+        j = i;
+        output.areaStart();
+        output.lineStart();
+      } else {
+        output.lineEnd();
+        output.lineStart();
+        for (var k = i - 1; k >= j; --k) {
+          output.point(x0z[k], y0z[k]);
+        }
+        output.lineEnd();
+        output.areaEnd();
+      }
+    }
+    if (defined0) {
+      final p = d!.$1!;
+      if (vertical) {
+        x0z[i] = isArray ? d.$2!.dx : num0;
+        y0z[i] = p.dy;
+      } else {
+        x0z[i] = p.dx;
+        y0z[i] = isArray ? d.$2!.dy : num0;
+      }
+      output.point(p.dx, p.dy);
+    }
+  }
+}
+
+/// Convenience: [drawArea] into a fresh Flutter [Path].
+Path areaPath(
+  List<Offset?> points,
+  Object baseLine,
+  CurveType type, {
+  ChartLayout layout = ChartLayout.horizontal,
+  bool connectNulls = false,
+}) {
+  final sink = FlutterPathSink();
+  drawArea(sink, points, baseLine, type, layout: layout, connectNulls: connectNulls);
+  return sink.path;
+}
+
 /// Curve.tsx `defined`: both coordinates are finite numbers.
 bool _defined(Offset? p) => p != null && p.dx.isFinite && p.dy.isFinite;
 
@@ -161,6 +240,8 @@ class _D3Path implements PathSink {
 bool _truthy(double v) => v != 0 && !v.isNaN;
 
 abstract class _Curve {
+  void areaStart();
+  void areaEnd();
   void lineStart();
   void lineEnd();
   void point(double x, double y);
@@ -172,6 +253,11 @@ class _Linear implements _Curve {
   _Linear(this._context);
   final PathSink _context;
   double _line = double.nan;
+
+  @override
+  void areaStart() => _line = 0;
+  @override
+  void areaEnd() => _line = double.nan;
   int _point = 0;
 
   @override
@@ -201,6 +287,11 @@ class _Linear implements _Curve {
 class _LinearClosed implements _Curve {
   _LinearClosed(this._context);
   final PathSink _context;
+
+  @override
+  void areaStart() {}
+  @override
+  void areaEnd() {}
   int _point = 0;
 
   @override
@@ -227,6 +318,11 @@ class _Step implements _Curve {
   final PathSink _context;
   double _t;
   double _line = double.nan;
+
+  @override
+  void areaStart() => _line = 0;
+  @override
+  void areaEnd() => _line = double.nan;
   int _point = 0;
   double _x = double.nan, _y = double.nan;
 
@@ -272,6 +368,11 @@ abstract class _BasisBase implements _Curve {
   _BasisBase(this._context);
   final PathSink _context;
   double _line = double.nan;
+
+  @override
+  void areaStart() => _line = 0;
+  @override
+  void areaEnd() => _line = double.nan;
   int _point = 0;
   double _x0 = double.nan, _x1 = double.nan, _y0 = double.nan, _y1 = double.nan;
 
@@ -337,6 +438,11 @@ class _Basis extends _BasisBase {
 
 class _BasisClosed extends _BasisBase {
   _BasisClosed(super.context);
+
+  @override
+  void areaStart() {}
+  @override
+  void areaEnd() {}
   double _x2 = double.nan, _x3 = double.nan, _x4 = double.nan;
   double _y2 = double.nan, _y3 = double.nan, _y4 = double.nan;
 
@@ -420,6 +526,11 @@ class _Natural implements _Curve {
   _Natural(this._context);
   final PathSink _context;
   double _line = double.nan;
+
+  @override
+  void areaStart() => _line = 0;
+  @override
+  void areaEnd() => _line = double.nan;
   List<double> _x = [], _y = [];
 
   @override
@@ -492,6 +603,11 @@ class _MonotoneX implements _Curve {
   _MonotoneX(this._context);
   final PathSink _context;
   double _line = double.nan;
+
+  @override
+  void areaStart() => _line = 0;
+  @override
+  void areaEnd() => _line = double.nan;
   int _point = 0;
   double _x0 = double.nan, _x1 = double.nan, _y0 = double.nan, _y1 = double.nan, _t0 = double.nan;
 
@@ -590,6 +706,11 @@ class _Bump implements _Curve {
   final PathSink _context;
   final bool _x;
   double _line = double.nan;
+
+  @override
+  void areaStart() => _line = 0;
+  @override
+  void areaEnd() => _line = double.nan;
   int _point = 0;
   double _x0 = double.nan, _y0 = double.nan;
 
