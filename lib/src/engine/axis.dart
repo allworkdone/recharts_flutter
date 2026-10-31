@@ -45,6 +45,8 @@ class ChartContext {
     this.dataEndIndex = 0,
     required this.items,
     required this.referenceLines,
+    this.referenceAreas = const [],
+    this.referenceDots = const [],
     required this.stackOffset,
     required this.reverseStackOrder,
     required this.barCategoryGap,
@@ -61,6 +63,8 @@ class ChartContext {
   final int dataStartIndex, dataEndIndex;
   final List<GraphicalItem> items;
   final List<ReferenceLine> referenceLines;
+  final List<ReferenceArea> referenceAreas;
+  final List<ReferenceDot> referenceDots;
   final StackOffset stackOffset;
   final bool reverseStackOrder;
   final Object barCategoryGap;
@@ -467,6 +471,14 @@ void computeAxisDomain(AxisRuntime axis, ChartContext ctx) {
     for (final l in ctx.referenceLines)
       if (l.ifOverflow == IfOverflow.extendDomain && (axis.isX ? l.xAxisId : l.yAxisId) == s.id)
         axis.isX ? l.x : l.y,
+    // combineDotsDomain / combineAreasDomain
+    for (final d in ctx.referenceDots)
+      if (d.ifOverflow == IfOverflow.extendDomain && (axis.isX ? d.xAxisId : d.yAxisId) == s.id) axis.isX ? d.x : d.y,
+    for (final a in ctx.referenceAreas)
+      if (a.ifOverflow == IfOverflow.extendDomain && (axis.isX ? a.xAxisId : a.yAxisId) == s.id) ...[
+        axis.isX ? a.x1 : a.y1,
+        axis.isX ? a.x2 : a.y2,
+      ],
   ]);
   final referenceElementsDomain =
       lineCoords.isEmpty ? null : <double>[lineCoords.reduce(math.min), lineCoords.reduce(math.max)];

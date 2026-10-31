@@ -852,6 +852,69 @@ class ReferenceLine extends RechartsElement {
   final BandPosition position;
 }
 
+/// src/cartesian/ReferenceArea.tsx. A missing `x1`/`x2`/`y1`/`y2` spans the plot area on that side.
+class ReferenceArea extends RechartsElement {
+  const ReferenceArea({
+    this.x1,
+    this.x2,
+    this.y1,
+    this.y2,
+    this.xAxisId = 0,
+    this.yAxisId = 0,
+    this.ifOverflow = IfOverflow.discard,
+    this.fill = const Color(0xFFCCCCCC),
+    this.fillOpacity = 0.5,
+    this.stroke,
+    this.strokeOpacity = 1,
+    this.strokeWidth = 1,
+    this.radius = 0,
+    this.label,
+  });
+  final Object? x1, x2, y1, y2;
+  final Object xAxisId;
+  final Object yAxisId;
+  final IfOverflow ifOverflow;
+  final Color fill;
+  final double fillOpacity;
+
+  /// `null` is `'none'`.
+  final Color? stroke;
+  final double strokeOpacity;
+  final double strokeWidth;
+
+  /// A number or `[tl, tr, br, bl]` like [Bar.radius].
+  final Object radius;
+  final Object? label;
+}
+
+/// src/cartesian/ReferenceDot.tsx.
+class ReferenceDot extends RechartsElement {
+  const ReferenceDot({
+    this.x,
+    this.y,
+    this.r = 10,
+    this.xAxisId = 0,
+    this.yAxisId = 0,
+    this.ifOverflow = IfOverflow.discard,
+    this.fill = const Color(0xFFFFFFFF),
+    this.fillOpacity = 1,
+    this.stroke = const Color(0xFFCCCCCC),
+    this.strokeWidth = 1,
+    this.label,
+  });
+  final Object? x;
+  final Object? y;
+  final double r;
+  final Object xAxisId;
+  final Object yAxisId;
+  final IfOverflow ifOverflow;
+  final Color fill;
+  final double fillOpacity;
+  final Color? stroke;
+  final double strokeWidth;
+  final Object? label;
+}
+
 /// One row of the tooltip (`TooltipPayloadEntry`).
 class TooltipPayloadEntry {
   const TooltipPayloadEntry({

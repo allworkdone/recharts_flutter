@@ -284,6 +284,10 @@ class CartesianPainter extends CustomPainter {
     final lineSteps = <String, List<LinePoint>>{};
     // Areas (z 100), in document order.
     for (final c in frame.children) {
+      if (c is ReferenceArea) {
+        _paintReferenceArea(canvas, c);
+        continue;
+      }
       if (c is! Area) continue;
       final s = _seriesOf(c);
       if (s == null || s.item.hide || s.points == null) continue;
@@ -338,6 +342,30 @@ class CartesianPainter extends CustomPainter {
       if (points == null) continue;
       _withClip(canvas, _clipFor(s.item), () => _paintDots(canvas, s.item.element, points));
     }
+    for (final c in frame.children) {
+      if (c is ReferenceDot) _paintReferenceDot(canvas, c);
+    }
+  }
+
+  /// ReferenceArea.tsx: a Rectangle, clipped to the plot area for `ifOverflow: hidden`.
+  void _paintReferenceArea(Canvas canvas, ReferenceArea c) {
+    final r = m.referenceAreas.where((r) => r.settings == c).firstOrNull?.rect;
+    if (r == null || r.width == 0 || r.height == 0) return;
+    _withClip(canvas, c.ifOverflow == IfOverflow.hidden ? m.offset.plotArea : null, () {
+      final path = rectanglePath(r.left, r.top, r.width, r.height, c.radius);
+      canvas.drawPath(path, fillPaint(c.fill, opacity: c.fillOpacity));
+      if (c.stroke != null) drawStroke(canvas, path, strokePaint(c.stroke!, c.strokeWidth, opacity: c.strokeOpacity), null);
+    });
+  }
+
+  /// ReferenceDot.tsx: a Dot (circle).
+  void _paintReferenceDot(Canvas canvas, ReferenceDot c) {
+    final d = m.referenceDots.where((d) => d.settings == c).firstOrNull;
+    if (d == null) return;
+    _withClip(canvas, c.ifOverflow == IfOverflow.hidden ? m.offset.plotArea : null, () {
+      canvas.drawCircle(d.center, c.r, fillPaint(c.fill, opacity: c.fillOpacity));
+      if (c.stroke != null) canvas.drawCircle(d.center, c.r, strokePaint(c.stroke!, c.strokeWidth));
+    });
   }
 
   /// AreaRevealShape: the fill curve down to [baseLine], the stroke curve over
@@ -571,6 +599,15 @@ class CartesianPainter extends CustomPainter {
         final r = m.referenceLines.where((r) => r.settings == c).firstOrNull;
         if (r == null) continue;
         paintLabel(canvas, parseLabel(c.label), Rect.fromPoints(r.p1, r.p2),
+            baseStyle: frame.textStyle, scaler: frame.textScaler);
+      } else if (c is ReferenceArea && c.label != null) {
+        final r = m.referenceAreas.where((r) => r.settings == c).firstOrNull;
+        if (r == null) continue;
+        paintLabel(canvas, parseLabel(c.label), r.rect, baseStyle: frame.textStyle, scaler: frame.textScaler);
+      } else if (c is ReferenceDot && c.label != null) {
+        final d = m.referenceDots.where((d) => d.settings == c).firstOrNull;
+        if (d == null) continue;
+        paintLabel(canvas, parseLabel(c.label), Rect.fromLTWH(d.center.dx - c.r, d.center.dy - c.r, 2 * c.r, 2 * c.r),
             baseStyle: frame.textStyle, scaler: frame.textScaler);
       } else if (c is CartesianSeries) {
         // Labels show once the series stops animating (`showLabels={!isAnimating}`).

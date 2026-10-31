@@ -312,6 +312,37 @@ RechartsElement? _child(Map<String, dynamic> node) {
         label: _label(p.raw['label']),
         ifOverflow: _enum(IfOverflow.values, p.str('ifOverflow')) ?? IfOverflow.discard,
       );
+    case 'ReferenceArea':
+      return ReferenceArea(
+        x1: p.raw['x1'],
+        x2: p.raw['x2'],
+        y1: p.raw['y1'],
+        y2: p.raw['y2'],
+        xAxisId: p.raw['xAxisId'] ?? 0,
+        yAxisId: p.raw['yAxisId'] ?? 0,
+        fill: p.color('fill') ?? const Color(0xFFCCCCCC),
+        fillOpacity: p.dbl('fillOpacity') ?? 0.5,
+        stroke: p.color('stroke'),
+        strokeOpacity: p.dbl('strokeOpacity') ?? 1,
+        strokeWidth: p.dbl('strokeWidth') ?? 1,
+        radius: p.raw['radius'] is num ? (p.raw['radius'] as num).toDouble() : 0,
+        label: _label(p.raw['label']),
+        ifOverflow: _enum(IfOverflow.values, p.str('ifOverflow')) ?? IfOverflow.discard,
+      );
+    case 'ReferenceDot':
+      return ReferenceDot(
+        x: p.raw['x'],
+        y: p.raw['y'],
+        r: p.dbl('r') ?? 10,
+        xAxisId: p.raw['xAxisId'] ?? 0,
+        yAxisId: p.raw['yAxisId'] ?? 0,
+        fill: p.color('fill') ?? const Color(0xFFFFFFFF),
+        fillOpacity: p.dbl('fillOpacity') ?? 1,
+        stroke: p.color('stroke') ?? const Color(0xFFCCCCCC),
+        strokeWidth: p.dbl('strokeWidth') ?? 1,
+        label: _label(p.raw['label']),
+        ifOverflow: _enum(IfOverflow.values, p.str('ifOverflow')) ?? IfOverflow.discard,
+      );
   }
   return null;
 }

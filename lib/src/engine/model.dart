@@ -138,6 +138,18 @@ class ReferenceLineModel {
   final Offset p1, p2;
 }
 
+class ReferenceAreaModel {
+  ReferenceAreaModel(this.settings, this.rect);
+  final ReferenceArea settings;
+  final Rect rect;
+}
+
+class ReferenceDotModel {
+  ReferenceDotModel(this.settings, this.center);
+  final ReferenceDot settings;
+  final Offset center;
+}
+
 class CartesianModel {
   CartesianModel({
     required this.size,
@@ -149,6 +161,8 @@ class CartesianModel {
     required this.series,
     required this.grid,
     required this.referenceLines,
+    this.referenceAreas = const [],
+    this.referenceDots = const [],
     required this.tooltipAxis,
     required this.tooltipTicks,
     required this.tooltipSettings,
@@ -168,6 +182,8 @@ class CartesianModel {
   final List<SeriesModel> series;
   final GridModel? grid;
   final List<ReferenceLineModel> referenceLines;
+  final List<ReferenceAreaModel> referenceAreas;
+  final List<ReferenceDotModel> referenceDots;
   final AxisRuntime tooltipAxis;
   final List<TickItem> tooltipTicks;
   final Tooltip? tooltipSettings;
@@ -285,6 +301,8 @@ CartesianModel computeCartesianModel({
   // The panorama and the main chart share one store: their items meet in axis domains.
   final domainItems = [...items, ...collectItems(sharedChildren, prefix: 'shared-')];
   final refLines = children.whereType<ReferenceLine>().toList();
+  final refAreas = children.whereType<ReferenceArea>().toList();
+  final refDots = children.whereType<ReferenceDot>().toList();
   final tooltip = panorama ? null : children.whereType<Tooltip>().firstOrNull;
   final legend = panorama ? null : children.whereType<Legend>().firstOrNull;
   final brush = panorama ? null : children.whereType<Brush>().firstOrNull;
@@ -337,6 +355,8 @@ CartesianModel computeCartesianModel({
     dataEndIndex: dataEnd,
     items: domainItems,
     referenceLines: refLines,
+    referenceAreas: refAreas,
+    referenceDots: refDots,
     stackOffset: stackOffset,
     reverseStackOrder: reverseStackOrder,
     barCategoryGap: barCategoryGap,
@@ -505,6 +525,40 @@ CartesianModel computeCartesianModel({
     }
   }
 
+  // ReferenceArea getRect
+  final areaModels = <ReferenceAreaModel>[];
+  for (final r in refAreas) {
+    final xs = runtimes[(true, r.xAxisId)]?.scale, ys = runtimes[(false, r.yAxisId)]?.scale;
+    if (xs == null || ys == null) continue;
+    final hasX1 = isNumOrStr(r.x1), hasX2 = isNumOrStr(r.x2), hasY1 = isNumOrStr(r.y1), hasY2 = isNumOrStr(r.y2);
+    if (!hasX1 && !hasX2 && !hasY1 && !hasY2) continue;
+    final x1 = hasX1 ? xs.map(r.x1, position: BandPosition.start) : xs.rangeMin;
+    final y1 = hasY1 ? ys.map(r.y1, position: BandPosition.start) : ys.rangeMin;
+    final x2 = hasX2 ? xs.map(r.x2, position: BandPosition.end) : xs.rangeMax;
+    final y2 = hasY2 ? ys.map(r.y2, position: BandPosition.end) : ys.rangeMax;
+    // CartesianScaleHelper.isInRange: a null coordinate passes.
+    if (r.ifOverflow == IfOverflow.discard &&
+        !((x1 == null || xs.isInRange(x1)) && (y1 == null || ys.isInRange(y1)) &&
+            (x2 == null || xs.isInRange(x2)) && (y2 == null || ys.isInRange(y2)))) {
+      continue;
+    }
+    // rectWithPoints (Math.min/abs turn null into 0)
+    areaModels.add(ReferenceAreaModel(
+        r,
+        Rect.fromLTRB(math.min(x1 ?? 0, x2 ?? 0), math.min(y1 ?? 0, y2 ?? 0), math.max(x1 ?? 0, x2 ?? 0),
+            math.max(y1 ?? 0, y2 ?? 0))));
+  }
+
+  // ReferenceDot useCoordinate
+  final dotModels = <ReferenceDotModel>[];
+  for (final r in refDots) {
+    final xs = runtimes[(true, r.xAxisId)]?.scale, ys = runtimes[(false, r.yAxisId)]?.scale;
+    if (xs == null || ys == null || !isNumOrStr(r.x) || !isNumOrStr(r.y)) continue;
+    final cx = xs.map(r.x, position: BandPosition.middle) ?? 0, cy = ys.map(r.y, position: BandPosition.middle) ?? 0;
+    if (r.ifOverflow == IfOverflow.discard && !(xs.isInRange(cx) && ys.isInRange(cy))) continue;
+    dotModels.add(ReferenceDotModel(r, Offset(cx, cy)));
+  }
+
   // Tooltip axis ticks (combineTicksOfTooltipAxis).
   final tooltipAxis = layout == ChartLayout.horizontal ? xRt(tooltipAxisId) : yRt(tooltipAxisId);
   final tooltipTicks = _tooltipTicks(tooltipAxis);
@@ -519,6 +573,8 @@ CartesianModel computeCartesianModel({
     series: series,
     grid: grid,
     referenceLines: refModels,
+    referenceAreas: areaModels,
+    referenceDots: dotModels,
     tooltipAxis: tooltipAxis,
     tooltipTicks: tooltipTicks,
     tooltipSettings: tooltip,
