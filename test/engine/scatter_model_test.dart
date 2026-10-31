@@ -11,6 +11,7 @@ import 'package:recharts_flutter/src/components.dart';
 import 'package:recharts_flutter/src/core/curve.dart';
 import 'package:recharts_flutter/src/core/symbols.dart';
 import 'package:recharts_flutter/src/engine/model.dart';
+import 'package:recharts_flutter/src/render/label.dart';
 import 'package:recharts_flutter/src/render/painter.dart';
 import 'package:recharts_flutter/src/util.dart';
 
@@ -368,6 +369,74 @@ void main() {
         [280, 81.66666666666667, r64],
       ]);
     });
+  });
+
+  group('Scatter props', () {
+    const data = [
+      {'x': 10, 'y': 20},
+      {'x': 30, 'y': 40},
+    ];
+    const children = [
+      XAxis(type: AxisDomainType.number, dataKey: 'x'),
+      YAxis(type: AxisDomainType.number, dataKey: 'y'),
+    ];
+
+    test('legend payload: computeLegendPayloadFromScatterProps', () {
+      final m = model('ScatterChart', 400, 400, const [
+        ...children,
+        Scatter(name: 'A', data: data, fill: Color(0xFF8884D8)),
+        Scatter(dataKey: 'y', data: data, legendType: LegendType.wye, hide: true),
+      ]);
+      expect([for (final p in legendPayloadOf(m.items, const Legend(itemSorter: null))) (p.value, p.type, p.color, p.inactive)], [
+        ('A', LegendType.circle, const Color(0xFF8884D8), false),
+        ('y', LegendType.wye, null, true),
+      ]);
+    });
+
+    test('LabelList entries are the boxes around the symbols, in the plot area', () {
+      final m = model('ScatterChart', 400, 400, const [...children, Scatter(data: data, label: true)]);
+      final p = m.series[0].scatterPoints![1];
+      final e = labelListEntries(m.series[0], m.size, viewBox: m.viewBox)[1];
+      expect(e.viewBox, Rect.fromLTWH(p.cx! - r64 / 2, p.cy! - r64 / 2, r64, r64));
+      expect(e.value, isNull);
+      expect(e.parentViewBox, m.viewBox);
+    });
+
+    test('Cells are matched to points by index', () {
+      const cell = Cell(fill: Color(0xFFFF0000));
+      final m = model('ScatterChart', 400, 400, const [...children, Scatter(data: data, children: [Cell(), cell])]);
+      expect(m.series[0].scatterPoints![1].cell, same(cell));
+    });
+
+    test('a hidden Scatter has no error bars and leaves the domain', () {
+      final m = model('ScatterChart', 400, 400, const [
+        ...children,
+        Scatter(data: data, hide: true, children: [ErrorBar(dataKey: 'y')]),
+        Scatter(data: [
+          {'x': 1, 'y': 2},
+        ]),
+      ]);
+      expect(m.series[0].errorBars, isEmpty);
+      expect(m.axes.firstWhere((a) => !a.runtime.isX).runtime.domain, [0, 2]);
+    });
+  });
+
+  test('ComposedChart: the axis tooltip lists the scatter point at the active index', () {
+    const data = [
+      {'name': 'Page A', 'uv': 590, 'cnt': 490},
+      {'name': 'Page B', 'uv': 868, 'cnt': 590},
+      {'name': 'Page C', 'uv': 1397, 'cnt': 350},
+    ];
+    final m = model('ComposedChart', 500, 400, const [
+      XAxis(dataKey: 'name', scale: 'band'),
+      YAxis(),
+      Line(dataKey: 'uv'),
+      Scatter(dataKey: 'cnt', fill: Color(0xFFFF0000)),
+    ], data: data);
+    expect([for (final e in tooltipPayloadOf(m, 2)) (e.name, e.value)], [('uv', 1397), ('name', 'Page C'), (null, 350)]);
+    // Band scale: the points sit in the middle of the bands.
+    final x = m.tooltipAxis.scale!;
+    expect(m.series[1].scatterPoints![2].cx, x.map('Page C')! + x.bandwidth! / 2);
   });
 
   group('ErrorBar.spec.tsx', () {
