@@ -729,6 +729,7 @@ List<BarRect>? _barRectangles(GraphicalItem item, List<GraphicalItem> items, Axi
     return scaled! - bandSize / 2 + pos.offset;
   }
 
+  final cells = bar.cells;
   final rects = <BarRect>[];
   for (var index = 0; index < chartData.length; index++) {
     final entry = chartData[index];
@@ -786,7 +787,7 @@ List<BarRect>? _barRectangles(GraphicalItem item, List<GraphicalItem> items, Axi
       background: background,
       stackedBarStart: stackedBarStart,
       originalDataIndex: index,
-      cell: index < bar.children.length ? bar.children[index] : null,
+      cell: index < cells.length ? cells[index] : null,
     ));
   }
   return rects;

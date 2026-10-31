@@ -1,0 +1,198 @@
+// Coordinates ported from Recharts 3.10.1 specs: getCartesianPosition.spec.ts,
+// YAxis.label.spec.tsx, Bar.spec.tsx ('label'), LabelList.spec.tsx and
+// Line.animation.spec.tsx (expectedUvLabels). The chart specs run in jsdom,
+// where text measures 0x0 unless getBoundingClientRect is mocked.
+
+import 'package:flutter/widgets.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:recharts_flutter/recharts_flutter.dart';
+import 'package:recharts_flutter/src/engine/model.dart';
+import 'package:recharts_flutter/src/render/label.dart';
+
+CartesianModel model(String chartName, double w, double h, List<Object?> data, List<RechartsElement> children) =>
+    computeCartesianModel(
+        chartName: chartName, size: Size(w, h), data: data, children: children, measureFor: (_) => (_) => Size.zero);
+
+List<Object?> pos(CartesianLabelPosition p) =>
+    [p.x, p.y, p.horizontalAnchor.name, p.verticalAnchor.name, if (p.width != null) p.width, if (p.height != null) p.height];
+
+/// Rect keeps right/bottom, so widths come back with float noise; compare at 1e-9.
+List<Object?> r9(List<Object?> v) => [for (final e in v) e is num ? double.parse(e.toStringAsFixed(9)) : e];
+
+/// `[text, x, y, width]` of every label the series' LabelLists render.
+List<List<Object?>> labels(CartesianModel m, int series) {
+  final s = m.series[series];
+  final entries = labelListEntries(s, m.size);
+  return [
+    for (final list in seriesLabelLists(s.item.element))
+      for (var i = 0; i < entries.length; i++)
+        if (layoutLabel(labelOfEntry(list, entries[i], i), entries[i].viewBox, parentViewBox: entries[i].parentViewBox)
+            case final l?)
+          r9([l.text, l.x, l.y, l.width]),
+  ];
+}
+
+const pageData = [
+  {'name': 'Page A', 'uv': 400, 'pv': 2400, 'amt': 2400},
+  {'name': 'Page B', 'uv': 300, 'pv': 4567, 'amt': 2400},
+  {'name': 'Page C', 'uv': 300, 'pv': 1398, 'amt': 2400},
+  {'name': 'Page D', 'uv': 200, 'pv': 9800, 'amt': 2400},
+  {'name': 'Page E', 'uv': 278, 'pv': 3908, 'amt': 2400},
+  {'name': 'Page F', 'uv': 189, 'pv': 4800, 'amt': 2400},
+];
+
+void main() {
+  group('getCartesianPosition in a rectangle', () {
+    final viewBox = const Rect.fromLTWH(100, 50, 200, 100);
+    final cases = {
+      LabelPosition.top: [200, 45, 'middle', 'end'],
+      LabelPosition.bottom: [200, 155, 'middle', 'start'],
+      LabelPosition.left: [95, 100, 'end', 'middle'],
+      LabelPosition.right: [305, 100, 'start', 'middle'],
+      LabelPosition.insideLeft: [105, 100, 'start', 'middle'],
+      LabelPosition.insideRight: [295, 100, 'end', 'middle'],
+      LabelPosition.insideBottom: [200, 145, 'middle', 'end'],
+      LabelPosition.insideTopLeft: [105, 55, 'start', 'start'],
+      LabelPosition.insideTopRight: [295, 55, 'end', 'start'],
+      LabelPosition.insideBottomLeft: [105, 145, 'start', 'end'],
+      LabelPosition.insideBottomRight: [295, 145, 'end', 'end'],
+      LabelPosition.center: [200, 100, 'middle', 'middle'],
+      LabelPosition.middle: [200, 100, 'middle', 'middle'],
+      LabelPosition.insideEnd: [200, 100, 'middle', 'middle'],
+    };
+    for (final MapEntry(key: position, value: expected) in cases.entries) {
+      test('position "${position.name}"', () => expect(pos(getCartesianPosition(viewBox, position, 5)), expected));
+    }
+    test('position "insideTop" with offset 0', () {
+      expect(pos(getCartesianPosition(viewBox, LabelPosition.insideTop, 0)), [200, 50, 'middle', 'start']);
+    });
+  });
+
+  test('negative height flips "top" below the box', () {
+    expect(pos(getCartesianPosition(const Rect.fromLTWH(100, 150, 200, -100), LabelPosition.top, 5)),
+        [200, 155, 'middle', 'start']);
+  });
+
+  test('negative width flips "left" to the right of x', () {
+    // The spec's trapezoid gives 292.5; a rectangle's middleX is x itself.
+    expect(pos(getCartesianPosition(const Rect.fromLTWH(300, 50, -200, 100), LabelPosition.left, 5)),
+        [305, 100, 'start', 'middle']);
+  });
+
+  group('with parentViewBox', () {
+    const viewBox = Rect.fromLTWH(100, 50, 200, 100);
+    const parent = Rect.fromLTWH(0, 0, 500, 500);
+    test('clamp=true sizes "top" to the space above', () {
+      expect(pos(getCartesianPosition(viewBox, LabelPosition.top, 5, parentViewBox: parent, clamp: true)),
+          [200, 45, 'middle', 'end', 200, 50]);
+    });
+    test('clamp=true sizes "insideLeft" to the box', () {
+      expect(pos(getCartesianPosition(viewBox, LabelPosition.insideLeft, 5, parentViewBox: parent, clamp: true)),
+          [105, 100, 'start', 'middle', 200, 100]);
+    });
+    test('clamp=false does not size', () {
+      expect(pos(getCartesianPosition(viewBox, LabelPosition.top, 5, parentViewBox: parent)), [200, 45, 'middle', 'end']);
+    });
+  });
+
+  group('YAxis label (YAxis.label.spec.tsx, LineChart instead of AreaChart)', () {
+    List<Object?> yLabel(Object label) {
+      final m = model('LineChart', 500, 500, pageData, [YAxis(label: label), const Line(dataKey: 'uv')]);
+      final a = m.axes.single;
+      final l = layoutLabel(parseLabel(a.settings.label)!, a.rect)!;
+      return [l.text, l.x, l.y];
+    }
+
+    test('string', () => expect(yLabel('Test Label'), ['Test Label', 35, 250]));
+    test('number', () => expect(yLabel(123), ['123', 35, 250]));
+    test('Label insideLeft, angle -90 (rotate(-90, 10, 250))', () {
+      expect(yLabel(const Label(value: 'Test Label', angle: -90, position: LabelPosition.insideLeft)),
+          ['Test Label', 10, 250]);
+    });
+  });
+
+  test('Bar label: center of each bar, wrapping at the bar width', () {
+    const data = [
+      {'x': 10, 'y': 50, 'width': 20, 'height': 50, 'value': 100, 'label': 'test1'},
+      {'x': 50, 'y': 50, 'width': 20, 'height': 50, 'value': 200, 'label': 'test2'},
+      {'x': 90, 'y': 50, 'width': 20, 'height': 50, 'value': 300, 'label': 'test3'},
+      {'x': 130, 'y': 50, 'width': 20, 'height': 50, 'value': 400, 'label': 'test4'},
+      {'x': 170, 'y': 50, 'width': 20, 'height': 50, 'value': 500, 'label': 'test5'},
+    ];
+    final m = model('BarChart', 500, 500, data, const [Bar(dataKey: 'value', label: true)]);
+    expect(labels(m, 0), [
+      r9(['100', 53.8, 454.16666666666663, 78]),
+      r9(['200', 151.8, 413.33333333333337, 78]),
+      r9(['300', 249.8, 372.5, 78]),
+      r9(['400', 347.8, 331.6666666666667, 78]),
+      r9(['500', 445.8, 290.83333333333337, 78]),
+    ]);
+    final first = labelOfEntry(const LabelList(), labelListEntries(m.series[0], m.size)[0], 0);
+    expect(labelTextStyle(first, const TextStyle()).color, const Color(0xFF808080));
+    expect(layoutLabel(first, Rect.zero)!.textAnchor, TextAnchor.middle);
+  });
+
+  test('LabelList dataKey and offset on Bar (LabelList.spec.tsx)', () {
+    const data = [
+      {'x': 100, 'y': '200'},
+      {'x': 120, 'y': '100'},
+    ];
+    final m = model('BarChart', 400, 400, data, const [
+      Bar(dataKey: 'y', children: [LabelList(dataKey: 'x', offset: 40, position: LabelPosition.top)]),
+    ]);
+    final r = m.series[0].rects!;
+    expect(labels(m, 0), [
+      r9(['100', r[0].x + r[0].width / 2, r[0].y - 40, r[0].width]),
+      r9(['120', r[1].x + r[1].width / 2, r[1].y - 40, r[1].width]),
+    ]);
+  });
+
+  test('Line label: one label at each point (Line.animation.spec.tsx)', () {
+    final m = model('LineChart', 100, 100, pageData, const [Line(dataKey: 'uv', label: true)]);
+    expect(labels(m, 0), [
+      for (final l in [
+        ['400', 5, 5, 0],
+        ['300', 23, 27.5, 0],
+        ['300', 41, 27.5, 0],
+        ['200', 59, 50, 0],
+        ['278', 77, 32.45, 0],
+        ['189', 95, 52.475, 0],
+      ])
+        r9(l),
+    ]);
+  });
+
+  test('Line renders LabelList children before its label prop; Bar after', () {
+    const child = LabelList(position: LabelPosition.top);
+    expect(seriesLabelLists(const Line(dataKey: 'uv', label: true, children: [child])).first, same(child));
+    expect(seriesLabelLists(const Bar(dataKey: 'uv', label: true, children: [child])).last, same(child));
+  });
+
+  group('widget', () {
+    Widget host(Widget chart) => MediaQuery(
+          data: const MediaQueryData(),
+          child: Directionality(
+            textDirection: TextDirection.ltr,
+            child: DefaultTextStyle(style: const TextStyle(fontSize: 12), child: Align(alignment: Alignment.topLeft, child: chart)),
+          ),
+        );
+
+    testWidgets('LabelList stays hidden while the line animates, then shows', (tester) async {
+      final seen = <Offset>[];
+      await tester.pumpWidget(host(LineChart(width: 100, height: 100, data: pageData, children: [
+        Line(dataKey: 'uv', label: LabelList(content: (_, p) => seen.add(Offset(p.x, p.y)))),
+      ])));
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(seen, isEmpty);
+      await tester.pumpAndSettle();
+      expect(seen.take(6), const [
+        Offset(5, 5),
+        Offset(23, 27.5),
+        Offset(41, 27.5),
+        Offset(59, 50),
+        Offset(77, 32.45),
+        Offset(95, 52.475),
+      ]);
+    });
+  });
+}

@@ -820,7 +820,8 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
         layer(ChartLayer.cursorBelow, repaint: _view),
         layer(ChartLayer.main, repaint: animations),
         layer(ChartLayer.overlay, repaint: _view),
-        layer(ChartLayer.labels),
+        // Repaints when a series finishes animating and its LabelLists appear.
+        layer(ChartLayer.labels, repaint: animations),
         if (legend != null) _buildLegend(legend, legendLayout, size, scaler),
         if (tooltip != null) Positioned.fill(child: IgnorePointer(child: _buildTooltip(tooltip, m, reducedMotion))),
       ],

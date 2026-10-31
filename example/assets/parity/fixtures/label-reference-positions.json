@@ -1,0 +1,215 @@
+{
+ "name": "label-reference-positions",
+ "description": "ReferenceLine labels: string (middle), top, bottom, right, insideLeft, insideBottomRight, insideTop, left, insideTopRight with width wrapping, fill, fontSize and angle.",
+ "width": 600,
+ "height": 400,
+ "chart": {
+  "type": "LineChart",
+  "props": {
+   "data": [
+    {
+     "name": "Page A",
+     "uv": 4000,
+     "pv": 2400,
+     "amt": 2400
+    },
+    {
+     "name": "Page B",
+     "uv": 3000,
+     "pv": 1398,
+     "amt": 2210
+    },
+    {
+     "name": "Page C",
+     "uv": 2000,
+     "pv": 9800,
+     "amt": 2290
+    },
+    {
+     "name": "Page D",
+     "uv": 2780,
+     "pv": 3908,
+     "amt": 2000
+    },
+    {
+     "name": "Page E",
+     "uv": 1890,
+     "pv": 4800,
+     "amt": 2181
+    },
+    {
+     "name": "Page F",
+     "uv": 2390,
+     "pv": 3800,
+     "amt": 2500
+    },
+    {
+     "name": "Page G",
+     "uv": 3490,
+     "pv": 4300,
+     "amt": 2100
+    }
+   ],
+   "margin": {
+    "top": 20,
+    "right": 70,
+    "left": 20,
+    "bottom": 5
+   }
+  },
+  "children": [
+   {
+    "type": "CartesianGrid",
+    "props": {
+     "strokeDasharray": "3 3"
+    }
+   },
+   {
+    "type": "XAxis",
+    "props": {
+     "dataKey": "name"
+    }
+   },
+   {
+    "type": "YAxis",
+    "props": {}
+   },
+   {
+    "type": "Tooltip",
+    "props": {}
+   },
+   {
+    "type": "ReferenceLine",
+    "props": {
+     "y": 9000,
+     "stroke": "red",
+     "label": {
+      "value": "top",
+      "position": "top",
+      "fill": "red"
+     }
+    }
+   },
+   {
+    "type": "ReferenceLine",
+    "props": {
+     "y": 7000,
+     "stroke": "green",
+     "label": {
+      "value": "insideBottomRight",
+      "position": "insideBottomRight"
+     }
+    }
+   },
+   {
+    "type": "ReferenceLine",
+    "props": {
+     "y": 5000,
+     "stroke": "#ff7300",
+     "label": {
+      "value": "right",
+      "position": "right",
+      "fontSize": 10
+     }
+    }
+   },
+   {
+    "type": "ReferenceLine",
+    "props": {
+     "y": 3000,
+     "stroke": "#8884d8",
+     "label": {
+      "value": "insideLeft",
+      "position": "insideLeft"
+     }
+    }
+   },
+   {
+    "type": "ReferenceLine",
+    "props": {
+     "y": 1000,
+     "stroke": "#82ca9d",
+     "label": {
+      "value": "bottom",
+      "position": "bottom",
+      "offset": 10
+     }
+    }
+   },
+   {
+    "type": "ReferenceLine",
+    "props": {
+     "y": 6000,
+     "stroke": "#aaa",
+     "label": "Target"
+    }
+   },
+   {
+    "type": "ReferenceLine",
+    "props": {
+     "x": "Page B",
+     "stroke": "#666",
+     "label": {
+      "value": "insideTop",
+      "position": "insideTop",
+      "angle": -90,
+      "textAnchor": "end"
+     }
+    }
+   },
+   {
+    "type": "ReferenceLine",
+    "props": {
+     "x": "Page D",
+     "stroke": "#666",
+     "label": {
+      "value": "left",
+      "position": "left"
+     }
+    }
+   },
+   {
+    "type": "ReferenceLine",
+    "props": {
+     "x": "Page F",
+     "stroke": "#666",
+     "label": {
+      "value": "Peak of the season",
+      "position": "insideTopRight",
+      "width": 50
+     }
+    }
+   },
+   {
+    "type": "Line",
+    "props": {
+     "type": "monotone",
+     "dataKey": "pv",
+     "stroke": "#8884d8"
+    }
+   },
+   {
+    "type": "Line",
+    "props": {
+     "type": "monotone",
+     "dataKey": "uv",
+     "stroke": "#82ca9d"
+    }
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-c",
+   "type": "hover",
+   "x": 230,
+   "y": 200
+  },
+  {
+   "id": "hover-right",
+   "type": "hover",
+   "x": 500,
+   "y": 200
+  }
+ ]
+}

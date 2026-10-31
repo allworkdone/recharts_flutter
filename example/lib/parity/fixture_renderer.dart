@@ -104,6 +104,7 @@ RechartsElement? _child(Map<String, dynamic> node) {
         stroke: p.color('stroke') ?? const Color(0xFF666666),
         textAnchor: _enum(TextAnchor.values, p.str('textAnchor')),
         fontSize: p.dbl('fontSize'),
+        label: _label(p.raw['label']),
       );
     case 'YAxis':
       return YAxis(
@@ -136,6 +137,7 @@ RechartsElement? _child(Map<String, dynamic> node) {
         stroke: p.color('stroke') ?? const Color(0xFF666666),
         textAnchor: _enum(TextAnchor.values, p.str('textAnchor')),
         fontSize: p.dbl('fontSize'),
+        label: _label(p.raw['label']),
       );
     case 'CartesianGrid':
       return CartesianGrid(
@@ -198,6 +200,8 @@ RechartsElement? _child(Map<String, dynamic> node) {
         animationBegin: p.dbl('animationBegin')?.toInt() ?? 0,
         animationDuration: p.dbl('animationDuration')?.toInt() ?? 1500,
         animationEasing: p.str('animationEasing') ?? 'ease',
+        label: _labelList(p.raw['label']) ?? false,
+        children: [for (final c in (node['children'] as List? ?? const []).cast<Map<String, dynamic>>()) ?_child(c)],
       );
     case 'Bar':
       return Bar(
@@ -221,11 +225,14 @@ RechartsElement? _child(Map<String, dynamic> node) {
         animationBegin: p.dbl('animationBegin')?.toInt() ?? 0,
         animationDuration: p.dbl('animationDuration')?.toInt() ?? 400,
         animationEasing: p.str('animationEasing') ?? 'ease',
+        label: _labelList(p.raw['label']) ?? false,
         children: [
           for (final c in (node['children'] as List? ?? const []).cast<Map<String, dynamic>>())
-            if (c['type'] == 'Cell') _cell(_Props(c['props'] as Map<String, dynamic>? ?? const {})),
+            if (c['type'] == 'Cell') _cell(_Props(c['props'] as Map<String, dynamic>? ?? const {})) else ?_child(c),
         ],
       );
+    case 'LabelList':
+      return _labelList(p.raw);
     case 'Brush':
       final panorama = (node['children'] as List? ?? const []).cast<Map<String, dynamic>>().firstOrNull;
       return Brush(
@@ -256,11 +263,45 @@ RechartsElement? _child(Map<String, dynamic> node) {
         stroke: p.color('stroke') ?? const Color(0xFFCCCCCC),
         strokeWidth: p.dbl('strokeWidth') ?? 1,
         strokeDasharray: p.dash('strokeDasharray'),
-        label: p.raw['label']?.toString(),
+        label: _label(p.raw['label']),
         ifOverflow: _enum(IfOverflow.values, p.str('ifOverflow')) ?? IfOverflow.discard,
       );
   }
   return null;
+}
+
+/// `label` of an axis or ReferenceLine: string, number or Label props.
+Object? _label(Object? v) {
+  if (v is String || v is num) return v;
+  if (v is! Map) return null;
+  final p = _Props(v.cast<String, dynamic>());
+  return Label(
+    value: p.raw['value'],
+    position: _enum(LabelPosition.values, p.str('position')) ?? LabelPosition.middle,
+    offset: p.dbl('offset') ?? 5,
+    angle: p.dbl('angle') ?? 0,
+    fill: p.color('fill'),
+    fontSize: p.dbl('fontSize'),
+    textAnchor: _enum(TextAnchor.values, p.str('textAnchor')),
+    width: p.dbl('width'),
+    textBreakAll: p.boolean('textBreakAll') ?? false,
+  );
+}
+
+/// `label` of a Line/Bar (true or LabelList props), or LabelList props.
+LabelList? _labelList(Object? v) {
+  if (v == true) return const LabelList();
+  if (v is! Map) return null;
+  final p = _Props(v.cast<String, dynamic>());
+  return LabelList(
+    dataKey: p.raw['dataKey'],
+    position: _enum(LabelPosition.values, p.str('position')) ?? LabelPosition.middle,
+    offset: p.dbl('offset') ?? 5,
+    angle: p.dbl('angle') ?? 0,
+    fill: p.color('fill'),
+    fontSize: p.dbl('fontSize'),
+    textBreakAll: p.boolean('textBreakAll') ?? false,
+  );
 }
 
 Cell _cell(_Props p) => Cell(
