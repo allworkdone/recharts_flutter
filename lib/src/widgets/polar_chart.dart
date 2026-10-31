@@ -1,0 +1,660 @@
+// PieChart: src/chart/PieChart.tsx and PolarChart.tsx (defaultPolarChartProps),
+// rendered like CartesianChart's wrapper. The tooltip is the 'item' event
+// type, the only one PieChart validates: sectors dispatch item hover and
+// click (tooltipContext.tsx), picked by hit testing what is painted under the
+// pointer, and the state follows tooltipSlice.ts,
+// combineTooltipInteractionState.ts, combineTooltipPayloadConfigurations.ts
+// and combineActiveTooltipIndex.ts. Focus and arrow keys follow
+// keyboardEventsMiddleware.ts; Tab visits the svg, then each Pie whose
+// `rootTabIndex` is not negative. `syncId` shares the tooltip index with the
+// other polar charts of the group (syncMethod 'index').
+
+import 'package:flutter/gestures.dart' show kTouchSlop, PointerDeviceKind;
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show HardwareKeyboard, KeyDownEvent, KeyRepeatEvent, LogicalKeyboardKey;
+import 'package:flutter/widgets.dart';
+
+import '../animation.dart';
+import '../components.dart';
+import '../engine/pie.dart';
+import '../polar_components.dart';
+import '../render/polar_painter.dart';
+import '../render/sector.dart';
+import '../render/svg_text.dart';
+import 'legend.dart';
+import 'responsive_container.dart';
+import 'tooltip.dart';
+
+/// Shared props of the polar charts (`PolarChartProps` with
+/// `defaultPolarChartProps`). [cx], [cy], [innerRadius] and [outerRadius] are
+/// numbers or percent strings and place the polar axes; Pies carry their own.
+abstract class PolarChart extends StatefulWidget {
+  const PolarChart({
+    super.key,
+    this.width,
+    this.height,
+    this.data = const [],
+    this.margin = const Margin.all(5),
+    this.cx = '50%',
+    this.cy = '50%',
+    this.innerRadius = 0,
+    this.outerRadius = '80%',
+    required this.startAngle,
+    required this.endAngle,
+    this.syncId,
+    this.accessibilityLayer = true,
+    this.onClick,
+    this.onMouseEnter,
+    this.onMouseMove,
+    this.onMouseLeave,
+    this.children = const [],
+  });
+
+  /// When null the chart fills the incoming constraints.
+  final double? width;
+  final double? height;
+  final List<Object?> data;
+  final Margin margin;
+  final Object cx, cy, innerRadius, outerRadius;
+  final double startAngle, endAngle;
+
+  /// Polar charts with the same id share the active tooltip index.
+  final Object? syncId;
+
+  /// When false, focusing the chart no longer shows the tooltip at index 0 and
+  /// arrow keys no longer move it.
+  final bool accessibilityLayer;
+  final ChartEventHandler? onClick;
+  final ChartEventHandler? onMouseEnter;
+  final ChartEventHandler? onMouseMove;
+  final ChartEventHandler? onMouseLeave;
+  final List<RechartsElement> children;
+
+  String get chartName;
+
+  @override
+  State<PolarChart> createState() => _PolarChartState();
+}
+
+/// src/chart/PieChart.tsx.
+class PieChart extends PolarChart {
+  const PieChart({
+    super.key,
+    super.width,
+    super.height,
+    super.data,
+    super.margin,
+    super.cx,
+    super.cy,
+    super.innerRadius,
+    super.outerRadius,
+    super.startAngle = 0,
+    super.endAngle = 360,
+    super.syncId,
+    super.accessibilityLayer,
+    super.onClick,
+    super.onMouseEnter,
+    super.onMouseMove,
+    super.onMouseLeave,
+    super.children,
+  });
+  @override
+  String get chartName => 'PieChart';
+}
+
+/// `TooltipInteractionState`.
+class _Interaction {
+  const _Interaction({this.active = false, this.index, this.coordinate, this.dataKey, this.itemId});
+  final bool active;
+  final int? index;
+  final Offset? coordinate;
+  final Object? dataKey;
+
+  /// `graphicalItemId`.
+  final String? itemId;
+  _Interaction inactive() => _Interaction(index: index, coordinate: coordinate, dataKey: dataKey, itemId: itemId);
+  _Interaction activate() =>
+      _Interaction(active: true, index: index, coordinate: coordinate, dataKey: dataKey, itemId: itemId);
+}
+
+/// The sector under the pointer.
+typedef _SectorHit = ({String id, Object dataKey, int index, Offset tooltipPosition});
+
+/// Everything the tooltip and the sectors render from the tooltip state.
+class _PolarView extends PolarHoverState {
+  const _PolarView({
+    super.activeIndex,
+    super.activeDataKey,
+    super.activeItemId,
+    this.active = false,
+    this.coordinate,
+    this.payload = const [],
+    this.interactionActive = false,
+  });
+  final bool active;
+  final Offset? coordinate;
+  final List<TooltipPayloadEntry> payload;
+  final bool interactionActive;
+}
+
+class _ViewNotifier extends ChangeNotifier implements ValueListenable<_PolarView> {
+  _PolarView _value = const _PolarView();
+  @override
+  _PolarView get value => _value;
+  void set(_PolarView v, {bool notify = true}) {
+    _value = v;
+    if (notify) notifyListeners();
+  }
+}
+
+/// Registry for `syncId` with `syncMethod="index"`.
+final Map<Object, Set<_PolarChartState>> _syncGroups = {};
+
+class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin {
+  final Map<String, SeriesAnimator<PieSector>> _pieAnimators = {};
+  final _ViewNotifier _view = _ViewNotifier();
+
+  _Interaction _itemHover = const _Interaction();
+  _Interaction _itemClick = const _Interaction();
+  _Interaction _sync = const _Interaction();
+  _Interaction _keyboard = const _Interaction();
+  _SectorHit? _hoveredItem;
+  _SectorHit? _downItem;
+  final FocusNode _focusNode = FocusNode(debugLabel: 'recharts polar chart');
+
+  /// What has DOM focus inside the chart: the svg (-1) or the group of the
+  /// Pie at that index; null when the chart is not focused.
+  int? _focusTarget;
+  PolarModel? _model;
+  PolarFrame? _frame;
+  Size? _customLegendSize;
+  Offset? _downPosition;
+  Object? _registeredSyncId;
+
+  @override
+  void initState() {
+    super.initState();
+    PaintingBinding.instance.systemFonts.addListener(_onFontsChanged);
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  void _onFontsChanged() {
+    clearTextCache();
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    PaintingBinding.instance.systemFonts.removeListener(_onFontsChanged);
+    _unregisterSync();
+    _focusNode.dispose();
+    for (final a in _pieAnimators.values) {
+      a.dispose();
+    }
+    _view.dispose();
+    super.dispose();
+  }
+
+  void _registerSync() {
+    if (_registeredSyncId == widget.syncId) return;
+    _unregisterSync();
+    if (widget.syncId != null) {
+      _syncGroups.putIfAbsent(widget.syncId!, () => {}).add(this);
+      _registeredSyncId = widget.syncId;
+    }
+  }
+
+  void _unregisterSync() {
+    final id = _registeredSyncId;
+    if (id == null) return;
+    _syncGroups[id]?.remove(this);
+    if (_syncGroups[id]?.isEmpty ?? false) _syncGroups.remove(id);
+    _registeredSyncId = null;
+  }
+
+  // -------------------------------------------------------------- tooltip state
+
+  _Interaction _interactionState(PolarModel m) {
+    final tooltip = m.tooltipSettings;
+    final mouse = tooltip?.trigger == TooltipTrigger.click ? _itemClick : _itemHover;
+    if (mouse.active) return mouse;
+    if (_keyboard.active) return _keyboard;
+    if (_sync.active && _sync.index != null) return _sync;
+    if (mouse.index != null) {
+      if (tooltip?.active == true) return mouse.activate();
+    } else if (tooltip?.defaultIndex != null) {
+      return _Interaction(active: true, index: tooltip!.defaultIndex);
+    }
+    return _Interaction(coordinate: mouse.coordinate);
+  }
+
+  /// `combineActiveTooltipIndex`: clamped into the tooltip data.
+  int? _activeIndex(PolarModel m, int? index) {
+    if (index == null) return null;
+    final length = m.tooltipDisplayedData.length;
+    return length > 0 ? index.clamp(0, length - 1) : (index < 0 ? 0 : index);
+  }
+
+  /// `combineTooltipPayloadConfigurations` for the 'item' event type.
+  Iterable<PieModel> _payloadConfigurations(PolarModel m) {
+    final pies = m.pies.where((p) => !p.settings.hide && p.sectors != null).toList();
+    if (pies.isEmpty) return const [];
+    final id = (m.tooltipSettings?.trigger == TooltipTrigger.click ? _itemClick : _itemHover).itemId;
+    if (_sync.active && id == null) return pies;
+    if (id == null && (m.tooltipSettings?.defaultIndex != null || _keyboard.active)) return [pies.first];
+    return pies.where((p) => p.id == id);
+  }
+
+  /// `combineCoordinateForDefaultIndex`: the first Pie's sector position.
+  Offset? _coordinateForIndex(PolarModel m, int i) {
+    final first = _payloadConfigurations(m).firstOrNull ?? m.pies.where((p) => p.sectors != null).firstOrNull;
+    final sectors = first?.sectors;
+    return sectors != null && i >= 0 && i < sectors.length ? sectors[i].tooltipPosition : null;
+  }
+
+  _PolarView _computeView(PolarModel m) {
+    final tooltip = m.tooltipSettings;
+    final state = _interactionState(m);
+    final activeIndex = _activeIndex(m, state.index);
+    final finalIsActive = tooltip?.active ?? (state.active && activeIndex != null);
+    var coordinate = state.coordinate;
+    if (coordinate == null && tooltip?.defaultIndex != null) coordinate = _coordinateForIndex(m, tooltip!.defaultIndex!);
+    var payload = finalIsActive ? pieTooltipPayload(m, _payloadConfigurations(m), activeIndex) : const <TooltipPayloadEntry>[];
+    if (tooltip?.filterNull ?? true) {
+      payload = [
+        for (final e in payload)
+          if (e.value != null && (!e.hide || (tooltip?.includeHidden ?? false))) e,
+      ];
+    }
+    return _PolarView(
+      activeIndex: activeIndex,
+      activeDataKey: state.dataKey,
+      activeItemId: state.itemId,
+      active: finalIsActive,
+      coordinate: coordinate,
+      payload: payload,
+      interactionActive: state.active,
+    );
+  }
+
+  void _refreshView() {
+    final m = _model;
+    if (m == null) return;
+    _view.set(_computeView(m));
+  }
+
+  ChartEventState _eventState() {
+    final v = _view.value;
+    return ChartEventState(
+      activeCoordinate: v.coordinate,
+      activeDataKey: v.activeDataKey,
+      activeIndex: v.activeIndex,
+      activeTooltipIndex: v.activeIndex,
+      isTooltipActive: v.interactionActive,
+    );
+  }
+
+  // -------------------------------------------------------------- keyboard
+
+  void _setFocusTarget(int? target) {
+    if (target == _focusTarget || !mounted) return;
+    final hadFocus = _focusTarget != null;
+    setState(() => _focusTarget = target);
+    if (hadFocus) _blurAction();
+    if (target != null) _focusAction();
+  }
+
+  void _onFocusChange() {
+    if (!_focusNode.hasFocus) {
+      _setFocusTarget(null);
+    } else if (_focusTarget == null) {
+      _setFocusTarget(-1);
+    }
+  }
+
+  /// `focusAction`: the first focus shows the tooltip at index 0.
+  void _focusAction() {
+    final m = _model;
+    if (!widget.accessibilityLayer || m == null || _keyboard.active || _keyboard.index != null) return;
+    _keyboard = _Interaction(active: true, index: 0, coordinate: _coordinateForIndex(m, 0));
+    _refreshView();
+    _broadcastSync();
+  }
+
+  /// `blurAction`.
+  void _blurAction() {
+    if (!_keyboard.active) return;
+    _keyboard = _keyboard.inactive();
+    _refreshView();
+    _broadcastSync();
+  }
+
+  KeyEventResult _onKey(FocusNode _, KeyEvent e) {
+    if (e is! KeyDownEvent && e is! KeyRepeatEvent) return KeyEventResult.ignored;
+    final key = e.logicalKey;
+    final m = _model;
+    if (key == LogicalKeyboardKey.tab && m != null) {
+      // Tab order: the svg, then the Pies' groups (`rootTabIndex`).
+      final order = [-1, for (final (i, p) in m.pies.indexed) if (p.settings.rootTabIndex >= 0) i];
+      final next = order.indexOf(_focusTarget ?? -1) + (HardwareKeyboard.instance.isShiftPressed ? -1 : 1);
+      if (next < 0 || next >= order.length) return KeyEventResult.ignored;
+      _setFocusTarget(order[next]);
+      return KeyEventResult.handled;
+    }
+    return _keyDownAction(key);
+  }
+
+  /// `keyDownAction`: ArrowLeft/ArrowRight move the tooltip, Enter toggles it.
+  KeyEventResult _keyDownAction(LogicalKeyboardKey key) {
+    final m = _model;
+    if (!widget.accessibilityLayer || m == null) return KeyEventResult.ignored;
+    final right = key == LogicalKeyboardKey.arrowRight;
+    if (!right && key != LogicalKeyboardKey.arrowLeft && key != LogicalKeyboardKey.enter) return KeyEventResult.ignored;
+    final currentIndex = _activeIndex(m, _keyboard.index) ?? -1;
+    final displayed = m.tooltipDisplayedData;
+    if (key == LogicalKeyboardKey.enter) {
+      if (currentIndex < 0) return KeyEventResult.ignored;
+      _keyboard = _Interaction(
+          active: !_keyboard.active, index: _keyboard.index, coordinate: _coordinateForIndex(m, _keyboard.index!));
+    } else {
+      // Polar charts are 'left-to-right'.
+      final movement = right ? 1 : -1;
+      int nextIndex;
+      if (currentIndex < 0) {
+        if (displayed.isEmpty) return KeyEventResult.ignored;
+        nextIndex = movement > 0 ? 0 : displayed.length - 1;
+      } else {
+        nextIndex = currentIndex + movement;
+        if (displayed.isEmpty || nextIndex >= displayed.length || nextIndex < 0) return KeyEventResult.ignored;
+      }
+      _keyboard = _Interaction(active: true, index: nextIndex, coordinate: _coordinateForIndex(m, nextIndex));
+    }
+    _refreshView();
+    _broadcastSync();
+    return KeyEventResult.ignored;
+  }
+
+  void _focusFromPointer() {
+    _setFocusTarget(_focusTarget ?? -1);
+    _focusNode.requestFocus();
+  }
+
+  // -------------------------------------------------------------- input
+
+  /// The topmost sector under [p], in paint order reversed.
+  _SectorHit? _sectorAt(Offset p) {
+    final m = _model, frame = _frame;
+    if (m == null || frame == null) return null;
+    final h = _view.value;
+    for (final pie in m.pies.reversed) {
+      if (pie.settings.hide || pie.sectors == null) continue;
+      final sectors = currentPieSectors(frame, pie) ?? const <PieSector>[];
+      for (var i = sectors.length - 1; i >= 0; i--) {
+        if (!rendersSector(sectors, i)) continue;
+        final s = sectors[i], option = sectorOption(h, pie, i);
+        final style = option is SectorStyle ? option : null;
+        // A custom painter's shape is unknown: the default sector stands in.
+        final path = piePath(s, option);
+        if (path == null) continue;
+        final stroke = style?.stroke ?? s.stroke;
+        if (path.contains(p) || (stroke != null && strokeContains(path, p, style?.strokeWidth ?? s.strokeWidth ?? 1))) {
+          return (id: pie.id, dataKey: pie.settings.dataKey, index: i, tooltipPosition: sectors[i].tooltipPosition);
+        }
+      }
+    }
+    return null;
+  }
+
+  /// A sector's onMouseEnter / onMouseLeave, fired when the sector under the pointer changes.
+  void _setItemHover(_SectorHit? hit) {
+    if (hit == _hoveredItem || !mounted) return;
+    _hoveredItem = hit;
+    if (hit == null) {
+      _itemHover = _itemHover.inactive();
+    } else {
+      _itemHover = _itemInteraction(hit);
+      _sync = const _Interaction();
+      _keyboard = _keyboard.inactive();
+    }
+    _refreshView();
+    _broadcastSync();
+  }
+
+  _Interaction _itemInteraction(_SectorHit hit) => _Interaction(
+      active: true, index: hit.index, coordinate: hit.tooltipPosition, dataKey: hit.dataKey, itemId: hit.id);
+
+  void _mouseLeave() {
+    if (!mounted) return;
+    _itemHover = _itemHover.inactive();
+    _hoveredItem = null;
+    _refreshView();
+    _broadcastSync();
+  }
+
+  void _broadcastSync() {
+    final id = _registeredSyncId;
+    final m = _model;
+    if (id == null || m == null || m.tooltipSettings == null) return;
+    final v = _view.value;
+    for (final other in _syncGroups[id] ?? const <_PolarChartState>{}) {
+      if (!identical(other, this)) other._receiveSync(v.active, v.activeIndex, v.coordinate, v.activeDataKey, m.viewBox);
+    }
+  }
+
+  void _receiveSync(bool active, int? index, Offset? coordinate, Object? dataKey, Rect sourceViewBox) {
+    final m = _model;
+    if (m == null) return;
+    if (!active) {
+      _sync = const _Interaction();
+    } else {
+      final vb = m.viewBox;
+      final scaled = coordinate == null
+          ? null
+          : Offset(
+              vb.left + (sourceViewBox.width != 0 ? (coordinate.dx - sourceViewBox.left) / sourceViewBox.width : 0) * vb.width,
+              vb.top + (sourceViewBox.height != 0 ? (coordinate.dy - sourceViewBox.top) / sourceViewBox.height : 0) * vb.height,
+            );
+      _sync = _Interaction(active: true, index: index, coordinate: scaled, dataKey: dataKey);
+    }
+    _refreshView();
+  }
+
+  void _onPointerDown(PointerDownEvent e) {
+    _downPosition = e.localPosition;
+    _downItem = _sectorAt(e.localPosition);
+    if (e.kind == PointerDeviceKind.mouse) {
+      _focusFromPointer();
+      _setItemHover(_downItem);
+    }
+  }
+
+  void _onPointerUp(PointerUpEvent e) {
+    final down = _downPosition;
+    _downPosition = null;
+    if (down == null) return;
+    final touch = e.kind != PointerDeviceKind.mouse;
+    if (touch && (e.localPosition - down).distance > kTouchSlop) return;
+    final item = _sectorAt(e.localPosition);
+    if (touch) {
+      // The tap's emulated mouse events reach the sector under the finger.
+      _setItemHover(item);
+      _focusFromPointer();
+    }
+    // A click targets the common ancestor of the mousedown and mouseup targets.
+    if (item != null && (touch || item == _downItem)) {
+      _itemClick = _itemInteraction(item);
+      _sync = const _Interaction();
+      _keyboard = _keyboard.inactive();
+      _refreshView();
+      _broadcastSync();
+    }
+    widget.onClick?.call(_eventState(), e);
+  }
+
+  // -------------------------------------------------------------- animation
+
+  void _syncAnimators(PolarModel m, bool reducedMotion) {
+    final live = <String>{};
+    for (final p in m.pies) {
+      final pie = p.settings;
+      live.add(p.id);
+      final a = _pieAnimators.putIfAbsent(p.id, () => SeriesAnimator<PieSector>(this, matchBy: MatchBy.append));
+      a.update(pie.hide ? null : p.sectors,
+          active: pie.isAnimationActive ?? !reducedMotion,
+          begin: pie.animationBegin,
+          duration: pie.animationDuration,
+          easing: pie.animationEasing,
+          onAnimationStart: pie.onAnimationStart,
+          onAnimationEnd: pie.onAnimationEnd);
+    }
+    for (final id in _pieAnimators.keys.where((k) => !live.contains(k)).toList()) {
+      _pieAnimators.remove(id)!.dispose();
+    }
+  }
+
+  // -------------------------------------------------------------- build
+
+  @override
+  Widget build(BuildContext context) {
+    _registerSync();
+    final responsive = ResponsiveContainerScope.maybeOf(context);
+    return LayoutBuilder(builder: (context, constraints) {
+      final width = responsive?.width ?? widget.width ?? (constraints.hasBoundedWidth ? constraints.maxWidth : 0.0);
+      final height =
+          responsive?.height ?? widget.height ?? (constraints.hasBoundedHeight ? constraints.maxHeight : 0.0);
+      if (width <= 0 || height <= 0) return SizedBox(width: width, height: height);
+      return _buildChart(context, Size(width, height));
+    });
+  }
+
+  Widget _buildChart(BuildContext context, Size size) {
+    final textStyle = DefaultTextStyle.of(context).style;
+    final scaler = MediaQuery.maybeTextScalerOf(context) ?? TextScaler.noScaling;
+    final reducedMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    final children = widget.children;
+    final legend = children.whereType<Legend>().firstOrNull;
+
+    PolarModel compute(Size legendSize) => computePolarModel(
+        chartName: widget.chartName,
+        size: size,
+        data: widget.data,
+        children: children,
+        margin: widget.margin,
+        legendSize: legendSize);
+
+    // The legend payload does not depend on the offset.
+    var m = compute(Size.zero);
+    LegendLayout? legendLayout;
+    List<LegendPayload> legendPayload = const [];
+    if (legend != null) {
+      legendPayload = pieLegendPayload(m, legend);
+      if (legend.content == null) {
+        legendLayout = computeLegendLayout(
+            legend: legend,
+            payload: legendPayload,
+            chartSize: size,
+            margin: widget.margin,
+            baseStyle: textStyle,
+            scaler: scaler);
+      }
+      m = compute(legendLayout?.size ?? _customLegendSize ?? Size.zero);
+    }
+    _model = m;
+    _syncAnimators(m, reducedMotion);
+    _view.set(_computeView(m), notify: false);
+
+    final frame = _frame = PolarFrame(model: m, textStyle: textStyle, textScaler: scaler, pieAnimators: _pieAnimators);
+    final animations = Listenable.merge([for (final a in _pieAnimators.values) a.controller]);
+
+    Widget layer(PolarLayer l, Listenable repaint) => Positioned.fill(
+          child: RepaintBoundary(
+            child: CustomPaint(painter: PolarPainter(l, frame, hover: _view, repaint: repaint)),
+          ),
+        );
+
+    final tooltip = m.tooltipSettings;
+    final stack = Stack(
+      clipBehavior: Clip.none,
+      children: [
+        layer(PolarLayer.main, Listenable.merge([animations, _view])),
+        // Repaints when a Pie finishes animating and its labels appear.
+        layer(PolarLayer.labels, animations),
+        if (legend != null)
+          legendLayer(legend,
+              layout: legendLayout,
+              payload: legendPayload,
+              chartSize: size,
+              margin: widget.margin,
+              scaler: scaler,
+              customSize: _customLegendSize,
+              onCustomSize: (s) {
+                if (mounted && s != _customLegendSize) setState(() => _customLegendSize = s);
+              }),
+        if (tooltip != null)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: ListenableBuilder(
+                listenable: _view,
+                builder: (context, _) {
+                  final v = _view.value;
+                  // The 'item' event type renders no label.
+                  return tooltipLayer(tooltip,
+                      vsync: this,
+                      reducedMotion: reducedMotion,
+                      viewBox: m.viewBox,
+                      active: v.active,
+                      payload: v.payload,
+                      coordinate: v.coordinate,
+                      activeIndex: v.activeIndex);
+                },
+              ),
+            ),
+          ),
+      ],
+    );
+
+    final content = TapRegion(
+      onTapOutside: (e) {
+        if (_focusNode.hasFocus) _focusNode.unfocus();
+        _setFocusTarget(null);
+        if (e.kind == PointerDeviceKind.touch && _itemHover.active) _mouseLeave();
+      },
+      child: MouseRegion(
+        onEnter: (e) {
+          _setItemHover(_sectorAt(e.localPosition));
+          widget.onMouseEnter?.call(_eventState(), e);
+        },
+        onHover: (e) {
+          _setItemHover(_sectorAt(e.localPosition));
+          widget.onMouseMove?.call(_eventState(), e);
+        },
+        onExit: (e) {
+          _mouseLeave();
+          widget.onMouseLeave?.call(_eventState(), e);
+        },
+        child: Listener(
+          behavior: HitTestBehavior.opaque,
+          onPointerDown: _onPointerDown,
+          onPointerMove: (e) {
+            final hit = _sectorAt(e.localPosition);
+            if (e.kind == PointerDeviceKind.mouse) {
+              _setItemHover(hit);
+              widget.onMouseMove?.call(_eventState(), e);
+            } else if (hit != null) {
+              // touchEventsMiddleware: a finger over a sector activates it; elsewhere nothing changes.
+              _setItemHover(hit);
+            }
+          },
+          onPointerUp: _onPointerUp,
+          onPointerCancel: (_) => _downPosition = null,
+          child: stack,
+        ),
+      ),
+    );
+    return SizedBox.fromSize(
+      size: size,
+      child: Focus(focusNode: _focusNode, onKeyEvent: _onKey, child: content),
+    );
+  }
+
+}

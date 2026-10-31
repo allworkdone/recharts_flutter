@@ -1,0 +1,280 @@
+// Draws the SVG part of a polar chart in the z layers of
+// src/zIndex/DefaultZIndexes.tsx: Pie sectors (area, 100), then pie labels,
+// label lines and LabelLists (label, 2000). Follows PieSectors, PieLabels
+// (renderLabelLineItem, renderLabelItem, getTextAnchor), the Shape option
+// rules of src/util/ActiveShapeUtils.tsx, and the polar half of
+// src/component/Label.tsx (getAttrsOfPolarLabel) for LabelList entries.
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/rendering.dart';
+
+import '../animation.dart';
+import '../components.dart';
+import '../core/polar_utils.dart';
+import '../engine/pie.dart';
+import '../polar_components.dart';
+import '../util.dart';
+import 'label.dart';
+import 'sector.dart';
+import 'shapes.dart';
+import 'svg_text.dart';
+
+enum PolarLayer { main, labels }
+
+/// The active tooltip item, as sectors see it.
+class PolarHoverState {
+  const PolarHoverState({this.activeIndex, this.activeDataKey, this.activeItemId});
+  final int? activeIndex;
+  final Object? activeDataKey;
+
+  /// `selectActiveTooltipGraphicalItemId`.
+  final String? activeItemId;
+}
+
+/// Everything painters need for one build of a polar chart.
+class PolarFrame {
+  PolarFrame({required this.model, required this.textStyle, required this.textScaler, required this.pieAnimators});
+  final PolarModel model;
+  final TextStyle textStyle;
+  final TextScaler textScaler;
+  final Map<String, SeriesAnimator<PieSector>> pieAnimators;
+}
+
+/// `isActive` of a sector in PieSectors.
+bool isActiveSector(PolarHoverState? h, PieModel pie, int index) =>
+    h != null &&
+    h.activeIndex == index &&
+    (h.activeDataKey == null || pie.settings.dataKey == h.activeDataKey) &&
+    (h.activeItemId == null || h.activeItemId == pie.id);
+
+/// The `<Shape option>` a sector renders with: the active or inactive shape,
+/// else the Pie's `shape`.
+Object? sectorOption(PolarHoverState? h, PieModel pie, int index) {
+  final s = pie.settings;
+  final active = s.activeShape != null && s.activeShape != false && isActiveSector(h, pie, index);
+  return (active ? s.activeShape : (h?.activeIndex != null ? s.inactiveShape : null)) ?? s.shape;
+}
+
+/// Sector props with an object option merged over them (`mergeShapeProps`).
+SectorGeometry sectorGeometry(PieSector s, [SectorStyle? o]) => SectorGeometry(
+      cx: o?.cx ?? s.cx,
+      cy: o?.cy ?? s.cy,
+      innerRadius: o?.innerRadius ?? s.innerRadius,
+      outerRadius: o?.outerRadius ?? s.outerRadius,
+      startAngle: o?.startAngle ?? s.startAngle,
+      endAngle: o?.endAngle ?? s.endAngle,
+      cornerRadius: o?.cornerRadius ?? s.cornerRadius ?? 0,
+      forceCornerRadius: o?.forceCornerRadius ?? false,
+      cornerIsExternal: o?.cornerIsExternal ?? false,
+    );
+
+/// The path a sector paints and hit tests; null when it renders nothing.
+Path? piePath(PieSector s, Object? option) => sectorPath(sectorGeometry(s, option is SectorStyle ? option : null));
+
+/// The sectors a Pie shows this frame (mid-animation they are interpolated).
+List<PieSector>? currentPieSectors(PolarFrame frame, PieModel p) =>
+    frame.pieAnimators[p.id]?.peek(interpolatePieSectors) ?? p.sectors;
+
+/// Whether PieSectors renders the sector at [i] at all.
+bool rendersSector(List<PieSector> sectors, int i) =>
+    !(sectors[i].startAngle == 0 && sectors[i].endAngle == 0 && sectors.length != 1);
+
+class PolarPainter extends CustomPainter {
+  PolarPainter(this.layer, this.frame, {this.hover, super.repaint});
+
+  final PolarLayer layer;
+  final PolarFrame frame;
+  final ValueListenable<PolarHoverState>? hover;
+
+  PolarModel get m => frame.model;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    switch (layer) {
+      case PolarLayer.main:
+        for (final p in m.pies) {
+          _paintPie(canvas, p);
+        }
+      case PolarLayer.labels:
+        for (final p in m.pies) {
+          _paintPieLabels(canvas, p);
+        }
+    }
+  }
+
+  @override
+  bool shouldRepaint(PolarPainter old) => old.frame != frame || old.layer != layer;
+
+  @override
+  bool? hitTest(Offset position) => false;
+
+  void _paintPie(Canvas canvas, PieModel p) {
+    if (p.settings.hide || p.sectors == null) return;
+    final sectors = frame.pieAnimators[p.id]?.step(interpolatePieSectors) ?? p.sectors!;
+    final h = hover?.value;
+    for (var i = 0; i < sectors.length; i++) {
+      if (!rendersSector(sectors, i)) continue;
+      final s = sectors[i];
+      final option = sectorOption(h, p, i);
+      if (option is PieShapePainter) {
+        option(canvas, PieSectorShapeProps(sector: s, index: i, isActive: isActiveSector(h, p, i)));
+        continue;
+      }
+      final style = option is SectorStyle ? option : null;
+      final path = piePath(s, style);
+      if (path == null) continue;
+      final fill = style?.fill ?? s.fill;
+      if (fill != null) canvas.drawPath(path, fillPaint(fill, opacity: style?.fillOpacity ?? s.fillOpacity ?? 1));
+      final stroke = style?.stroke ?? s.stroke;
+      final strokeWidth = style?.strokeWidth ?? s.strokeWidth ?? 1;
+      if (stroke != null && strokeWidth > 0) {
+        drawStroke(canvas, path, strokePaint(stroke, strokeWidth, opacity: style?.strokeOpacity ?? s.strokeOpacity ?? 1),
+            style?.strokeDasharray);
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------- labels
+
+  void _paintPieLabels(Canvas canvas, PieModel p) {
+    final sectors = p.sectors;
+    if (p.settings.hide || sectors == null) return;
+    // Labels show once the Pie stops animating (`showLabels={!isAnimating}`).
+    if (frame.pieAnimators[p.id]?.isAnimating ?? false) return;
+    final label = p.settings.label;
+    if (label is LabelList) {
+      _paintLabelList(canvas, label, sectors);
+    } else if (label == true || label is PieLabel) {
+      _paintOutsideLabels(canvas, p, sectors, label is PieLabel ? label : const PieLabel());
+    }
+    for (final list in p.settings.children.whereType<LabelList>()) {
+      _paintLabelList(canvas, list, sectors);
+    }
+  }
+
+  /// PieLabels: a label line and a text per sector.
+  void _paintOutsideLabels(Canvas canvas, PieModel p, List<PieSector> sectors, PieLabel label) {
+    final pie = p.settings;
+    final offsetRadius = label.offsetRadius == 0 ? 20.0 : label.offsetRadius;
+    for (var i = 0; i < sectors.length; i++) {
+      final s = sectors[i];
+      final midAngle = (s.startAngle + s.endAngle) / 2;
+      final end = polarToCartesian(s.cx, s.cy, s.outerRadius + offsetRadius, midAngle);
+      final line = pie.labelLine;
+      if (line != false) {
+        final points = [polarToCartesian(s.cx, s.cy, s.outerRadius, midAngle), end];
+        if (line is PieLabelLinePainter) {
+          line(canvas, PieLabelLineProps(sector: s, index: i, points: points, stroke: s.fill));
+        } else {
+          final style = line is SvgStyle ? line : null;
+          final stroke = style?.stroke ?? s.fill;
+          final width = style?.strokeWidth ?? s.strokeWidth ?? 1;
+          if (stroke != null && width > 0) {
+            final path = Path()
+              ..moveTo(points[0].dx, points[0].dy)
+              ..lineTo(points[1].dx, points[1].dy);
+            drawStroke(canvas, path, strokePaint(stroke, width, opacity: style?.strokeOpacity ?? s.strokeOpacity ?? 1),
+                style?.strokeDasharray);
+          }
+        }
+      }
+      var style = frame.textStyle.copyWith(color: label.fill ?? s.fill ?? const Color(0xFF000000));
+      if (label.fontSize != null) style = style.copyWith(fontSize: label.fontSize);
+      final textAnchor = end.dx > s.cx ? TextAnchor.start : (end.dx < s.cx ? TextAnchor.end : TextAnchor.middle);
+      final props = PieLabelProps(sector: s, index: i, x: end.dx, y: end.dy, textAnchor: textAnchor, style: style);
+      if (label.content != null) {
+        label.content!(canvas, props);
+        continue;
+      }
+      final value = label.formatter != null
+          ? label.formatter!(props)
+          : (pie.dataKey == 'value' ? s.value : getValueByDataKey(s.payload, pie.dataKey));
+      if (value == null) continue;
+      paintSvgText(canvas, jsString(value), end.dx, end.dy,
+          style: style, textAnchor: textAnchor, scaler: frame.textScaler);
+    }
+  }
+
+  /// LabelList over PieLabelListProvider's polar entries.
+  void _paintLabelList(Canvas canvas, LabelList list, List<PieSector> sectors) {
+    for (var i = 0; i < sectors.length; i++) {
+      final s = sectors[i];
+      final viewBox = PolarViewBox(
+          cx: s.cx,
+          cy: s.cy,
+          innerRadius: s.innerRadius,
+          outerRadius: s.outerRadius,
+          startAngle: s.startAngle,
+          endAngle: s.endAngle);
+      final entry = LabelListEntry(value: s.value, payload: s.payload, viewBox: Rect.zero, fill: s.fill);
+      final label = labelOfEntry(list, entry, i);
+      paintPolarLabel(canvas, label, viewBox, index: i, baseStyle: frame.textStyle, scaler: frame.textScaler);
+    }
+  }
+}
+
+/// `getAttrsOfPolarLabel`; null for the radial positions (insideStart,
+/// insideEnd, end), which Recharts draws along a textPath.
+({double x, double y, TextAnchor textAnchor, TextVerticalAnchor verticalAnchor})? getAttrsOfPolarLabel(
+    PolarViewBox v, double offset, LabelPosition position) {
+  final midAngle = (v.startAngle + v.endAngle) / 2;
+  switch (position) {
+    case LabelPosition.insideStart || LabelPosition.insideEnd || LabelPosition.end:
+      return null;
+    case LabelPosition.outside:
+      final p = polarToCartesian(v.cx, v.cy, v.outerRadius + offset, midAngle);
+      return (
+        x: p.dx,
+        y: p.dy,
+        textAnchor: p.dx >= v.cx ? TextAnchor.start : TextAnchor.end,
+        verticalAnchor: TextVerticalAnchor.middle
+      );
+    case LabelPosition.center:
+      return (x: v.cx, y: v.cy, textAnchor: TextAnchor.middle, verticalAnchor: TextVerticalAnchor.middle);
+    case LabelPosition.centerTop:
+      return (x: v.cx, y: v.cy, textAnchor: TextAnchor.middle, verticalAnchor: TextVerticalAnchor.start);
+    case LabelPosition.centerBottom:
+      return (x: v.cx, y: v.cy, textAnchor: TextAnchor.middle, verticalAnchor: TextVerticalAnchor.end);
+    default:
+      final p = polarToCartesian(v.cx, v.cy, (v.innerRadius + v.outerRadius) / 2, midAngle);
+      return (x: p.dx, y: p.dy, textAnchor: TextAnchor.middle, verticalAnchor: TextVerticalAnchor.middle);
+  }
+}
+
+/// `<Label viewBox={polar}>`.
+// ponytail: the radial positions draw nothing; their textPath arrives with RadialBar.
+void paintPolarLabel(Canvas canvas, Label label, PolarViewBox viewBox,
+    {int? index, required TextStyle baseStyle, required TextScaler scaler}) {
+  final pos = getAttrsOfPolarLabel(viewBox, label.offset, label.position);
+  if (pos == null) return;
+  final style = labelTextStyle(label, baseStyle);
+  if (label.content != null) {
+    final r = viewBox.outerRadius;
+    label.content!(
+      canvas,
+      LabelProps(
+        x: pos.x,
+        y: pos.y,
+        viewBox: Rect.fromLTWH(viewBox.cx - r, viewBox.cy - r, r * 2, r * 2),
+        value: label.value,
+        position: label.position,
+        offset: label.offset,
+        angle: label.angle,
+        style: style,
+        index: index,
+      ),
+    );
+    return;
+  }
+  if (label.value == null) return;
+  final value = label.formatter == null ? label.value : label.formatter!(label.value);
+  if (value == null) return;
+  paintSvgText(canvas, jsString(value), pos.x, pos.y,
+      style: style,
+      textAnchor: label.textAnchor ?? pos.textAnchor,
+      verticalAnchor: pos.verticalAnchor,
+      angle: label.angle,
+      breakAll: label.textBreakAll,
+      measureStyle: baseStyle,
+      scaler: scaler);
+}

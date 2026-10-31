@@ -9,6 +9,9 @@ export 'src/core/scale.dart' show BandPosition;
 export 'src/widgets/cartesian_chart.dart' show CategoricalChart, LineChart, BarChart, AreaChart, ComposedChart;
 export 'src/widgets/responsive_container.dart' show ResponsiveContainer;
 export 'src/widgets/tooltip.dart' show DefaultTooltipContent;
+export 'src/polar_components.dart';
+export 'src/engine/pie.dart' show PieSector;
+export 'src/widgets/polar_chart.dart' show PolarChart, PieChart;
 
 class RechartsFlutter {
   Future<String?> getPlatformVersion() {
