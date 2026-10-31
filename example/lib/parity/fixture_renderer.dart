@@ -160,6 +160,7 @@ RechartsElement? _child(Map<String, dynamic> node) {
         isAnimationActive: p.boolean('isAnimationActive'),
         animationDuration: p.dbl('animationDuration')?.toInt() ?? 400,
         trigger: p.str('trigger') == 'click' ? TooltipTrigger.click : TooltipTrigger.hover,
+        shared: p.boolean('shared'),
         allowEscapeViewBox: (
           x: (p.raw['allowEscapeViewBox'] as Map?)?['x'] == true,
           y: (p.raw['allowEscapeViewBox'] as Map?)?['y'] == true,
@@ -213,6 +214,7 @@ RechartsElement? _child(Map<String, dynamic> node) {
         strokeWidth: p.dbl('strokeWidth'),
         radius: p.raw['radius'] ?? 0,
         background: p.svgOrBool('background') ?? false,
+        activeBar: p.svgOrBool('activeBar') ?? false,
         hide: p.boolean('hide') ?? false,
         legendType: _enum(LegendType.values, p.str('legendType')) ?? LegendType.rect,
         name: p.raw['name'],
@@ -343,6 +345,7 @@ class _Props {
         strokeOpacity: s.dbl('strokeOpacity'),
         strokeDasharray: s.dash('strokeDasharray'),
         r: s.dbl('r'),
+        radius: s.raw['radius'],
       );
     }
     return null;
