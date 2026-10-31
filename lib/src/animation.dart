@@ -232,6 +232,10 @@ class SeriesAnimator<T> {
     return stepData;
   }
 
+  /// What [step] renders now, without recording it (extra layers, hit tests).
+  List<T>? peek(List<T> Function(List<AnimationItem<T>>? items, double t) interpolateFn) =>
+      target == null ? null : interpolateFn(matchAnimationItems(_startSnapshot, target, matchBy), t);
+
   void _cancelPendingStart() {
     if (_pendingStart != null) SchedulerBinding.instance.cancelFrameCallbackWithId(_pendingStart!);
     _pendingStart = null;

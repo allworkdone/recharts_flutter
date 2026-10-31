@@ -285,9 +285,11 @@ void main() {
     await mouse.moveTo(const Offset(300, 300));
     await tester.pump();
     final s = brushState(tester);
-    // the svg has focus: no traveller texts, the keyboard tooltip shows index 0
+    // the svg has focus: no traveller texts; mousedown's focus showed the keyboard
+    // tooltip at index 0, and the click in the plot area (setMouseClickAxisIndex)
+    // deactivated it again, as Chrome shows with Recharts
     expect(s.isTravellerFocused, isFalse);
-    expect(find.text('0'), findsOneWidget);
+    expect(find.text('0'), findsNothing);
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
     await tester.pump();

@@ -3,11 +3,13 @@
 //   background: grid (-100), bar background (-50)
 //   cursorBelow: BarChart cursor rectangle (200)
 //   main: bars (300), lines + reference lines (400), axis lines (500), dots (600)
+//   activeBar: Bar `activeBar` (1000)
 //   overlay: cursor line (1100), active dots (1200)
 //   labels: tick labels and reference line labels (2000)
 // Geometry follows CartesianAxis.tsx (getTickLineCoord, AxisLine),
 // CartesianGrid.tsx, Line.tsx/LineDrawShape.tsx, Dots.tsx, ActivePoints.tsx,
-// Bar.tsx/Rectangle.tsx, ReferenceLine.tsx and Cursor.tsx.
+// Bar.tsx/Rectangle.tsx (BarRectangleWithActiveState), ActiveShapeUtils.tsx,
+// ReferenceLine.tsx and Cursor.tsx.
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
@@ -22,17 +24,80 @@ import '../util.dart';
 import 'shapes.dart';
 import 'svg_text.dart';
 
-enum ChartLayer { background, cursorBelow, main, overlay, labels }
+enum ChartLayer { background, cursorBelow, main, activeBar, overlay, labels }
 
 /// What the overlay needs from the tooltip state.
 class HoverState {
-  const HoverState({this.cursorVisible = false, this.coordinate, this.activeDataPoints = const []});
+  const HoverState({
+    this.cursorVisible = false,
+    this.coordinate,
+    this.activeDataPoints = const [],
+    this.activeIndex,
+    this.activeDataKey,
+    this.activeBarLayer = const {},
+  });
   final bool cursorVisible;
   final Offset? coordinate;
 
   /// Payloads of the active tooltip entries (`selectActiveTooltipDataPoints`).
   final List<Object?> activeDataPoints;
+
+  /// `selectActiveTooltipIndex` / `selectActiveTooltipDataKey`.
+  final int? activeIndex;
+  final Object? activeDataKey;
+
+  /// Bars drawn in the activeBar z-layer: the active ones and those staying there ([nextActiveBarLayer]).
+  final Set<BarKey> activeBarLayer;
 }
+
+/// A bar rectangle as React keys it (`rectangle-x-y-value-i`): new geometry is a new element.
+typedef BarKey = (String id, int index, double x, double y);
+
+BarKey barKey(GraphicalItem item, BarRect r) => (item.id, r.originalDataIndex, r.x, r.y);
+
+/// `isActive` of BarRectangleWithActiveState.
+bool isActiveBar(Bar bar, BarRect r, int? activeIndex, Object? activeDataKey) =>
+    bar.activeBar != false &&
+    r.originalDataIndex == activeIndex &&
+    (activeDataKey == null || bar.dataKey == activeDataKey);
+
+/// `isAnotherBarActive` of BarRectangleWithActiveState.
+bool isAnotherBarActive(Bar bar, BarRect r, int? activeIndex, Object? activeDataKey) =>
+    activeIndex != null &&
+    (r.originalDataIndex != activeIndex || (activeDataKey != null && bar.dataKey != activeDataKey));
+
+/// `stayInLayer`: an active bar moves to the activeBar layer and leaves it only
+/// once another bar is active; its exit transition never ends (Rectangle has
+/// no CSS transition), so it stays there after the tooltip hides.
+Set<BarKey> nextActiveBarLayer(CartesianModel m, Set<BarKey> previous, int? activeIndex, Object? activeDataKey) => {
+      for (final s in m.series)
+        if (s.item.element case final Bar bar when bar.activeBar != false && !s.item.hide)
+          for (final r in s.rects ?? const <BarRect>[])
+            if (isActiveBar(bar, r, activeIndex, activeDataKey) ||
+                (previous.contains(barKey(s.item, r)) && !isAnotherBarActive(bar, r, activeIndex, activeDataKey)))
+              barKey(s.item, r),
+    };
+
+/// The rectangles a Bar shows this frame (mid-animation they are interpolated).
+List<BarRect>? currentBarRects(ChartFrame frame, SeriesModel s) =>
+    frame.barAnimators[s.item.id]?.peek((items, t) => interpolateBarRects(items, t, frame.model.layout)) ?? s.rects;
+
+/// Whether [r] renders in the activeBar layer rather than with the other bars.
+bool inActiveBarLayer(HoverState? h, GraphicalItem item, Bar bar, BarRect r) =>
+    h != null &&
+    bar.activeBar != false &&
+    (isActiveBar(bar, r, h.activeIndex, h.activeDataKey) || h.activeBarLayer.contains(barKey(item, r)));
+
+/// The option a bar renders with: `activeBar` props are merged over the bar's
+/// (`mergeShapeProps`); `activeBar={true}` renders the bar's own shape.
+SvgStyle? activeBarStyle(HoverState? h, Bar bar, BarRect r) =>
+    h != null && bar.activeBar is SvgStyle && isActiveBar(bar, r, h.activeIndex, h.activeDataKey)
+        ? bar.activeBar as SvgStyle
+        : null;
+
+/// The Rectangle path of a bar, as painted and hit tested.
+Path barPath(Bar bar, BarRect r, SvgStyle? active) =>
+    rectanglePath(r.x, r.y, r.width, r.height, active?.radius ?? bar.radius);
 
 /// Everything painters need for one build of the chart.
 class ChartFrame {
@@ -83,6 +148,8 @@ class CartesianPainter extends CustomPainter {
         _paintCursor(canvas, rectangle: true);
       case ChartLayer.main:
         _paintMain(canvas);
+      case ChartLayer.activeBar:
+        _paintActiveBars(canvas);
       case ChartLayer.overlay:
         _paintCursor(canvas, rectangle: false);
         _paintActiveDots(canvas);
@@ -211,7 +278,12 @@ class CartesianPainter extends CustomPainter {
       final rects = frame.barAnimators[s.item.id]?.step((items, t) => interpolateBarRects(items, t, m.layout)) ??
           s.rects;
       if (rects == null) continue;
-      _withClip(canvas, _clipFor(s.item), () => _paintBars(canvas, s.item.element as Bar, rects));
+      final bar = s.item.element as Bar;
+      _withClip(canvas, _clipFor(s.item), () {
+        for (final r in rects) {
+          if (!inActiveBarLayer(hover?.value, s.item, bar, r)) _paintBar(canvas, bar, r, null);
+        }
+      });
     }
     // Lines and reference lines (z 400), in document order.
     for (final c in frame.children) {
@@ -244,15 +316,31 @@ class CartesianPainter extends CustomPainter {
     }
   }
 
-  void _paintBars(Canvas canvas, Bar bar, List<BarRect> rects) {
-    for (final r in rects) {
-      if (!r.x.isFinite || !r.y.isFinite || r.width == 0 || r.height == 0) continue;
-      final path = rectanglePath(r.x, r.y, r.width, r.height, bar.radius);
-      final fill = r.cell?.fill ?? bar.fill ?? const Color(0xFF000000);
-      canvas.drawPath(path, fillPaint(fill, opacity: r.cell?.fillOpacity ?? bar.fillOpacity ?? 1));
-      final stroke = r.cell?.stroke ?? bar.stroke;
-      if (stroke != null) {
-        canvas.drawPath(path, strokePaint(stroke, r.cell?.strokeWidth ?? bar.strokeWidth ?? 1));
+  /// Rectangle with `{...barProps, ...entry (incl. Cell props), ...active}`.
+  void _paintBar(Canvas canvas, Bar bar, BarRect r, SvgStyle? active) {
+    if (!r.x.isFinite || !r.y.isFinite || r.width == 0 || r.height == 0) return;
+    final path = barPath(bar, r, active);
+    final fill = active?.fill ?? r.cell?.fill ?? bar.fill ?? const Color(0xFF000000);
+    canvas.drawPath(path, fillPaint(fill, opacity: active?.fillOpacity ?? r.cell?.fillOpacity ?? bar.fillOpacity ?? 1));
+    final stroke = active?.stroke ?? r.cell?.stroke ?? bar.stroke;
+    if (stroke != null) {
+      drawStroke(
+          canvas,
+          path,
+          strokePaint(stroke, active?.strokeWidth ?? r.cell?.strokeWidth ?? bar.strokeWidth ?? 1,
+              opacity: active?.strokeOpacity ?? 1),
+          active?.strokeDasharray);
+    }
+  }
+
+  /// The activeBar ZIndexLayer: a portal, so outside the bars' clip path.
+  void _paintActiveBars(Canvas canvas) {
+    final h = hover?.value;
+    for (final s in m.series) {
+      final bar = s.item.element;
+      if (bar is! Bar || bar.activeBar == false || s.item.hide) continue;
+      for (final r in currentBarRects(frame, s) ?? const <BarRect>[]) {
+        if (inActiveBarLayer(h, s.item, bar, r)) _paintBar(canvas, bar, r, activeBarStyle(h, bar, r));
       }
     }
   }

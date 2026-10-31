@@ -942,17 +942,19 @@ Object? activeLabelOf(CartesianModel m, int? activeIndex) {
   return activeIndex < m.tooltipTicks.length ? m.tooltipTicks[activeIndex].value : null;
 }
 
-/// `combineTooltipPayload` for the 'axis' event type.
-List<TooltipPayloadEntry> tooltipPayloadOf(CartesianModel m, int? activeIndex) {
+/// `combineTooltipPayload` over [items] (`combineTooltipPayloadConfigurations`,
+/// all items by default). The 'item' event type looks entries up by index only.
+List<TooltipPayloadEntry> tooltipPayloadOf(CartesianModel m, int? activeIndex,
+    {Iterable<GraphicalItem>? items, bool itemEventType = false}) {
   if (activeIndex == null) return const [];
   final axisDataKey = m.tooltipAxis.settings.dataKey;
   final activeLabel = activeLabelOf(m, activeIndex);
   final out = <TooltipPayloadEntry>[];
-  for (final item in m.items) {
+  for (final item in items ?? m.items) {
     final el = item.element;
     final finalData = getSliced(item.data ?? m.chartData, m.dataStartIndex, m.dataEndIndex);
     Object? payload;
-    if (axisDataKey != null) {
+    if (axisDataKey != null && !itemEventType) {
       payload = finalData.where((e) => getValueByDataKey(e, axisDataKey) == activeLabel).firstOrNull;
       payload ??= activeIndex >= 0 && activeIndex < finalData.length ? finalData[activeIndex] : null;
     } else {

@@ -48,6 +48,7 @@ class SvgStyle {
     this.strokeOpacity,
     this.strokeDasharray,
     this.r,
+    this.radius,
   });
   final Color? fill;
   final double? fillOpacity;
@@ -58,6 +59,9 @@ class SvgStyle {
 
   /// Circle radius, used by `dot` / `activeDot`.
   final double? r;
+
+  /// Rectangle corner radius (a number or `[topLeft, topRight, bottomRight, bottomLeft]`), used by `activeBar`.
+  final Object? radius;
 }
 
 /// `interval` of an axis: a strategy name or a fixed number (`AxisInterval.number(0)`).
@@ -505,6 +509,7 @@ class Bar extends CartesianSeries {
     this.strokeWidth,
     this.radius = 0,
     this.background = false,
+    this.activeBar = false,
     super.hide,
     super.legendType = LegendType.rect,
     super.name,
@@ -542,6 +547,11 @@ class Bar extends CartesianSeries {
 
   /// `true`/`false` or an [SvgStyle] (default background fill `#eee`).
   final Object background;
+
+  /// The bar at the active tooltip index: `false`, `true` (drawn like the
+  /// others, above lines and axes), or an [SvgStyle] merged over its props.
+  /// It switches without a transition, like Recharts' default Rectangle.
+  final Object activeBar;
   final List<Cell> children;
 
   @override
@@ -703,6 +713,9 @@ class Tooltip extends RechartsElement {
   final ({double? x, double? y})? position;
   final ({bool x, bool y}) reverseDirection;
   final String separator;
+
+  /// `false` makes a `BarChart`'s tooltip follow the hovered bar ('item'
+  /// event type); Line and Composed charts only support 'axis' and ignore it.
   final bool? shared;
   final TooltipTrigger trigger;
 }

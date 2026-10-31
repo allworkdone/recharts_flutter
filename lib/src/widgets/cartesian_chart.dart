@@ -9,6 +9,12 @@
 // BrushInternal (Brush.tsx), and the Brush panorama (CategoricalChart.tsx
 // `compact`, PanoramaContext).
 //
+// Tooltip event type 'item' (selectTooltipEventType.ts; only BarChart allows
+// it): bars and their backgrounds dispatch item hover/click like the
+// onMouseEnter/onMouseLeave/onClick handlers of tooltipContext.tsx, picked by
+// hit testing what is painted under the pointer, and
+// combineTooltipPayloadConfigurations.ts narrows the payload to that item.
+//
 // Pointer input uses a Listener (raw pointer events, no gesture arena) plus a
 // MouseRegion for hover enter/exit, so a chart inside a scroll view never
 // steals the scroll gesture; the browser does not block page scroll either.
@@ -22,6 +28,7 @@ import 'package:flutter/widgets.dart';
 import '../animation.dart';
 import '../components.dart';
 import '../core/curve.dart';
+import '../engine/axis.dart' show GraphicalItem;
 import '../engine/model.dart';
 import '../render/painter.dart';
 import '../render/svg_text.dart';
@@ -200,12 +207,21 @@ class ComposedChart extends CategoricalChart {
 
 /// `TooltipInteractionState`.
 class _Interaction {
-  const _Interaction({this.active = false, this.index, this.coordinate});
+  const _Interaction({this.active = false, this.index, this.coordinate, this.dataKey, this.itemId});
   final bool active;
   final int? index;
   final Offset? coordinate;
-  _Interaction inactive() => _Interaction(index: index, coordinate: coordinate);
+  final Object? dataKey;
+
+  /// `graphicalItemId`.
+  final String? itemId;
+  _Interaction inactive() => _Interaction(index: index, coordinate: coordinate, dataKey: dataKey, itemId: itemId);
+  _Interaction activate() =>
+      _Interaction(active: true, index: index, coordinate: coordinate, dataKey: dataKey, itemId: itemId);
 }
+
+/// The graphical item element under the pointer: a bar or its background.
+typedef _ItemHit = ({String id, Object dataKey, int index, Offset tooltipPosition, bool background});
 
 /// Everything the tooltip and the hover layer render.
 class _TooltipView extends HoverState {
@@ -213,17 +229,22 @@ class _TooltipView extends HoverState {
     super.cursorVisible,
     super.coordinate,
     super.activeDataPoints,
+    super.activeIndex,
+    super.activeDataKey,
+    super.activeBarLayer,
     this.active = false,
-    this.activeIndex,
     this.label,
     this.payload = const [],
     this.interactionActive = false,
+    this.itemEventType = false,
   });
   final bool active;
-  final int? activeIndex;
   final Object? label;
   final List<TooltipPayloadEntry> payload;
   final bool interactionActive;
+
+  /// The Tooltip renders no label for the 'item' event type.
+  final bool itemEventType;
 }
 
 class _ViewNotifier extends ChangeNotifier implements ValueListenable<_TooltipView> {
@@ -247,6 +268,10 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
 
   _Interaction _hover = const _Interaction();
   _Interaction _click = const _Interaction();
+  _Interaction _itemHover = const _Interaction();
+  _Interaction _itemClick = const _Interaction();
+  _ItemHit? _hoveredItem;
+  _ItemHit? _downItem;
   _Interaction _sync = const _Interaction();
   _Interaction _keyboard = const _Interaction();
   final FocusNode _focusNode = FocusNode(debugLabel: 'recharts chart');
@@ -258,6 +283,7 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
   ({BrushTravellerId? traveller})? _focusTarget;
   final GlobalKey<BrushLayerState> _brushKey = GlobalKey();
   CartesianModel? _model;
+  ChartFrame? _frame;
   Size? _customLegendSize;
   Offset? _downPosition;
   Object? _registeredSyncId;
@@ -381,29 +407,48 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
 
   // -------------------------------------------------------------- tooltip state
 
+  /// `combineTooltipEventType`: `shared={false}` selects 'item' where the
+  /// chart validates it, and only BarChart does.
+  bool _isItemEventType(CartesianModel m) => m.tooltipSettings?.shared == false && m.chartName == 'BarChart';
+
   _Interaction _interactionState(CartesianModel m) {
     final tooltip = m.tooltipSettings;
-    final mouse = tooltip?.trigger == TooltipTrigger.click ? _click : _hover;
+    final click = tooltip?.trigger == TooltipTrigger.click;
+    final mouse = _isItemEventType(m) ? (click ? _itemClick : _itemHover) : (click ? _click : _hover);
     if (mouse.active) return mouse;
     if (_keyboard.active) return _keyboard;
     if (_sync.active && _sync.index != null) return _sync;
     if (mouse.index != null) {
-      if (tooltip?.active == true) return _Interaction(active: true, index: mouse.index, coordinate: mouse.coordinate);
+      if (tooltip?.active == true) return mouse.activate();
     } else if (tooltip?.defaultIndex != null) {
       return _Interaction(active: true, index: tooltip!.defaultIndex);
     }
     return _Interaction(coordinate: mouse.coordinate);
   }
 
+  /// `combineTooltipPayloadConfigurations` for the 'item' event type.
+  Iterable<GraphicalItem> _itemPayloadConfigurations(CartesianModel m) {
+    if (m.items.isEmpty) return const [];
+    final tooltip = m.tooltipSettings;
+    final id = (tooltip?.trigger == TooltipTrigger.click ? _itemClick : _itemHover).itemId;
+    // A synchronised chart shows all of its items at the synced index.
+    if (_sync.active && id == null) return m.items;
+    // defaultIndex and keyboard have nothing to filter by: the first item.
+    if (id == null && (tooltip?.defaultIndex != null || _keyboard.active)) return [m.items.first];
+    return m.items.where((i) => i.id == id);
+  }
+
   _TooltipView _computeView(CartesianModel m) {
     final tooltip = m.tooltipSettings;
+    final item = _isItemEventType(m);
     final state = _interactionState(m);
     final activeIndex = combineActiveTooltipIndex(m, state.index);
     final isActive = state.active && activeIndex != null;
     final finalIsActive = tooltip?.active ?? isActive;
     var coordinate = state.coordinate;
     if (coordinate == null && tooltip?.defaultIndex != null) coordinate = _coordinateForIndex(m, tooltip!.defaultIndex!);
-    final payload = tooltipPayloadOf(m, activeIndex);
+    final payload =
+        tooltipPayloadOf(m, activeIndex, items: item ? _itemPayloadConfigurations(m) : null, itemEventType: item);
     var finalPayload = finalIsActive ? payload : const <TooltipPayloadEntry>[];
     if (tooltip?.filterNull ?? true) {
       finalPayload = [
@@ -412,14 +457,18 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
       ];
     }
     return _TooltipView(
-      cursorVisible: tooltip != null && finalIsActive,
+      // Cursor.tsx renders nothing for the 'item' event type outside ScatterChart.
+      cursorVisible: tooltip != null && finalIsActive && !item,
       coordinate: coordinate,
       activeDataPoints: {for (final p in payload) ?p.payload}.toList(),
-      active: finalIsActive,
       activeIndex: activeIndex,
+      activeDataKey: state.dataKey,
+      activeBarLayer: nextActiveBarLayer(m, _view.value.activeBarLayer, activeIndex, state.dataKey),
+      active: finalIsActive,
       label: activeLabelOf(m, activeIndex),
       payload: finalPayload,
       interactionActive: state.active,
+      itemEventType: item,
     );
   }
 
@@ -546,6 +595,7 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
     final v = _view.value;
     return ChartEventState(
       activeCoordinate: v.coordinate,
+      activeDataKey: v.activeDataKey,
       activeIndex: v.activeIndex,
       activeTooltipIndex: v.activeIndex,
       activeLabel: v.label,
@@ -555,13 +605,18 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
 
   // -------------------------------------------------------------- input
 
+  /// mouseMoveAction. With the 'item' event type only the items react, through
+  /// their enter/leave handlers.
   void _setHoverFromPointer(Offset local, {required bool leaveWhenOutside}) {
     final m = _model;
     if (m == null || !mounted) return;
+    if (_isItemEventType(m)) return _setItemHover(_itemAt(local));
     final props = activePropsFromPointer(m, local);
     if (props != null) {
+      // setMouseOverAxisIndex
       _hover = _Interaction(active: true, index: props.activeIndex, coordinate: props.activeCoordinate);
       _sync = const _Interaction();
+      _keyboard = _keyboard.inactive();
     } else if (leaveWhenOutside) {
       _hover = _hover.inactive();
     } else {
@@ -571,21 +626,95 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
     _broadcastSync();
   }
 
+  /// `mouseLeaveChart`; the pointer has also left any item.
   void _mouseLeave() {
     if (!mounted) return;
     _hover = _hover.inactive();
+    _itemHover = _itemHover.inactive();
+    _hoveredItem = null;
     _refreshView();
     _broadcastSync();
   }
 
-  /// `mouseClickAction` -> `setMouseClickAxisIndex`.
-  void _chartClick(Offset local) {
+  /// A Bar's onMouseEnter / onMouseLeave (tooltipContext.tsx), fired when the
+  /// element under the pointer changes.
+  void _setItemHover(_ItemHit? hit) {
+    if (hit == _hoveredItem || !mounted) return;
+    _hoveredItem = hit;
+    if (hit == null) {
+      // mouseLeaveItem
+      _itemHover = _itemHover.inactive();
+    } else {
+      // setActiveMouseOverItemIndex
+      _itemHover = _itemInteraction(hit);
+      _sync = const _Interaction();
+      _keyboard = _keyboard.inactive();
+    }
+    _refreshView();
+    _broadcastSync();
+  }
+
+  _Interaction _itemInteraction(_ItemHit hit) => _Interaction(
+      active: true, index: hit.index, coordinate: hit.tooltipPosition, dataKey: hit.dataKey, itemId: hit.id);
+
+  /// The topmost bar element under [p] as the browser hit tests the SVG: the
+  /// activeBar layer (z 1000), the bars (300), then backgrounds (-50), each
+  /// in reverse paint order. Only bars dispatch item events; Line does not.
+  _ItemHit? _itemAt(Offset p) {
+    final m = _model, frame = _frame;
+    if (m == null || frame == null) return null;
+    final h = _view.value;
+    final bars = [
+      for (final s in m.series)
+        if (s.item.element case final Bar bar when !s.item.hide) (s, bar),
+    ].reversed;
+    // The entry's tooltipPosition belongs to the target rectangle, not the animated one.
+    _ItemHit hit(SeriesModel s, BarRect r, {bool background = false}) => (
+          id: s.item.id,
+          dataKey: s.item.dataKey,
+          index: r.originalDataIndex,
+          tooltipPosition:
+              (s.rects?.where((t) => t.originalDataIndex == r.originalDataIndex).firstOrNull ?? r).tooltipPosition,
+          background: background,
+        );
+    for (final layer in [true, false]) {
+      for (final (s, bar) in bars) {
+        for (final r in (currentBarRects(frame, s) ?? const <BarRect>[]).reversed) {
+          if (inActiveBarLayer(h, s.item, bar, r) != layer) continue;
+          if (r.width == 0 || r.height == 0) continue;
+          if (barPath(bar, r, activeBarStyle(h, bar, r)).contains(p)) return hit(s, r);
+        }
+      }
+    }
+    for (final (s, bar) in bars) {
+      if (bar.background == false) continue;
+      for (final r in (s.rects ?? const <BarRect>[]).reversed) {
+        final b = r.background;
+        if (b != null && b.width != 0 && b.height != 0 && b.contains(p)) return hit(s, r, background: true);
+      }
+    }
+    return null;
+  }
+
+  /// The wrapper's onClick: `mouseClickAction` -> `setMouseClickAxisIndex`,
+  /// after the clicked bar's own onClick (`setActiveClickItemIndex`).
+  void _chartClick(Offset local, _ItemHit? item) {
     final m = _model;
     if (m == null) return;
+    if (item != null && _isItemEventType(m)) {
+      _itemClick = _itemInteraction(item);
+      _sync = const _Interaction();
+      _keyboard = _keyboard.inactive();
+    }
     final props = activePropsFromPointer(m, local);
     if (props != null) {
       _click = _Interaction(active: true, index: props.activeIndex, coordinate: props.activeCoordinate);
+      _sync = const _Interaction();
+      _keyboard = _keyboard.inactive();
+    }
+    if (item != null || props != null) {
       _refreshView();
+      _broadcastSync();
     }
   }
 
@@ -595,11 +724,13 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
     if (id == null || m == null || m.tooltipSettings == null) return;
     final v = _view.value;
     for (final other in _syncGroups[id] ?? const <_CartesianChartState>{}) {
-      if (!identical(other, this)) other._receiveSync(v.active, v.activeIndex, v.coordinate, m.viewBox);
+      if (!identical(other, this)) {
+        other._receiveSync(v.active, v.activeIndex, v.coordinate, v.activeDataKey, m.viewBox);
+      }
     }
   }
 
-  void _receiveSync(bool active, int? index, Offset? coordinate, Rect sourceViewBox) {
+  void _receiveSync(bool active, int? index, Offset? coordinate, Object? dataKey, Rect sourceViewBox) {
     final m = _model;
     if (m == null) return;
     if (!active) {
@@ -612,22 +743,31 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
               vb.left + (sourceViewBox.width != 0 ? (coordinate.dx - sourceViewBox.left) / sourceViewBox.width : 0) * vb.width,
               vb.top + (sourceViewBox.height != 0 ? (coordinate.dy - sourceViewBox.top) / sourceViewBox.height : 0) * vb.height,
             );
-      _sync = _Interaction(active: true, index: index, coordinate: scaled);
+      _sync = _Interaction(active: true, index: index, coordinate: scaled, dataKey: dataKey);
     }
     _refreshView();
   }
 
+  /// Touch with the 'item' event type: touchEventsMiddleware finds no item
+  /// under a moving finger (bars carry no data-item attributes), so only a
+  /// tap's emulated mouse events reach the bars.
+  bool _touchIgnoredByItems(PointerEvent e) =>
+      (e.kind == PointerDeviceKind.touch || e.kind == PointerDeviceKind.stylus) &&
+      _model != null &&
+      _isItemEventType(_model!);
+
   void _onPointerDown(PointerDownEvent e) {
     _downPosition = e.localPosition;
+    _downItem = _itemAt(e.localPosition);
     final touch = e.kind == PointerDeviceKind.touch || e.kind == PointerDeviceKind.stylus;
     if (!touch) _focusFromPointer(e.localPosition);
     // Touch: the first touchmove (or the tap's emulated mousemove) shows the tooltip.
-    _setHoverFromPointer(e.localPosition, leaveWhenOutside: !touch);
+    if (!_touchIgnoredByItems(e)) _setHoverFromPointer(e.localPosition, leaveWhenOutside: !touch);
   }
 
   void _onPointerMove(PointerMoveEvent e) {
     final touch = e.kind == PointerDeviceKind.touch || e.kind == PointerDeviceKind.stylus;
-    _setHoverFromPointer(e.localPosition, leaveWhenOutside: !touch);
+    if (!_touchIgnoredByItems(e)) _setHoverFromPointer(e.localPosition, leaveWhenOutside: !touch);
     if (!touch) widget.onMouseMove?.call(_eventState(), e);
   }
 
@@ -637,8 +777,14 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
     if (down == null) return;
     final touch = e.kind == PointerDeviceKind.touch || e.kind == PointerDeviceKind.stylus;
     if (touch && (e.localPosition - down).distance > kTouchSlop) return;
-    if (touch) _focusFromPointer(e.localPosition);
-    _chartClick(e.localPosition);
+    final item = _itemAt(e.localPosition);
+    if (touch) {
+      // The tap's emulated mouseover reaches the item under the finger.
+      if (_touchIgnoredByItems(e)) _setItemHover(item);
+      _focusFromPointer(e.localPosition);
+    }
+    // A click targets the common ancestor of the mousedown and mouseup targets.
+    _chartClick(e.localPosition, touch || item == _downItem ? item : null);
     widget.onClick?.call(_eventState(), e);
   }
 
@@ -764,7 +910,7 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
     // Everything that reads the view is rebuilt below, so no notification.
     _view.set(_computeView(m), notify: false);
 
-    final frame = ChartFrame(
+    final frame = _frame = ChartFrame(
       model: m,
       children: children,
       textStyle: textStyle,
@@ -777,6 +923,9 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
       for (final a in _barAnimators.values) a.controller,
       for (final a in _lineAnimators.values) a.controller,
     ]);
+    // Bars move between the main and activeBar layers as the tooltip moves.
+    final hasActiveBar = m.series.any((s) => s.item.element is Bar && (s.item.element as Bar).activeBar != false);
+    final animationsAndView = Listenable.merge([animations, _view]);
 
     Widget layer(ChartLayer l, {Listenable? repaint}) => Positioned.fill(
           child: RepaintBoundary(
@@ -818,7 +967,8 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
             ),
           ),
         layer(ChartLayer.cursorBelow, repaint: _view),
-        layer(ChartLayer.main, repaint: animations),
+        layer(ChartLayer.main, repaint: hasActiveBar ? animationsAndView : animations),
+        if (hasActiveBar) layer(ChartLayer.activeBar, repaint: animationsAndView),
         layer(ChartLayer.overlay, repaint: _view),
         layer(ChartLayer.labels),
         if (legend != null) _buildLegend(legend, legendLayout, size, scaler),
@@ -832,7 +982,7 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
           if (_focusNode.hasFocus) _focusNode.unfocus();
           _setFocusTarget(null);
           // Touch browsers fire mouseleave when another element is tapped.
-          if (e.kind == PointerDeviceKind.touch && _hover.active) _mouseLeave();
+          if (e.kind == PointerDeviceKind.touch && (_hover.active || _itemHover.active)) _mouseLeave();
         },
         child: MouseRegion(
           onEnter: (e) {
@@ -894,17 +1044,18 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
       listenable: _view,
       builder: (context, _) {
         final v = _view.value;
+        final label = v.itemEventType ? null : v.label;
         final content = tooltip.content != null
             ? tooltip.content!(TooltipContentProps(
                 active: v.active,
                 payload: v.payload,
-                label: v.label,
+                label: label,
                 coordinate: v.coordinate,
                 activeIndex: v.activeIndex,
               ))
             : DefaultTooltipContent(
                 payload: v.payload,
-                label: v.label,
+                label: label,
                 separator: tooltip.separator,
                 contentStyle: tooltip.contentStyle,
                 itemStyle: tooltip.itemStyle,
