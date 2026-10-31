@@ -9,6 +9,8 @@ If the Flutter build fails, web-only captures are still taken (no diff).
 Capture: DSF 2, clip = fixture size at (0,0); static waits 2500 ms; hover = two-step mouse move then 800 ms.
 `--anim` additionally captures frames for fixtures with `captureAnimation` (ms from chart mount); report rows
 are grouped per fixture, animation frames in time order.
+Fixtures are captured `PARITY_CONCURRENCY` at a time (env, default 4; set 1 for one at a time). Ports can be
+moved with `WEB_PORT` / `FL_PORT` so several checkouts can run the harness at once.
 
 ## Animation contract (`?fixture=X&anim=1`)
 Each side boots and loads fonts but does NOT mount the chart, then sets `window.__parityReady = true` and exposes

@@ -82,7 +82,7 @@ async function runStep(page, fx, i, out, last = true) {
 
 const sides = [['web', webBase], ...(flBase ? [['flutter', flBase]] : [])];
 
-for (const fx of fixtures) {
+async function captureFixture(fx) {
   const shots = { web: {}, flutter: {} };
   for (const [side, base] of sides) {
     // each interaction starts from a fresh page load
@@ -125,6 +125,14 @@ for (const fx of fixtures) {
     for (const ms of fx.captureAnimation) await record(fx, `anim-${ms}ms`, frames.web[ms], frames.flutter[ms]);
   }
 }
+
+// Fixtures are independent (own browser contexts), so run a few at once.
+// PARITY_CONCURRENCY=1 restores the old one-at-a-time order.
+const CONCURRENCY = Math.max(1, +(process.env.PARITY_CONCURRENCY ?? 4));
+const queue = [...fixtures];
+await Promise.all(Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
+  while (queue.length) await captureFixture(queue.shift());
+}));
 await browser.close();
 
 const animMs = (r) => (r.state.startsWith('anim-') ? parseInt(r.state.slice(5)) : -1);
