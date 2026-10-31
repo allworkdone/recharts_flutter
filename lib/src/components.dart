@@ -20,6 +20,7 @@ import 'package:flutter/widgets.dart';
 import 'core/nice_ticks.dart';
 import 'core/curve.dart';
 import 'core/scale.dart';
+import 'core/symbols.dart';
 import 'widgets/cartesian_chart.dart' show CategoricalChart;
 
 /// Base class of everything that goes into a chart's `children`.
@@ -553,10 +554,10 @@ class CartesianGrid extends RechartsElement {
 /// The solid color of a `fill` that may also be a [Gradient].
 Color? solidColor(Object? paint) => paint is Color ? paint : null;
 
-/// Shared props of [Line], [Bar] and [Area].
+/// Shared props of [Line], [Bar], [Area] and [Scatter].
 abstract class CartesianSeries extends RechartsElement {
   const CartesianSeries({
-    required this.dataKey,
+    this.dataKey,
     this.xAxisId = 0,
     this.yAxisId = 0,
     this.name,
@@ -573,7 +574,9 @@ abstract class CartesianSeries extends RechartsElement {
     this.onAnimationEnd,
     this.id,
   });
-  final Object dataKey;
+
+  /// Required for [Line], [Bar] and [Area]; optional for [Scatter].
+  final Object? dataKey;
   final Object xAxisId;
   final Object yAxisId;
   final Object? name;
@@ -603,7 +606,7 @@ abstract class CartesianSeries extends RechartsElement {
 
 class Line extends CartesianSeries {
   const Line({
-    required super.dataKey,
+    required Object super.dataKey,
     super.xAxisId,
     super.yAxisId,
     this.type = CurveType.linear,
@@ -652,7 +655,7 @@ class Line extends CartesianSeries {
   /// `true`, a [LabelList], or a [LabelPainter] drawing each label.
   final Object label;
 
-  /// [LabelList]s.
+  /// [LabelList]s and [ErrorBar]s.
   final List<RechartsElement> children;
 
   @override
@@ -663,7 +666,7 @@ class Line extends CartesianSeries {
 
 class Bar extends CartesianSeries {
   const Bar({
-    required super.dataKey,
+    required Object super.dataKey,
     super.xAxisId,
     super.yAxisId,
     this.stackId,
@@ -725,7 +728,7 @@ class Bar extends CartesianSeries {
   /// `true`, a [LabelList], or a [LabelPainter] drawing each label.
   final Object label;
 
-  /// [Cell]s (matched to entries by index) and [LabelList]s.
+  /// [Cell]s (matched to entries by index), [LabelList]s and [ErrorBar]s.
   final List<RechartsElement> children;
 
   List<Cell> get cells => children.whereType<Cell>().toList();
@@ -740,7 +743,7 @@ class Bar extends CartesianSeries {
 /// [AreaChart] and [ComposedChart] only, like Recharts.
 class Area extends CartesianSeries {
   const Area({
-    required super.dataKey,
+    required Object super.dataKey,
     super.xAxisId,
     super.yAxisId,
     this.type = CurveType.linear,
@@ -816,7 +819,7 @@ class Area extends CartesianSeries {
   Color? get tooltipColor => stroke ?? solidColor(fill);
 }
 
-/// Per-entry overrides inside a [Bar].
+/// Per-entry overrides inside a [Bar] or [Scatter].
 class Cell extends RechartsElement {
   const Cell({this.fill, this.fillOpacity, this.stroke, this.strokeWidth});
   final Color? fill;
@@ -1124,3 +1127,175 @@ class ChartEventState {
 }
 
 typedef ChartEventHandler = void Function(ChartEventState state, PointerEvent event);
+
+/// `lineType` of a [Scatter] line: through the points, or their linear regression.
+enum ScatterLineType { joint, fitting }
+
+/// Values passed to a custom [Scatter] `shape` / `activeShape` painter (`ScatterShapeProps`).
+class ScatterShapeProps {
+  const ScatterShapeProps({
+    required this.cx,
+    required this.cy,
+    required this.size,
+    required this.index,
+    required this.payload,
+    required this.isActive,
+    this.fill,
+    this.stroke,
+    this.strokeWidth,
+  });
+  final double cx, cy;
+
+  /// The symbol area, animated from 0 on entrance.
+  final double size;
+  final int index;
+  final Object? payload;
+  final bool isActive;
+  final Color? fill, stroke;
+  final double? strokeWidth;
+}
+
+typedef ScatterShapePainter = void Function(Canvas canvas, ScatterShapeProps props);
+
+/// src/cartesian/Scatter.tsx, defaults from `defaultScatterProps`. Each point
+/// reads x and y through the axes' `dataKey` (falling back to [dataKey]) and
+/// its size from the [ZAxis] with [zAxisId].
+class Scatter extends CartesianSeries {
+  const Scatter({
+    super.dataKey,
+    super.xAxisId,
+    super.yAxisId,
+    this.zAxisId = 0,
+    this.data,
+    this.shape = SymbolType.circle,
+    this.activeShape,
+    this.fill,
+    this.fillOpacity,
+    this.stroke,
+    this.strokeWidth,
+    this.line = false,
+    this.lineType = ScatterLineType.joint,
+    this.lineJointType = CurveType.linear,
+    super.hide,
+    super.legendType = LegendType.circle,
+    super.name,
+    super.tooltipType,
+    super.formatter,
+    super.isAnimationActive,
+    super.animationBegin,
+    super.animationDuration = 400,
+    super.animationEasing = 'linear',
+    super.onAnimationStart,
+    super.onAnimationEnd,
+    super.id,
+    this.label = false,
+    this.children = const [],
+  });
+  final Object zAxisId;
+  final List<Object?>? data;
+
+  /// A [SymbolType] or a [ScatterShapePainter].
+  final Object shape;
+
+  /// The shape of the point at the active tooltip index: null/`false` (none),
+  /// `true` (a circle), a [SymbolType], an [SvgStyle] merged over the point's
+  /// props (still a circle, like Recharts' object option), or a [ScatterShapePainter].
+  final Object? activeShape;
+
+  /// Points have no default fill in Recharts, so SVG paints them black.
+  final Color? fill;
+  final double? fillOpacity;
+  final Color? stroke;
+  final double? strokeWidth;
+
+  /// `false`, `true` or an [SvgStyle] for the curve. The line strokes with
+  /// the Scatter's [fill] unless the style sets `stroke`.
+  final Object line;
+  final ScatterLineType lineType;
+
+  /// Curve type of a joint line; `monotone` and `bump` draw linear here
+  /// (Scatter's Curve gets no layout).
+  final CurveType lineJointType;
+
+  /// `true`, a [LabelList], or a [LabelPainter] drawing each label.
+  final Object label;
+
+  /// [Cell]s (matched to points by index), [LabelList]s and [ErrorBar]s.
+  final List<RechartsElement> children;
+
+  List<Cell> get cells => children.whereType<Cell>().toList();
+
+  @override
+  Object? get itemData => data;
+
+  /// Tooltip and legend color: the fill.
+  @override
+  Color? get tooltipColor => fill;
+}
+
+/// src/cartesian/ZAxis.tsx: renders nothing; maps a value to [Scatter] point size.
+class ZAxis extends RechartsElement {
+  const ZAxis({
+    this.zAxisId = 0,
+    this.dataKey,
+    this.type = AxisDomainType.number,
+    this.domain,
+    this.range = const [64, 64],
+    this.scale = 'auto',
+    this.name,
+    this.unit,
+  });
+  final Object zAxisId;
+  final Object? dataKey;
+  final AxisDomainType type;
+
+  /// Same forms as [CartesianAxisElement.domain]; defaults to `[0, 'auto']`.
+  final Object? domain;
+
+  /// `[min, max]` symbol area the domain maps to.
+  final List<double> range;
+
+  /// `'auto'`, `'linear'`, `'log'`, `'pow'` or `'sqrt'`.
+  final String scale;
+  final String? name;
+  final String? unit;
+}
+
+/// Direction of an [ErrorBar]: whiskers along the x or the y axis.
+enum ErrorBarDirection { x, y }
+
+/// src/cartesian/ErrorBar.tsx, defaults from `errorBarDefaultProps`. A child
+/// of [Bar], [Line] or [Scatter]; its values also extend the axis domain.
+class ErrorBar extends RechartsElement {
+  const ErrorBar({
+    required this.dataKey,
+    this.width = 5,
+    this.direction,
+    this.stroke = const Color(0xFF000000),
+    this.strokeWidth = 1.5,
+    this.isAnimationActive = true,
+    this.animationBegin = 0,
+    this.animationDuration = 400,
+    this.animationEasing = 'ease-in-out',
+  });
+
+  /// Reads a symmetric error, or a `[low, high]` pair, from each entry.
+  final Object dataKey;
+
+  /// Half-length of the whisker ends.
+  final double width;
+
+  /// Null follows the layout: `y` for horizontal charts, `x` for vertical ones.
+  /// Scatter error bars may go either way; `x` needs a number XAxis.
+  final ErrorBarDirection? direction;
+
+  /// Null is `stroke="none"`.
+  final Color? stroke;
+  final double strokeWidth;
+
+  /// Unlike series, `true` by default rather than `'auto'`.
+  final bool isAnimationActive;
+  final int animationBegin;
+  final int animationDuration;
+  final Object animationEasing;
+}

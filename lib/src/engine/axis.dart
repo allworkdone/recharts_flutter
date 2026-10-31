@@ -4,7 +4,9 @@
 // tick/band helpers of src/util/ChartUtils.ts (getTicksOfAxis,
 // getBandSizeOfAxis, getStackedData, getDomainOfStackGroups, offsetSign,
 // offsetPositive, getCoordinatesOfGrid); silhouette and wiggle come from
-// core/stack.dart.
+// core/stack.dart. ErrorBar domains: getErrorDomainByDataKey and
+// combineDomainOfAllAppliedNumericalValuesIncludingErrorValues; ZAxis:
+// implicitZAxis, selectZAxisWithScale.
 
 import 'dart:math' as math;
 
@@ -25,7 +27,8 @@ class GraphicalItem {
   final CartesianSeries element;
   bool get isBar => element is Bar;
   bool get isArea => element is Area;
-  Object get dataKey => element.dataKey;
+  bool get isScatter => element is Scatter;
+  Object? get dataKey => element.dataKey;
   Object get xAxisId => element.xAxisId;
   Object get yAxisId => element.yAxisId;
   bool get hide => element.hide;
@@ -195,6 +198,40 @@ Object getDomainDefinition(CartesianAxisElement axis, AxisDomainType type) {
     if (type == AxisDomainType.category) return ticks.map(jsString).toList();
   }
   return const <Object>[0, 'auto'];
+}
+
+/// The [ErrorBar] children of a [Bar], [Line] or [Scatter].
+List<ErrorBar> errorBarsOf(CartesianSeries series) => switch (series) {
+      Bar b => b.children.whereType<ErrorBar>().toList(),
+      Line l => l.children.whereType<ErrorBar>().toList(),
+      Scatter s => s.children.whereType<ErrorBar>().toList(),
+      _ => const [],
+    };
+
+/// `useErrorBarDirection`.
+ErrorBarDirection errorBarDirection(ErrorBar bar, ChartLayout layout) =>
+    bar.direction ?? (layout == ChartLayout.horizontal ? ErrorBarDirection.y : ErrorBarDirection.x);
+
+/// `getErrorDomainByDataKey`: `value -/+ error` for each error bar, against
+/// the highest number of a range value.
+List<double> getErrorDomainByDataKey(Object? entry, Object? appliedValue, List<ErrorBar> errorBars) {
+  if (errorBars.isEmpty) return const [];
+  double? v;
+  if (appliedValue is num && !appliedValue.isNaN) {
+    v = appliedValue.toDouble();
+  } else if (appliedValue is List) {
+    final nums = onlyAllowNumbers(appliedValue);
+    if (nums.isNotEmpty) v = nums.reduce(math.max);
+  }
+  if (v == null) return const [];
+  final out = <double>[];
+  for (final eb in errorBars) {
+    final errorValue = getValueByDataKey(entry, eb.dataKey);
+    final low = errorValue is List ? errorValue.firstOrNull : errorValue;
+    final high = errorValue is List ? errorValue.elementAtOrNull(1) : errorValue;
+    if (isWellBehavedNumber(low) && isWellBehavedNumber(high)) out.addAll([v - (low as num), v + (high as num)]);
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -440,7 +477,7 @@ void computeAxisDomain(AxisRuntime axis, ChartContext ctx) {
       ? null
       : getDomainOfStackGroups(axis.stackGroups, ctx.dataStartIndex, ctx.dataEndIndex);
 
-  // combineDomainOfAllAppliedNumericalValuesIncludingErrorValues (no ErrorBar support)
+  // combineDomainOfAllAppliedNumericalValuesIncludingErrorValues
   double? lowerEnd, upperEnd;
   void take(NumberDomain? d) {
     if (d == null) return;
@@ -449,9 +486,17 @@ void computeAxisDomain(AxisRuntime axis, ChartContext ctx) {
   }
 
   final notStacked = items.where((i) => i.stackId == null).toList();
+  final direction = axis.isX ? ErrorBarDirection.x : ErrorBarDirection.y;
   for (final item in notStacked) {
+    final errorBars = [
+      for (final e in errorBarsOf(item.element))
+        if (errorBarDirection(e, layout) == direction) e,
+    ];
     for (final entry in item.data ?? ctx.chartData) {
-      take(_makeDomain(getValueByDataKey(entry, s.dataKey ?? item.dataKey)));
+      final value = getValueByDataKey(entry, s.dataKey ?? item.dataKey);
+      final errorDomain = getErrorDomainByDataKey(entry, value, errorBars);
+      if (errorDomain.length >= 2) take([errorDomain.reduce(math.min), errorDomain.reduce(math.max)]);
+      take(_makeDomain(value));
     }
   }
   if (s.dataKey != null && notStacked.isEmpty) {
@@ -540,6 +585,50 @@ void computeAxisDomain(AxisRuntime axis, ChartContext ctx) {
   // combineCategoricalDomain
   axis.categoricalDomain =
       s.dataKey != null && isCategorical && (axis.type == AxisDomainType.number || s.scale != 'auto') ? allData : null;
+}
+
+/// `implicitZAxis`: the axis of a [Scatter] whose ZAxis is missing.
+const implicitZAxis = ZAxis(name: '', unit: '');
+
+/// `selectZAxisWithScale`: the [ZAxis] and the scale of its domain (no nice
+/// ticks) over its `range`; null when the domain is undefined, e.g. without a
+/// dataKey. Only scatters carry a zAxisId, and ZAxis ignores stacks.
+// ponytail: number ZAxis only; a category ZAxis gets no scale (default size).
+({ZAxis settings, RechartsScale scale})? zAxisWithScale(ZAxis settings, ChartContext ctx) {
+  final items = [
+    for (final i in ctx.items)
+      if (i.element case final Scatter s when s.zAxisId == settings.zAxisId && !i.hide) i,
+  ];
+  final itemsData = [for (final i in items) ...?i.data];
+  final displayedData = itemsData.isNotEmpty ? itemsData : ctx.chartData;
+  final definition = settings.domain ?? const <Object>[0, 'auto'];
+
+  double? lowerEnd, upperEnd;
+  void take(NumberDomain? d) {
+    if (d == null) return;
+    lowerEnd = lowerEnd == null ? d[0] : math.min(lowerEnd!, d[0]);
+    upperEnd = upperEnd == null ? d[1] : math.max(upperEnd!, d[1]);
+  }
+
+  for (final item in items) {
+    for (final entry in item.data ?? ctx.chartData) {
+      take(_makeDomain(getValueByDataKey(entry, settings.dataKey ?? item.dataKey)));
+    }
+  }
+  if (settings.dataKey != null && items.isEmpty) {
+    for (final entry in displayedData) {
+      take(_makeDomain(getValueByDataKey(entry, settings.dataKey)));
+    }
+  }
+  final dataDomain =
+      isWellBehavedNumber(lowerEnd) && isWellBehavedNumber(upperEnd) ? <double>[lowerEnd!, upperEnd!] : null;
+  final numericalDomain = parseNumericalUserDomain(definition, dataDomain, false);
+  if (displayedData.isEmpty && numericalDomain == null) return null;
+  if (settings.type == AxisDomainType.category) return null;
+  final domain = ctx.stackOffset == StackOffset.expand ? const [0.0, 1.0] : numericalDomain;
+  final scale = buildScale(
+      combineRealScaleType(settings.scale, settings.type, ctx.hasBar, ctx.chartName), domain, settings.range);
+  return scale == null ? null : (settings: settings, scale: scale);
 }
 
 String? combineRealScaleType(String scale, AxisDomainType type, bool hasBar, String chartName) {

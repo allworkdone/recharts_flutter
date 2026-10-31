@@ -1,7 +1,8 @@
 // Ports of src/animation/matchBy.ts, AnimatedItems.tsx (+ useAnimationStartSnapshot.ts),
 // JavascriptAnimate.tsx / AnimationHandle.ts timing, the default interpolators
-// of Line.tsx, Bar.tsx and Area.tsx (with Area's baseLine animation from
-// AreaWithAnimation), and src/cartesian/useAnimatedLineLength.ts.
+// of Line.tsx, Bar.tsx, Area.tsx (with Area's baseLine animation from
+// AreaWithAnimation) and Scatter.tsx, src/cartesian/useAnimatedLineLength.ts,
+// and ErrorBar.tsx's CSSTransitionAnimate scale.
 
 import 'dart:math' as math;
 
@@ -130,6 +131,23 @@ List<BarRect> interpolateBarRects(List<AnimationItem<BarRect>>? items, double t,
             : next.copyWith(width: interpolate(0, next.width, t), x: interpolate(next.stackedBarStart, next.x, t)),
       },
   ];
+}
+
+/// `defaultScatterAnimateItems`: points move, added ones grow from size 0,
+/// removed ones vanish at once.
+List<ScatterPoint> interpolateScatterPoints(List<AnimationItem<ScatterPoint>>? items, double t) {
+  if (items == null) return const [];
+  return [
+    for (final i in items)
+      switch (i) {
+        Matched(:final prev, :final next) => t == 1
+            ? next
+            : next.step(next.cx == null ? null : interpolate(prev.cx, next.cx, t),
+                next.cy == null ? null : interpolate(prev.cy, next.cy, t), interpolate(prev.size, next.size, t)),
+        Added(:final next) => t == 1 ? next : next.step(next.cx, next.cy, interpolate(0, next.size, t)),
+        Removed() => null,
+      },
+  ].nonNulls.toList();
 }
 
 /// One `AnimatedItems` + `JavascriptAnimate` pair for a graphical item.
@@ -358,4 +376,55 @@ List<double> animatedStrokeDasharray(double length, double totalLength, List<dou
   }
   final emptyLines = remainLines.length.isEven ? [0.0, totalLength] : [totalLength];
   return [for (var i = 0; i < count; i++) ...lines, ...remainLines, ...emptyLines];
+}
+
+/// ErrorBar's `CSSTransitionAnimate`: each new line goes from `scaleX|Y(0)` to
+/// `(1)` around its origin, a CSS transition that starts with the series
+/// animations (the handle's ACTIVE frame). Lines keep their scale while their
+/// key (coordinates) stays.
+// ponytail: one clock per ErrorBar; a line still scaling when other lines
+// appear jumps to full size.
+class ErrorBarAnimation {
+  ErrorBarAnimation(TickerProvider vsync) : controller = AnimationController(vsync: vsync);
+  final AnimationController controller;
+  Set<String> _keys = {};
+  Set<String> _animating = {};
+  EasingFunction _easing = (t) => t;
+  double _beginFraction = 0;
+  int? _pendingStart;
+
+  void update(Set<String> keys, {required bool active, required int begin, required int duration, required Object easing}) {
+    final added = keys.difference(_keys);
+    _keys = keys;
+    if (!active) {
+      _animating = {};
+      return;
+    }
+    if (added.isEmpty) return;
+    _animating = added;
+    _easing = createEasingFunction(easing) ?? _easing;
+    final int total = math.max(0, begin) + math.max(0, duration);
+    _beginFraction = total == 0 ? 0 : math.max(0, begin) / total;
+    controller.duration = Duration(milliseconds: total == 0 ? 1 : total);
+    controller.value = 0;
+    if (_pendingStart != null) SchedulerBinding.instance.cancelFrameCallbackWithId(_pendingStart!);
+    // Starts a frame late, like SeriesAnimator.
+    _pendingStart = SchedulerBinding.instance.scheduleFrameCallback((_) {
+      _pendingStart = null;
+      controller.forward(from: 0);
+    });
+  }
+
+  /// The scale of the line with [key] now.
+  double scaleOf(String key) {
+    if (!_animating.contains(key)) return 1;
+    final v = controller.value;
+    final progress = _beginFraction >= 1 ? 1.0 : ((v - _beginFraction) / (1 - _beginFraction)).clamp(0.0, 1.0);
+    return progress >= 1 ? 1 : _easing(progress);
+  }
+
+  void dispose() {
+    if (_pendingStart != null) SchedulerBinding.instance.cancelFrameCallbackWithId(_pendingStart!);
+    controller.dispose();
+  }
 }

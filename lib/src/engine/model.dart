@@ -7,6 +7,9 @@
 //     combineAllBarPositions.ts, combineBarPosition.ts; computeBarRectangles (Bar.tsx)
 //   src/state/selectors/lineSelectors.ts; computeLinePoints (Line.tsx)
 //   src/state/selectors/areaSelectors.ts; computeArea, getBaseValue (Area.tsx)
+//   src/state/selectors/scatterSelectors.ts; computeScatterPoints (Scatter.tsx)
+//   ErrorBar.tsx line geometry with the errorBarDataPointFormatter and
+//     errorBarOffset of Bar.tsx, Line.tsx and Scatter.tsx
 //   CartesianGrid.tsx coordinate generators; ReferenceLine.tsx getEndPoints
 //   src/state/selectors/tooltipSelectors.ts, selectors.ts (combineActiveProps),
 //     src/util/getActiveCoordinate.ts, combineActiveTooltipIndex.ts,
@@ -113,8 +116,77 @@ class LinePoint {
   int get hashCode => Object.hash(x, y);
 }
 
+/// `ScatterPointItem`. [width] (and height) come from the target size even
+/// while [size] animates; [tooltipPosition] is the target `{cx, cy}`.
+class ScatterPoint {
+  const ScatterPoint({
+    required this.cx,
+    required this.cy,
+    required this.size,
+    required this.width,
+    required this.node,
+    required this.payload,
+    required this.tooltipPayload,
+    required this.tooltipPosition,
+    this.cell,
+  });
+  final double? cx, cy;
+
+  /// The symbol area (ZAxis range), or null when Recharts' is undefined.
+  final double? size;
+  final double width;
+  double get height => width;
+
+  /// Top-left of the box around the symbol (label view box).
+  double? get x => cx == null ? null : cx! - width / 2;
+  double? get y => cy == null ? null : cy! - width / 2;
+  final ({Object? x, Object? y, Object? z}) node;
+  final Object? payload;
+
+  /// The x, y (and z) entries; tooltip settings are merged in [tooltipPayloadOf].
+  final List<TooltipPayloadEntry> tooltipPayload;
+  final Offset? tooltipPosition;
+  final Cell? cell;
+
+  /// The point drawn mid-animation at [cx], [cy] with [size].
+  ScatterPoint step(double? cx, double? cy, double? size) => ScatterPoint(
+        cx: cx,
+        cy: cy,
+        size: size,
+        width: width,
+        node: node,
+        payload: payload,
+        tooltipPayload: tooltipPayload,
+        tooltipPosition: tooltipPosition,
+        cell: cell,
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      other is ScatterPoint &&
+      other.cx == cx &&
+      other.cy == cy &&
+      other.size == size &&
+      other.width == width &&
+      identical(other.payload, payload) &&
+      other.cell == cell;
+  @override
+  int get hashCode => Object.hash(cx, cy, size);
+}
+
+/// One `.recharts-errorBar` line with the origin its scale animation uses
+/// (`transformOrigin`, the data point plus the item's error bar offset).
+class ErrorBarLine {
+  const ErrorBarLine(this.p1, this.p2, this.origin, this.key);
+  final Offset p1, p2, origin;
+
+  /// React's key (data index, coordinates, line index): a new key scales in anew.
+  final String key;
+}
+
 class SeriesModel {
-  SeriesModel(this.item, {this.rects, this.points, this.baseLine, this.isRange = false});
+  SeriesModel(this.item,
+      {this.rects, this.points, this.baseLine, this.isRange = false, this.scatterPoints, this.errorBars = const []});
   final GraphicalItem item;
   final List<BarRect>? rects;
   final List<LinePoint>? points;
@@ -122,6 +194,10 @@ class SeriesModel {
   /// Area only: a number (y0 horizontal, x0 vertical) or one [LinePoint] per point.
   final Object? baseLine;
   final bool isRange;
+  final List<ScatterPoint>? scatterPoints;
+
+  /// Each [ErrorBar] child with the lines it draws for the target geometry.
+  final List<(ErrorBar, List<ErrorBarLine>)> errorBars;
 }
 
 class GridModel {
@@ -195,7 +271,8 @@ List<GraphicalItem> collectItems(List<RechartsElement> children, {String prefix 
   var i = 0;
   for (final c in children) {
     if (c is CartesianSeries) {
-      items.add(GraphicalItem('$prefix${c.id ?? 'recharts-${c is Bar ? 'bar' : c is Area ? 'area' : 'line'}-$i'}', c));
+      items.add(GraphicalItem(
+          '$prefix${c.id ?? 'recharts-${c is Bar ? 'bar' : c is Area ? 'area' : c is Scatter ? 'scatter' : 'line'}-$i'}', c));
       i++;
     }
   }
@@ -435,13 +512,34 @@ CartesianModel computeCartesianModel({
   final off0 = offset, axisViewBox0 = axisViewBox;
 
   // Graphical items.
+  final zAxes = {for (final z in children.whereType<ZAxis>()) z.zAxisId: z};
+  final zScales = <Object, ({ZAxis settings, RechartsScale scale})?>{};
   final series = <SeriesModel>[];
   for (final item in items) {
     final xa = xRt(item.xAxisId), ya = yRt(item.yAxisId);
     if (item.isBar) {
+      final rects = _barRectangles(item, items, xa, ya, layout, offset, displayedData, dataStartIndex, barSize,
+          maxBarSize, barGap, barCategoryGap);
+      // errorBarOffset: half the first rectangle's band-direction size.
+      final first = rects?.firstOrNull;
+      final ebOffset = first == null ? 0.0 : (layout == ChartLayout.vertical ? first.height : first.width) / 2;
       series.add(SeriesModel(item,
-          rects: _barRectangles(item, items, xa, ya, layout, offset, displayedData, dataStartIndex, barSize,
-              maxBarSize, barGap, barCategoryGap)));
+          rects: rects,
+          errorBars: _errorBars(item, xa, ya, layout, ebOffset, [
+            // A stacked or range bar's value is `[start, end]`: the end counts.
+            for (final r in rects ?? const <BarRect>[])
+              (x: r.x, y: r.y, valueX: _barEnd(r.value), valueY: _barEnd(r.value), payload: r.payload),
+          ])));
+    } else if (item.isScatter) {
+      final zId = (item.element as Scatter).zAxisId;
+      final z = zScales.putIfAbsent(zId, () => zAxisWithScale(zAxes[zId] ?? implicitZAxis, ctx));
+      final points = _scatterPoints(item, xa, ya, z, displayedData);
+      series.add(SeriesModel(item,
+          scatterPoints: points,
+          errorBars: _errorBars(item, xa, ya, layout, 0, [
+            for (final p in points ?? const <ScatterPoint>[])
+              (x: p.cx, y: p.cy, valueX: jsNumber(p.node.x), valueY: jsNumber(p.node.y), payload: p.payload),
+          ])));
     } else if (item.isArea) {
       // AreaImpl renders nothing outside AreaChart and ComposedChart.
       final area = chartName == 'AreaChart' || chartName == 'ComposedChart'
@@ -449,7 +547,13 @@ CartesianModel computeCartesianModel({
           : null;
       series.add(SeriesModel(item, points: area?.points, baseLine: area?.baseLine, isRange: area?.isRange ?? false));
     } else {
-      series.add(SeriesModel(item, points: _linePoints(item, xa, ya, layout, displayedData)));
+      final points = _linePoints(item, xa, ya, layout, displayedData);
+      series.add(SeriesModel(item,
+          points: points,
+          errorBars: _errorBars(item, xa, ya, layout, 0, [
+            for (final p in points ?? const <LinePoint>[])
+              (x: p.x, y: p.y, valueX: p.value, valueY: p.value, payload: p.payload),
+          ])));
     }
   }
 
@@ -601,14 +705,14 @@ List<TickItem> _tooltipTicks(AxisRuntime axis) {
 class _BarCategory {
   _BarCategory(this.stackId, this.dataKeys, this.barSize);
   final String? stackId;
-  final List<Object> dataKeys;
+  final List<Object?> dataKeys;
   final double? barSize;
 }
 
 class _BarPosition {
   _BarPosition(this.stackId, this.dataKeys, this.offset, this.size);
   final String? stackId;
-  final List<Object> dataKeys;
+  final List<Object?> dataKeys;
   final double offset, size;
 }
 
@@ -831,8 +935,9 @@ List<Object?> _truncateByDomain(List<double> value, List<Object?> domain) {
 // ---------------------------------------------------------------------------
 // Lines
 
-/// `getCateCoordinateOfLine`.
-double? _cateCoordinateOfLine(AxisRuntime axis, List<TickItem> ticks, double bandSize, Object? entry, int index) {
+/// `getCateCoordinateOfLine`; [dataKey] overrides the axis dataKey on number axes.
+double? _cateCoordinateOfLine(AxisRuntime axis, List<TickItem> ticks, double bandSize, Object? entry, int index,
+    [Object? dataKey]) {
   final s = axis.settings;
   if (axis.type == AxisDomainType.category) {
     if (!s.allowDuplicatedCategory && s.dataKey != null) {
@@ -844,7 +949,7 @@ double? _cateCoordinateOfLine(AxisRuntime axis, List<TickItem> ticks, double ban
     }
     return index < ticks.length ? ticks[index].coordinate + bandSize / 2 : null;
   }
-  final scaled = axis.scale!.map(getValueByDataKey(entry, s.dataKey));
+  final scaled = axis.scale!.map(getValueByDataKey(entry, dataKey ?? s.dataKey));
   return isNumber(scaled) ? scaled : null;
 }
 
@@ -873,6 +978,138 @@ List<LinePoint>? _linePoints(
     }
   }
   return points;
+}
+
+// ---------------------------------------------------------------------------
+// Scatter
+
+/// `computeScatterPoints`. [zAxis] is null where Recharts has no z scale: then
+/// every point gets the implicit ZAxis's 64.
+List<ScatterPoint>? _scatterPoints(GraphicalItem item, AxisRuntime xAxis, AxisRuntime yAxis,
+    ({ZAxis settings, RechartsScale scale})? zAxis, List<Object?> chartData) {
+  final xTicks = xAxis.itemTicks, yTicks = yAxis.itemTicks;
+  if (xAxis.scale == null || yAxis.scale == null || xTicks == null || yTicks == null) return null;
+  if (xTicks.isEmpty || yTicks.isEmpty) return null;
+  final scatter = item.element as Scatter;
+  final displayed = (item.data != null && item.data!.isNotEmpty) ? item.data! : chartData;
+  final xs = xAxis.settings, ys = yAxis.settings;
+  final xDataKey = xs.dataKey ?? scatter.dataKey, yDataKey = ys.dataKey ?? scatter.dataKey;
+  final zDataKey = zAxis?.settings.dataKey;
+  final defaultZ = (zAxis?.settings.range ?? implicitZAxis.range).firstOrNull;
+  final xBandSize = xAxis.scale!.bandwidth ?? 0, yBandSize = yAxis.scale!.bandwidth ?? 0;
+  final cells = scatter.cells;
+  // `name: isNullish(axis.dataKey) ? scatter.name : axis.name || String(axis.dataKey)`, then parseName.
+  String? nameOf(CartesianAxisElement a) {
+    final name = a.dataKey == null ? scatter.name : (a.name?.isNotEmpty ?? false ? a.name : jsString(a.dataKey));
+    return name is String || name is num ? jsString(name) : null;
+  }
+
+  final points = <ScatterPoint>[];
+  for (var index = 0; index < displayed.length; index++) {
+    final entry = displayed[index];
+    final x = getValueByDataKey(entry, xDataKey);
+    final y = getValueByDataKey(entry, yDataKey);
+    final zValue = zDataKey == null ? null : getValueByDataKey(entry, zDataKey);
+    // `getValueByDataKey(...) || '-'`: a falsy z counts as missing.
+    final hasZ = zAxis != null && _truthy(zValue);
+    TooltipPayloadEntry tooltipEntry(String? name, String? unit, Object? value, Object? dataKey) => TooltipPayloadEntry(
+        name: name, unit: unit ?? '', value: value, payload: entry, dataKey: dataKey, type: scatter.tooltipType);
+    final zName = zAxis?.settings.name?.isNotEmpty ?? false ? zAxis?.settings.name : zAxis?.settings.dataKey;
+    final tooltipPayload = [
+      tooltipEntry(nameOf(xs), xs.unit, x, xDataKey),
+      tooltipEntry(nameOf(ys), ys.unit, y, yDataKey),
+      if (hasZ)
+        tooltipEntry(zName is String || zName is num ? jsString(zName) : null, zAxis.settings.unit, zValue, zDataKey),
+    ];
+    final cx = _cateCoordinateOfLine(xAxis, xTicks, xBandSize, entry, index, xDataKey);
+    final cy = _cateCoordinateOfLine(yAxis, yTicks, yBandSize, entry, index, yDataKey);
+    final size = hasZ ? zAxis.scale.map(zValue) : defaultZ;
+    final radius = size == null ? 0.0 : math.sqrt(math.max(size, 0) / math.pi);
+    points.add(ScatterPoint(
+      cx: cx,
+      cy: cy,
+      size: size,
+      width: 2 * radius,
+      node: (x: x, y: y, z: hasZ ? zValue : '-'),
+      payload: entry,
+      tooltipPayload: tooltipPayload,
+      tooltipPosition: cx == null || cy == null ? null : Offset(cx, cy),
+      cell: index < cells.length ? cells[index] : null,
+    ));
+  }
+  return points;
+}
+
+/// JS truthiness.
+bool _truthy(Object? v) => v != null && v != false && v != 0 && v != '' && !(v is num && v.isNaN);
+
+// ---------------------------------------------------------------------------
+// ErrorBar
+
+/// ErrorBarImpl's lines for each [ErrorBar] child of [item]. [data] is what
+/// the item's `errorBarDataPointFormatter` reads: the item's target points
+/// with their value per direction; [offset] is its `errorBarOffset`.
+// ponytail: the error value is read from the data entry; Recharts reads Bar
+// and Scatter values from their point items, which spread the entry.
+List<(ErrorBar, List<ErrorBarLine>)> _errorBars(GraphicalItem item, AxisRuntime xAxis, AxisRuntime yAxis,
+    ChartLayout layout, double offset, List<({double? x, double? y, Object? valueX, Object? valueY, Object? payload})> data) {
+  final bars = errorBarsOf(item.element);
+  final xScale = xAxis.scale, yScale = yAxis.scale;
+  if (bars.isEmpty || item.hide || xScale == null || yScale == null) return const [];
+  final out = <(ErrorBar, List<ErrorBarLine>)>[];
+  for (final bar in bars) {
+    final direction = errorBarDirection(bar, layout);
+    // "ErrorBar requires type number XAxis, why?"
+    if (direction == ErrorBarDirection.x && xAxis.settings.type != AxisDomainType.number) continue;
+    out.add((bar, [for (var i = 0; i < data.length; i++) ..._errorBarLinesOf(bar, direction, data[i], i, offset, xScale, yScale)]));
+  }
+  return out;
+}
+
+Object? _barEnd(Object? value) => value is List ? value.last : value;
+
+List<ErrorBarLine> _errorBarLinesOf(ErrorBar bar, ErrorBarDirection direction,
+    ({double? x, double? y, Object? valueX, Object? valueY, Object? payload}) d, int dataIndex, double offset,
+    RechartsScale xScale, RechartsScale yScale) {
+  final x = d.x, y = d.y;
+  final errorVal = getValueByDataKey(d.payload, bar.dataKey);
+  if (!_truthy(errorVal) || x == null || y == null) return const [];
+  final Object? low, high;
+  if (errorVal is List) {
+    low = errorVal.firstOrNull;
+    high = errorVal.elementAtOrNull(1);
+    if (low == null || high == null) return const [];
+  } else {
+    low = high = errorVal;
+  }
+  final origin = Offset(x + offset, y + offset);
+  final List<(Offset, Offset)> coords;
+  if (direction == ErrorBarDirection.x) {
+    final value = jsNumber(d.valueX);
+    final yMid = y + offset, yMin = yMid + bar.width, yMax = yMid - bar.width;
+    final xMin = xScale.map(value - jsNumber(low)), xMax = xScale.map(value + jsNumber(high));
+    if (xMin == null || xMax == null) return const [];
+    coords = [
+      (Offset(xMax, yMin), Offset(xMax, yMax)),
+      (Offset(xMin, yMid), Offset(xMax, yMid)),
+      (Offset(xMin, yMin), Offset(xMin, yMax)),
+    ];
+  } else {
+    final value = jsNumber(d.valueY);
+    final xMid = x + offset, xMin = xMid - bar.width, xMax = xMid + bar.width;
+    final yMin = yScale.map(value - jsNumber(low)), yMax = yScale.map(value + jsNumber(high));
+    if (yMin == null || yMax == null) return const [];
+    coords = [
+      (Offset(xMin, yMax), Offset(xMax, yMax)),
+      (Offset(xMid, yMin), Offset(xMid, yMax)),
+      (Offset(xMin, yMin), Offset(xMax, yMin)),
+    ];
+  }
+  return [
+    for (var i = 0; i < coords.length; i++)
+      ErrorBarLine(coords[i].$1, coords[i].$2, origin,
+          '${direction.name}-$dataIndex-${coords[i].$1.dx}-${coords[i].$1.dy}-${coords[i].$2.dx}-${coords[i].$2.dy}-$i'),
+  ];
 }
 
 // ---------------------------------------------------------------------------
@@ -1067,6 +1304,7 @@ Object? activeLabelOf(CartesianModel m, int? activeIndex) {
 
 /// `combineTooltipPayload` over [items] (`combineTooltipPayloadConfigurations`,
 /// all items by default). The 'item' event type looks entries up by index only.
+/// A Scatter's data are its points' x/y/z entries, picked by index either way.
 List<TooltipPayloadEntry> tooltipPayloadOf(CartesianModel m, int? activeIndex,
     {Iterable<GraphicalItem>? items, bool itemEventType = false}) {
   if (activeIndex == null) return const [];
@@ -1075,6 +1313,27 @@ List<TooltipPayloadEntry> tooltipPayloadOf(CartesianModel m, int? activeIndex,
   final out = <TooltipPayloadEntry>[];
   for (final item in items ?? m.items) {
     final el = item.element;
+    final scatterPoints = el is Scatter ? scatterPointsOf(m, item) : null;
+    if (el is Scatter && scatterPoints != null) {
+      final sliced = getSliced(scatterPoints, m.dataStartIndex, m.dataEndIndex);
+      final point = activeIndex >= 0 && activeIndex < sliced.length ? sliced[activeIndex] : null;
+      for (final e in point?.tooltipPayload ?? const <TooltipPayloadEntry>[]) {
+        out.add(TooltipPayloadEntry(
+          dataKey: e.dataKey,
+          name: e.name,
+          value: getValueByDataKey(e.payload, e.dataKey),
+          payload: e.payload,
+          color: el.fill,
+          fill: el.fill,
+          stroke: el.stroke,
+          unit: e.unit,
+          hide: el.hide,
+          type: el.tooltipType,
+          formatter: el.formatter,
+        ));
+      }
+      continue;
+    }
     final finalData = getSliced(item.data ?? m.chartData, m.dataStartIndex, m.dataEndIndex);
     Object? payload;
     if (axisDataKey != null && !itemEventType) {
@@ -1124,6 +1383,10 @@ List<Offset> cursorPoints(ChartLayout layout, Offset activeCoordinate, ChartOffs
     layout == ChartLayout.horizontal
         ? [Offset(activeCoordinate.dx, offset.top), Offset(activeCoordinate.dx, offset.top + offset.height)]
         : [Offset(offset.left, activeCoordinate.dy), Offset(offset.left + offset.width, activeCoordinate.dy)];
+
+/// The points of a Scatter (`dataDefinedOnItem`, `getPosition`).
+List<ScatterPoint>? scatterPointsOf(CartesianModel m, GraphicalItem item) =>
+    m.series.where((s) => s.item.id == item.id).firstOrNull?.scatterPoints;
 
 /// The scale of a numeric/categorical axis, exposed for tests.
 RechartsScale? axisScaleOf(CartesianModel m, {required bool isX, Object id = 0}) =>
