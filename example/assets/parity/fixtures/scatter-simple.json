@@ -1,0 +1,129 @@
+{
+ "name": "scatter-simple",
+ "description": "Simple ScatterChart: number axes with names and units, cross cursor, item tooltip.",
+ "width": 500,
+ "height": 300,
+ "captureAnimation": [
+  0,
+  100,
+  200,
+  300,
+  400
+ ],
+ "chart": {
+  "type": "ScatterChart",
+  "props": {
+   "margin": {
+    "top": 20,
+    "right": 20,
+    "bottom": 20,
+    "left": 20
+   }
+  },
+  "children": [
+   {
+    "type": "CartesianGrid",
+    "props": {}
+   },
+   {
+    "type": "XAxis",
+    "props": {
+     "type": "number",
+     "dataKey": "x",
+     "name": "stature",
+     "unit": "cm"
+    }
+   },
+   {
+    "type": "YAxis",
+    "props": {
+     "type": "number",
+     "dataKey": "y",
+     "name": "weight",
+     "unit": "kg"
+    }
+   },
+   {
+    "type": "Tooltip",
+    "props": {
+     "cursor": {
+      "strokeDasharray": "3 3"
+     }
+    }
+   },
+   {
+    "type": "Scatter",
+    "props": {
+     "name": "A school",
+     "data": [
+      {
+       "x": 100,
+       "y": 200,
+       "z": 200
+      },
+      {
+       "x": 120,
+       "y": 100,
+       "z": 260
+      },
+      {
+       "x": 170,
+       "y": 300,
+       "z": 400
+      },
+      {
+       "x": 140,
+       "y": 250,
+       "z": 280
+      },
+      {
+       "x": 150,
+       "y": 400,
+       "z": 500
+      },
+      {
+       "x": 110,
+       "y": 280,
+       "z": 200
+      }
+     ],
+     "fill": "#8884d8"
+    }
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-point",
+   "type": "hover",
+   "x": 347,
+   "y": 193
+  },
+  {
+   "id": "hover-between",
+   "type": "hover",
+   "x": 370,
+   "y": 160
+  },
+  {
+   "id": "hover-right",
+   "type": "hover",
+   "x": 458,
+   "y": 78
+  },
+  {
+   "id": "hover-leave",
+   "type": "hover",
+   "x": 302,
+   "y": 135,
+   "then": [
+    {
+     "id": "off",
+     "type": "hover",
+     "x": 302,
+     "y": 147
+    }
+   ]
+  }
+ ]
+}

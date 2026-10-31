@@ -1,0 +1,144 @@
+{
+ "name": "scatter-error-bars",
+ "description": "Scatter with y error bars (asymmetric) and x error bars; both extend the axis domains.",
+ "width": 500,
+ "height": 300,
+ "chart": {
+  "type": "ScatterChart",
+  "props": {
+   "margin": {
+    "top": 20,
+    "right": 20,
+    "bottom": 20,
+    "left": 20
+   }
+  },
+  "children": [
+   {
+    "type": "CartesianGrid",
+    "props": {}
+   },
+   {
+    "type": "XAxis",
+    "props": {
+     "type": "number",
+     "dataKey": "x",
+     "name": "time",
+     "unit": "s"
+    }
+   },
+   {
+    "type": "YAxis",
+    "props": {
+     "type": "number",
+     "dataKey": "y",
+     "name": "level"
+    }
+   },
+   {
+    "type": "Tooltip",
+    "props": {
+     "cursor": {
+      "strokeDasharray": "3 3"
+     }
+    }
+   },
+   {
+    "type": "Scatter",
+    "props": {
+     "name": "run",
+     "data": [
+      {
+       "x": 20,
+       "y": 35,
+       "ex": 4,
+       "ey": [
+        6,
+        3
+       ]
+      },
+      {
+       "x": 45,
+       "y": 62,
+       "ex": [
+        3,
+        8
+       ],
+       "ey": 7
+      },
+      {
+       "x": 60,
+       "y": 48,
+       "ex": 5,
+       "ey": [
+        4,
+        9
+       ]
+      },
+      {
+       "x": 85,
+       "y": 78,
+       "ex": [
+        6,
+        2
+       ],
+       "ey": 5
+      },
+      {
+       "x": 110,
+       "y": 55,
+       "ex": 7,
+       "ey": [
+        10,
+        4
+       ]
+      }
+     ],
+     "fill": "#8884d8"
+    },
+    "children": [
+     {
+      "type": "ErrorBar",
+      "props": {
+       "dataKey": "ey",
+       "width": 4,
+       "strokeWidth": 2,
+       "stroke": "#e2711d",
+       "direction": "y"
+      }
+     },
+     {
+      "type": "ErrorBar",
+      "props": {
+       "dataKey": "ex",
+       "width": 4,
+       "strokeWidth": 1,
+       "stroke": "#555",
+       "direction": "x"
+      }
+     }
+    ]
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-point",
+   "type": "hover",
+   "x": 230,
+   "y": 107
+  },
+  {
+   "id": "hover-on-whisker",
+   "type": "hover",
+   "x": 230,
+   "y": 95
+  },
+  {
+   "id": "hover-right",
+   "type": "hover",
+   "x": 447,
+   "y": 124
+  }
+ ]
+}
