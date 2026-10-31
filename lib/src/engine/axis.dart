@@ -3,7 +3,8 @@
 // combineAxisRangeWithReverse), src/util/isDomainSpecifiedByUser.ts, and the
 // tick/band helpers of src/util/ChartUtils.ts (getTicksOfAxis,
 // getBandSizeOfAxis, getStackedData, getDomainOfStackGroups, offsetSign,
-// offsetPositive, getCoordinatesOfGrid).
+// offsetPositive, getCoordinatesOfGrid); silhouette and wiggle come from
+// core/stack.dart.
 
 import 'dart:math' as math;
 
@@ -11,6 +12,7 @@ import '../components.dart';
 import '../core/curve.dart';
 import '../core/nice_ticks.dart';
 import '../core/scale.dart';
+import '../core/stack.dart';
 import '../util.dart';
 import 'get_ticks.dart';
 
@@ -22,6 +24,7 @@ class GraphicalItem {
   final String id;
   final CartesianSeries element;
   bool get isBar => element is Bar;
+  bool get isArea => element is Area;
   Object get dataKey => element.dataKey;
   Object get xAxisId => element.xAxisId;
   Object get yAxisId => element.yAxisId;
@@ -229,6 +232,7 @@ Map<String, List<List<double>>> getStackedData(
   final series = [
     for (final key in keys) [for (final d in data) <double>[0, jsNumber(d[key] ?? 0)]],
   ];
+  final order = List.generate(keys.length, (i) => i);
   switch (offsetType) {
     case StackOffset.sign:
       _offsetSign(series);
@@ -236,8 +240,11 @@ Map<String, List<List<double>>> getStackedData(
       _offsetPositive(series);
     case StackOffset.expand:
       _offsetExpand(series);
-    default:
-      // ponytail: silhouette/wiggle fall back to d3 stackOffsetNone.
+    case StackOffset.silhouette:
+      stackOffsetSilhouette(series, order);
+    case StackOffset.wiggle:
+      stackOffsetWiggle(series, order);
+    case StackOffset.none:
       _offsetNone(series);
   }
   for (var s = 0; s < series.length; s++) {
@@ -425,8 +432,8 @@ void computeAxisDomain(AxisRuntime axis, ChartContext ctx) {
   final domainDefinition = getDomainDefinition(s, axis.type);
   final domainFromUserPreference = numericalDomainSpecifiedWithoutRequiringData(domainDefinition, s.allowDataOverflow);
 
-  // Stack groups (selectStackGroups + combineDomainOfStackGroups)
-  final stackedItems = items.where((i) => i.isBar && i.stackId != null).toList();
+  // Stack groups (selectStackGroups + combineDomainOfStackGroups): areas and bars.
+  final stackedItems = items.where((i) => (i.isBar || i.isArea) && i.stackId != null).toList();
   axis.stackGroups = combineStackGroups(combineDisplayedStackedData(stackedItems, ctx.fullChartData, ctx.tooltipAxis),
       stackedItems, ctx.stackOffset, ctx.reverseStackOrder);
   final domainOfStackGroups = domainFromUserPreference != null

@@ -2,14 +2,17 @@
 // Recharts' DefaultZIndexes (src/zIndex/DefaultZIndexes.tsx):
 //   background: grid (-100), bar background (-50)
 //   cursorBelow: BarChart cursor rectangle (200)
-//   main: bars (300), lines + reference lines (400), axis lines (500), dots (600)
+//   main: areas (100), bars (300), lines + reference lines (400), axis lines (500), dots (600)
 //   activeBar: Bar `activeBar` (1000)
 //   overlay: cursor line (1100), active dots (1200)
 //   labels: tick labels, Label and LabelList (2000)
 // Geometry follows CartesianAxis.tsx (getTickLineCoord, AxisLine),
-// CartesianGrid.tsx, Line.tsx/LineDrawShape.tsx, Dots.tsx, ActivePoints.tsx,
+// CartesianGrid.tsx, Line.tsx/LineDrawShape.tsx, Area.tsx/AreaRevealShape.tsx,
+// Dots.tsx, ActivePoints.tsx,
 // Bar.tsx/Rectangle.tsx (BarRectangleWithActiveState), ActiveShapeUtils.tsx,
 // ReferenceLine.tsx and Cursor.tsx.
+
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
@@ -110,14 +113,18 @@ class ChartFrame {
     required this.barAnimators,
     required this.lineAnimators,
     required this.lineLengths,
+    this.areaBaseLines = const {},
   });
   final CartesianModel model;
   final List<RechartsElement> children;
   final TextStyle textStyle;
   final TextScaler textScaler;
   final Map<String, SeriesAnimator<BarRect>> barAnimators;
+
+  /// Line and Area points.
   final Map<String, SeriesAnimator<LinePoint>> lineAnimators;
   final Map<String, AnimatedLineLength> lineLengths;
+  final Map<String, AreaBaseLineAnimation> areaBaseLines;
 
   /// The tick text style: inherited font + `fontSize` + tick props, filled with `stroke`.
   TextStyle tickStyle(CartesianAxisElement? axis) {
@@ -271,8 +278,24 @@ class CartesianPainter extends CustomPainter {
     canvas.restore();
   }
 
+  SeriesModel? _seriesOf(CartesianSeries c) => m.series.where((s) => identical(s.item.element, c)).firstOrNull;
+
   void _paintMain(Canvas canvas) {
     final lineSteps = <String, List<LinePoint>>{};
+    // Areas (z 100), in document order.
+    for (final c in frame.children) {
+      if (c is! Area) continue;
+      final s = _seriesOf(c);
+      if (s == null || s.item.hide || s.points == null) continue;
+      final animator = frame.lineAnimators[s.item.id];
+      final isEntrance = animator?.isEntrance ?? false;
+      final t = animator?.t ?? 1.0;
+      final points = animator?.step(interpolateAreaPoints) ?? s.points!;
+      final baseLine = frame.areaBaseLines[s.item.id]?.step(s.baseLine!, t, isEntrance: isEntrance) ?? s.baseLine!;
+      lineSteps[s.item.id] = points;
+      final reveal = isEntrance && (animator!.isAnimating || t < 1);
+      _withClip(canvas, _clipFor(s.item), () => _paintArea(canvas, c, s.isRange, points, baseLine, reveal ? t : null));
+    }
     // Bars (z 300)
     for (final s in m.series) {
       if (!s.item.isBar || s.item.hide) continue;
@@ -289,7 +312,7 @@ class CartesianPainter extends CustomPainter {
     // Lines and reference lines (z 400), in document order.
     for (final c in frame.children) {
       if (c is Line) {
-        final s = m.series.where((s) => identical(s.item.element, c)).firstOrNull;
+        final s = _seriesOf(c);
         if (s == null || s.item.hide || s.points == null) continue;
         final animator = frame.lineAnimators[s.item.id];
         final points = animator?.step(interpolateLinePoints) ?? s.points!;
@@ -313,8 +336,40 @@ class CartesianPainter extends CustomPainter {
     for (final s in m.series) {
       final points = lineSteps[s.item.id];
       if (points == null) continue;
-      _withClip(canvas, _clipFor(s.item), () => _paintDots(canvas, s.item, s.item.element as Line, points));
+      _withClip(canvas, _clipFor(s.item), () => _paintDots(canvas, s.item.element, points));
     }
+  }
+
+  /// AreaRevealShape: the fill curve down to [baseLine], the stroke curve over
+  /// the points and, for range areas, over the baseline; inside the growing
+  /// clip rect while the entrance runs ([revealAlpha]).
+  void _paintArea(Canvas canvas, Area area, bool isRange, List<LinePoint> points, Object baseLine, double? revealAlpha) {
+    if (points.length <= 1) return;
+    final layout = m.layout;
+    void draw() {
+      if (area.fill != null) {
+        final path = areaPath(pointOffsets(points), areaBaseLineOf(baseLine), area.type,
+            layout: layout, connectNulls: area.connectNulls);
+        canvas.drawPath(path, fillPaintOf(area.fill!, path.getBounds(), opacity: area.fillOpacity));
+      }
+      if (area.stroke == null) return;
+      final paint = strokePaint(area.stroke!, area.strokeWidth);
+      drawStroke(canvas, linePath(pointOffsets(points), area.type, layout: layout, connectNulls: area.connectNulls), paint,
+          area.strokeDasharray);
+      if (isRange && baseLine is List<LinePoint>) {
+        drawStroke(canvas, linePath(pointOffsets(baseLine), area.type, layout: layout, connectNulls: area.connectNulls),
+            paint, area.strokeDasharray);
+      }
+    }
+
+    if (revealAlpha == null) return draw();
+    // An empty clipPath hides everything.
+    final clip = revealClipRect(revealAlpha, points, baseLine, layout, area.strokeWidth);
+    if (clip == null) return;
+    canvas.save();
+    canvas.clipRect(clip);
+    draw();
+    canvas.restore();
   }
 
   /// Rectangle with `{...barProps, ...entry (incl. Cell props), ...active}`.
@@ -322,7 +377,8 @@ class CartesianPainter extends CustomPainter {
     if (!r.x.isFinite || !r.y.isFinite || r.width == 0 || r.height == 0) return;
     final path = barPath(bar, r, active);
     final fill = active?.fill ?? r.cell?.fill ?? bar.fill ?? const Color(0xFF000000);
-    canvas.drawPath(path, fillPaint(fill, opacity: active?.fillOpacity ?? r.cell?.fillOpacity ?? bar.fillOpacity ?? 1));
+    canvas.drawPath(path,
+        fillPaintOf(fill, path.getBounds(), opacity: active?.fillOpacity ?? r.cell?.fillOpacity ?? bar.fillOpacity ?? 1));
     final stroke = active?.stroke ?? r.cell?.stroke ?? bar.stroke;
     if (stroke != null) {
       drawStroke(
@@ -349,8 +405,7 @@ class CartesianPainter extends CustomPainter {
   void _paintCurve(
       Canvas canvas, GraphicalItem item, Line line, List<LinePoint> points, SeriesAnimator<LinePoint>? animator) {
     if (points.length <= 1 || line.stroke == null) return;
-    final path = linePath([for (final p in points) p.x == null || p.y == null ? null : Offset(p.x!, p.y!)], line.type,
-        layout: m.layout, connectNulls: line.connectNulls);
+    final path = linePath(pointOffsets(points), line.type, layout: m.layout, connectNulls: line.connectNulls);
     List<double>? dash = line.strokeDasharray;
     if (animator != null) {
       final t = animator.t;
@@ -366,12 +421,20 @@ class CartesianPainter extends CustomPainter {
     drawStroke(canvas, path, strokePaint(line.stroke!, line.strokeWidth), dash);
   }
 
-  void _paintDots(Canvas canvas, GraphicalItem item, Line line, List<LinePoint> points) {
-    if (!(line.dot != false || points.length == 1)) return;
-    final style = line.dot is SvgStyle ? line.dot as SvgStyle : null;
+  /// Dots.tsx with the series' svg props as base props (Line: fill `#fff`;
+  /// Area: its fill and fillOpacity).
+  void _paintDots(Canvas canvas, CartesianSeries series, List<LinePoint> points) {
+    final (dot, fill, fillOpacity, stroke, strokeWidth, dash) = switch (series) {
+      Area a => (a.dot, a.fill, a.fillOpacity, a.stroke, a.strokeWidth, a.strokeDasharray),
+      Line l => (l.dot, l.fill, 1.0, l.stroke, l.strokeWidth, l.strokeDasharray),
+      _ => (false, null, 1.0, null, 1.0, null),
+    };
+    if (!(dot != false || points.length == 1)) return;
+    final style = dot is SvgStyle ? dot : null;
     for (var i = 0; i < points.length; i++) {
       final p = points[i];
       if (p.x == null || p.y == null) continue;
+      final dotFill = style?.fill ?? fill;
       final props = DotProps(
         cx: p.x!,
         cy: p.y!,
@@ -379,22 +442,27 @@ class CartesianPainter extends CustomPainter {
         index: i,
         value: p.value,
         payload: p.payload,
-        dataKey: line.dataKey,
-        fill: style?.fill ?? line.fill,
-        stroke: style?.stroke ?? line.stroke,
-        strokeWidth: style?.strokeWidth ?? line.strokeWidth,
+        dataKey: series.dataKey,
+        fill: solidColor(dotFill),
+        stroke: style?.stroke ?? stroke,
+        strokeWidth: style?.strokeWidth ?? strokeWidth,
       );
-      if (line.dot is DotPainter) {
-        (line.dot as DotPainter)(canvas, props);
+      if (dot is DotPainter) {
+        dot(canvas, props);
       } else {
-        _paintDot(canvas, props, style?.strokeDasharray ?? line.strokeDasharray);
+        _paintDot(canvas, props, style?.strokeDasharray ?? dash,
+            fill: dotFill, fillOpacity: style?.fillOpacity ?? fillOpacity);
       }
     }
   }
 
-  void _paintDot(Canvas canvas, DotProps d, List<double>? dash) {
+  /// `<Dot>`; [fill] (a Color or Gradient) overrides [DotProps.fill].
+  void _paintDot(Canvas canvas, DotProps d, List<double>? dash, {Object? fill, double fillOpacity = 1}) {
     final center = Offset(d.cx, d.cy);
-    if (d.fill != null) canvas.drawCircle(center, d.r, fillPaint(d.fill!));
+    final f = fill ?? d.fill;
+    if (f != null) {
+      canvas.drawCircle(center, d.r, fillPaintOf(f, Rect.fromCircle(center: center, radius: d.r), opacity: fillOpacity));
+    }
     if (d.stroke != null && d.strokeWidth > 0) {
       final path = Path()..addOval(Rect.fromCircle(center: center, radius: d.r));
       drawStroke(canvas, path, strokePaint(d.stroke!, d.strokeWidth), dash);
@@ -506,7 +574,7 @@ class CartesianPainter extends CustomPainter {
             baseStyle: frame.textStyle, scaler: frame.textScaler);
       } else if (c is CartesianSeries) {
         // Labels show once the series stops animating (`showLabels={!isAnimating}`).
-        final s = m.series.where((s) => identical(s.item.element, c)).firstOrNull;
+        final s = _seriesOf(c);
         if (s == null || s.item.hide) continue;
         final animator = s.item.isBar ? frame.barAnimators[s.item.id] : frame.lineAnimators[s.item.id];
         if (animator?.isAnimating ?? false) continue;
@@ -542,36 +610,72 @@ class CartesianPainter extends CustomPainter {
     }
   }
 
+  /// ActivePoints: the point whose payload is active, filled with the item's
+  /// main color (Line's stroke, Area's `getLegendItemColor`). Range areas also
+  /// mark their baseline.
   void _paintActiveDots(Canvas canvas) {
     final h = hover?.value;
     if (h == null || h.activeDataPoints.isEmpty) return;
     for (final s in m.series) {
-      final line = s.item.element;
-      if (line is! Line || s.item.hide || line.activeDot == false || s.points == null) continue;
-      final p = s.points!.where((p) => h.activeDataPoints.any((d) => identical(d, p.payload))).firstOrNull;
-      if (p == null || p.x == null || p.y == null) continue;
-      final style = line.activeDot is SvgStyle ? line.activeDot as SvgStyle : null;
-      final props = DotProps(
-        cx: p.x!,
-        cy: p.y!,
-        r: style?.r ?? 4,
-        index: s.points!.indexOf(p),
-        value: p.value,
-        payload: p.payload,
-        dataKey: line.dataKey,
-        fill: style?.fill ?? line.stroke,
-        stroke: style?.stroke ?? const Color(0xFFFFFFFF),
-        strokeWidth: style?.strokeWidth ?? 2,
-      );
-      _withClip(canvas, _clipFor(s.item), () {
-        if (line.activeDot is DotPainter) {
-          (line.activeDot as DotPainter)(canvas, props);
-        } else {
-          _paintDot(canvas, props, style?.strokeDasharray);
-        }
-      });
+      final el = s.item.element;
+      final activeDot = switch (el) {
+        Line l => l.activeDot,
+        Area a => a.activeDot,
+        _ => false,
+      };
+      if (s.item.hide || activeDot == false || s.points == null) continue;
+      final baseLine = s.baseLine;
+      for (final points in [s.points!, if (el is Area && s.isRange && baseLine is List<LinePoint>) baseLine]) {
+        final p = points.where((p) => h.activeDataPoints.any((d) => identical(d, p.payload))).firstOrNull;
+        if (p == null || p.x == null || p.y == null) continue;
+        final style = activeDot is SvgStyle ? activeDot : null;
+        final props = DotProps(
+          cx: p.x!,
+          cy: p.y!,
+          r: style?.r ?? 4,
+          index: points.indexOf(p),
+          value: p.value,
+          payload: p.payload,
+          dataKey: el.dataKey,
+          fill: style?.fill ?? el.tooltipColor,
+          stroke: style?.stroke ?? const Color(0xFFFFFFFF),
+          strokeWidth: style?.strokeWidth ?? 2,
+        );
+        _withClip(canvas, _clipFor(s.item), () {
+          if (activeDot is DotPainter) {
+            activeDot(canvas, props);
+          } else {
+            _paintDot(canvas, props, style?.strokeDasharray);
+          }
+        });
+      }
     }
   }
+}
+
+/// AreaRevealShape `RevealClipRect`: grows from the first point towards the
+/// last one (left to right, or top to bottom in vertical layout) over the full
+/// value extent. Null is an empty clipPath, which hides the area.
+Rect? revealClipRect(double alpha, List<LinePoint> points, Object baseLine, ChartLayout layout, double strokeWidth) {
+  // `strokeWidth ? parseInt(`${strokeWidth}`, 10) : 1`
+  final sw = strokeWidth == 0 || strokeWidth.isNaN ? 1.0 : strokeWidth.truncateToDouble();
+  double or0(double? v) => v == null || v.isNaN ? 0 : v;
+  final vertical = layout == ChartLayout.vertical;
+  final start = vertical ? points.firstOrNull?.y : points.firstOrNull?.x;
+  final end = vertical ? points.lastOrNull?.y : points.lastOrNull?.x;
+  if (!isWellBehavedNumber(start) || !isWellBehavedNumber(end)) return null;
+  final size = alpha * (start! - end!).abs();
+  var max = points.map((p) => or0(vertical ? p.x : p.y)).reduce(math.max);
+  if (isNumber(baseLine)) {
+    max = math.max((baseLine as num).toDouble(), max);
+  } else if (baseLine is List<LinePoint> && baseLine.isNotEmpty) {
+    max = math.max(baseLine.map((p) => or0(vertical ? p.x : p.y)).reduce(math.max), max);
+  }
+  if (!isNumber(max)) return null;
+  final from = start < end ? start : start - size;
+  return vertical
+      ? Rect.fromLTWH(0, from, max + sw, size.floorToDouble())
+      : Rect.fromLTWH(from, 0, size, (max + sw).floorToDouble());
 }
 
 /// `getTickLineCoord`: tick line end points and the tick label anchor.

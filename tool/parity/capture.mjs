@@ -31,8 +31,7 @@ async function open(side, base, fx, clock, anim) {
   if (clock) await page.clock.install({ time: 0 });
   await page.goto(`${base}/?fixture=${fx.name}${anim ? '&anim=1' : ''}`, { waitUntil: 'load' });
   try {
-    if (side === 'web' || anim) await page.waitForFunction('window.__parityReady === true', null, { timeout: 15000 });
-    else await page.waitForSelector('flutter-view, flt-glass-pane', { state: 'attached', timeout: 30000 });
+    await page.waitForFunction('window.__parityReady === true', null, { timeout: 30000 });
   } catch (e) { console.warn(`  [${side}] not ready: ${e.message.split('\n')[0]}`); }
   return { ctx, page };
 }

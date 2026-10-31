@@ -5,8 +5,9 @@ import * as Recharts from 'recharts';
 const fixtures = import.meta.glob('../../../../example/assets/parity/fixtures/*.json', { eager: true, import: 'default' });
 const byName = Object.fromEntries(Object.values(fixtures).map((f) => [f.name, f]));
 
+// Lowercase types are SVG intrinsic elements (defs, linearGradient, stop).
 const build = (n, key) => {
-  const C = Recharts[n.type];
+  const C = /^[a-z]/.test(n.type) ? n.type : Recharts[n.type];
   if (!C) throw new Error('Unknown Recharts component ' + n.type);
   return React.createElement(C, { key, ...n.props }, ...(n.children || []).map((c, i) => build(c, i)));
 };

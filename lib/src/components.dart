@@ -1,13 +1,15 @@
 // Child "components" of a cartesian chart. Like Recharts children they are
 // plain configuration read by the chart, not widgets. Defaults are copied from
 // each component's defaultProps (src/cartesian/XAxis.tsx, YAxis.tsx,
-// CartesianAxis.tsx, CartesianGrid.tsx, Line.tsx, Bar.tsx, ReferenceLine.tsx,
+// CartesianAxis.tsx, CartesianGrid.tsx, Line.tsx, Bar.tsx, Area.tsx, ReferenceLine.tsx,
 // src/component/Tooltip.tsx, Legend.tsx, DefaultLegendContent.tsx) and from
 // implicitXAxis/implicitYAxis in src/state/selectors/axisSelectors.ts.
 //
 // Dart typing notes (where JS is loose):
 // * `dataKey` is an [Object]: a String/int path, or `Object? Function(Object? entry)`.
 // * Colors are [Color] instead of CSS strings; `strokeDasharray` is `List<double>`.
+//   Area and Bar `fill` also take a [Gradient], painted over the shape's
+//   bounding box like an SVG gradient in objectBoundingBox units.
 // * `isAnimationActive` is `bool?`: `null` means Recharts' `'auto'`.
 // * Durations are milliseconds (`int`), easing is anything `createEasingFunction` takes.
 // * `tick`, `dot`, `activeDot`, `axisLine`, `cursor`, `background` keep Recharts'
@@ -275,12 +277,12 @@ class LabelListEntry {
   final Rect viewBox;
   final Color? fill;
 
-  /// The chart box for bars, null for lines.
+  /// The chart box for bars, null for lines and areas.
   final Rect? parentViewBox;
 }
 
 /// src/component/LabelList.tsx: one [Label] per data point of the enclosing
-/// [Line] or [Bar]. Labels are hidden while the series animates.
+/// [Line], [Bar] or [Area]. Labels are hidden while the series animates.
 class LabelList extends RechartsElement {
   const LabelList({
     this.dataKey,
@@ -548,7 +550,10 @@ class CartesianGrid extends RechartsElement {
   final double? x, y, width, height;
 }
 
-/// Shared props of [Line] and [Bar].
+/// The solid color of a `fill` that may also be a [Gradient].
+Color? solidColor(Object? paint) => paint is Color ? paint : null;
+
+/// Shared props of [Line], [Bar] and [Area].
 abstract class CartesianSeries extends RechartsElement {
   const CartesianSeries({
     required this.dataKey,
@@ -699,8 +704,9 @@ class Bar extends CartesianSeries {
   /// A number or `num Function(num? value, int index)`.
   final Object minPointSize;
 
-  /// Bar has no default fill in Recharts, so SVG paints it black.
-  final Color? fill;
+  /// A [Color] or a [Gradient]; Bar has no default fill in Recharts, so SVG
+  /// paints it black.
+  final Object? fill;
   final double? fillOpacity;
   final Color? stroke;
   final double? strokeWidth;
@@ -727,7 +733,87 @@ class Bar extends CartesianSeries {
   @override
   Object? get stackIdOrNull => stackId;
   @override
-  Color? get tooltipColor => fill;
+  Color? get tooltipColor => solidColor(fill);
+}
+
+/// src/cartesian/Area.tsx, defaults from `defaultAreaProps`. Renders in
+/// [AreaChart] and [ComposedChart] only, like Recharts.
+class Area extends CartesianSeries {
+  const Area({
+    required super.dataKey,
+    super.xAxisId,
+    super.yAxisId,
+    this.type = CurveType.linear,
+    this.stroke = const Color(0xFF3182BD),
+    this.strokeWidth = 1,
+    this.strokeDasharray,
+    this.fill = const Color(0xFF3182BD),
+    this.fillOpacity = 0.6,
+    this.dot = false,
+    this.activeDot = true,
+    this.connectNulls = false,
+    this.stackId,
+    this.baseValue,
+    super.hide,
+    super.legendType = LegendType.line,
+    super.name,
+    super.unit,
+    super.tooltipType,
+    super.formatter,
+    this.data,
+    super.isAnimationActive,
+    super.animationBegin,
+    super.animationDuration = 1500,
+    super.animationEasing,
+    super.onAnimationStart,
+    super.onAnimationEnd,
+    super.id,
+    this.label = false,
+    this.children = const [],
+  });
+  final CurveType type;
+
+  /// The curve's stroke; null is `stroke="none"`.
+  final Color? stroke;
+  final double strokeWidth;
+  final List<double>? strokeDasharray;
+
+  /// A [Color] or a [Gradient]; null is `fill="none"`.
+  final Object? fill;
+  final double fillOpacity;
+
+  /// `true`/`false`, an [SvgStyle], or a [DotPainter]. Dots take the Area's
+  /// fill, fillOpacity and stroke.
+  final Object dot;
+
+  /// `true`/`false`, an [SvgStyle], or a [DotPainter].
+  final Object activeDot;
+  final bool connectNulls;
+
+  /// String or int; areas sharing it stack (with bars of the same id).
+  final Object? stackId;
+
+  /// `num`, `'dataMin'` or `'dataMax'` (read from the value axis domain);
+  /// overrides the chart's `baseValue`. Ignored for stacked and range areas.
+  final Object? baseValue;
+
+  /// Entries whose value is a `[low, high]` list draw a range area.
+  final List<Object?>? data;
+
+  /// `true`, a [LabelList], or a [LabelPainter] drawing each label.
+  final Object label;
+
+  /// [LabelList]s.
+  final List<RechartsElement> children;
+
+  @override
+  Object? get itemData => data;
+  @override
+  Object? get stackIdOrNull => stackId;
+
+  /// `getLegendItemColor(stroke, fill)`.
+  @override
+  Color? get tooltipColor => stroke ?? solidColor(fill);
 }
 
 /// Per-entry overrides inside a [Bar].

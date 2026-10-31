@@ -73,7 +73,7 @@ Offset? getTooltipTranslate({
 }
 
 Object? _defaultFormatter(Object? value) =>
-    value is List && value.length == 2 && isNumOrStr(value[0]) && isNumOrStr(value[1]) ? value.join(' ~ ') : value;
+    value is List && value.length == 2 && isNumOrStr(value[0]) && isNumOrStr(value[1]) ? value.map(jsString).join(' ~ ') : value;
 
 /// `DefaultTooltipContent`.
 class DefaultTooltipContent extends StatelessWidget {

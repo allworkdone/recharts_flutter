@@ -6,6 +6,7 @@
 //   src/state/selectors/barSelectors.ts, combiners/combineBarSizeList.ts,
 //     combineAllBarPositions.ts, combineBarPosition.ts; computeBarRectangles (Bar.tsx)
 //   src/state/selectors/lineSelectors.ts; computeLinePoints (Line.tsx)
+//   src/state/selectors/areaSelectors.ts; computeArea, getBaseValue (Area.tsx)
 //   CartesianGrid.tsx coordinate generators; ReferenceLine.tsx getEndPoints
 //   src/state/selectors/tooltipSelectors.ts, selectors.ts (combineActiveProps),
 //     src/util/getActiveCoordinate.ts, combineActiveTooltipIndex.ts,
@@ -97,7 +98,8 @@ class BarRect {
   int get hashCode => Object.hash(x, y, width, height);
 }
 
-/// `LinePointItem`.
+/// `LinePointItem`, also Area's `AreaPointItem` (whose [value] is the
+/// `[base, value]` pair) and its baseline points (no value).
 class LinePoint {
   const LinePoint(this.x, this.y, this.value, this.payload);
   final double? x, y;
@@ -112,10 +114,14 @@ class LinePoint {
 }
 
 class SeriesModel {
-  SeriesModel(this.item, {this.rects, this.points});
+  SeriesModel(this.item, {this.rects, this.points, this.baseLine, this.isRange = false});
   final GraphicalItem item;
   final List<BarRect>? rects;
   final List<LinePoint>? points;
+
+  /// Area only: a number (y0 horizontal, x0 vertical) or one [LinePoint] per point.
+  final Object? baseLine;
+  final bool isRange;
 }
 
 class GridModel {
@@ -183,13 +189,13 @@ class CartesianModel {
   double get tooltipAxisBandSize => getBandSizeOfAxis(tooltipAxis.scale, tooltipTicks) ?? 0;
 }
 
-/// Stable ids for graphical items: explicit `id`, else type + position.
+/// Stable ids for graphical items: explicit `id`, else Recharts-style type + position.
 List<GraphicalItem> collectItems(List<RechartsElement> children, {String prefix = ''}) {
   final items = <GraphicalItem>[];
   var i = 0;
   for (final c in children) {
     if (c is CartesianSeries) {
-      items.add(GraphicalItem('$prefix${c.id ?? '${c is Bar ? 'bar' : 'line'}-$i'}', c));
+      items.add(GraphicalItem('$prefix${c.id ?? 'recharts-${c is Bar ? 'bar' : c is Area ? 'area' : 'line'}-$i'}', c));
       i++;
     }
   }
@@ -197,17 +203,22 @@ List<GraphicalItem> collectItems(List<RechartsElement> children, {String prefix 
 }
 
 /// `computeLegendPayloadFromBarData` / `computeLegendPayloadFromAreaData` +
-/// `selectLegendPayload` (sorted by Legend `itemSorter`).
+/// `selectLegendPayload` (sorted by Legend `itemSorter`). The color is the
+/// tooltip color: Line's stroke, Bar's fill, Area's `getLegendItemColor`.
 List<LegendPayload> legendPayloadOf(List<GraphicalItem> items, Legend legend) {
   final payload = [
     for (final i in items)
       LegendPayload(
         value: i.element.name != null ? jsString(i.element.name) : (i.dataKey is String ? i.dataKey as String : null),
         type: i.element.legendType,
-        color: i.element is Line ? (i.element as Line).stroke : (i.element as Bar).fill,
+        color: i.element.tooltipColor,
         dataKey: i.dataKey,
         inactive: i.hide,
-        strokeDasharray: i.element is Line ? (i.element as Line).strokeDasharray : null,
+        strokeDasharray: switch (i.element) {
+          Line l => l.strokeDasharray,
+          Area a => a.strokeDasharray,
+          _ => null,
+        },
       ),
   ];
   final sorter = legend.itemSorter;
@@ -265,6 +276,7 @@ CartesianModel computeCartesianModel({
   ChartOffset? rootOffset,
   Size? rootSize,
   Map<Object, double> yAxisWidths = const {},
+  Object? baseValue,
 }) {
   final chartWidth = size.width, chartHeight = size.height;
   final xAxes = _byId(children.whereType<XAxis>());
@@ -430,6 +442,12 @@ CartesianModel computeCartesianModel({
       series.add(SeriesModel(item,
           rects: _barRectangles(item, items, xa, ya, layout, offset, displayedData, dataStartIndex, barSize,
               maxBarSize, barGap, barCategoryGap)));
+    } else if (item.isArea) {
+      // AreaImpl renders nothing outside AreaChart and ComposedChart.
+      final area = chartName == 'AreaChart' || chartName == 'ComposedChart'
+          ? _computeArea(item, xa, ya, layout, displayedData, dataStartIndex, baseValue)
+          : null;
+      series.add(SeriesModel(item, points: area?.points, baseLine: area?.baseLine, isRange: area?.isRange ?? false));
     } else {
       series.add(SeriesModel(item, points: _linePoints(item, xa, ya, layout, displayedData)));
     }
@@ -813,6 +831,23 @@ List<Object?> _truncateByDomain(List<double> value, List<Object?> domain) {
 // ---------------------------------------------------------------------------
 // Lines
 
+/// `getCateCoordinateOfLine`.
+double? _cateCoordinateOfLine(AxisRuntime axis, List<TickItem> ticks, double bandSize, Object? entry, int index) {
+  final s = axis.settings;
+  if (axis.type == AxisDomainType.category) {
+    if (!s.allowDuplicatedCategory && s.dataKey != null) {
+      final v = getValueByDataKey(entry, s.dataKey);
+      if (v != null) {
+        final matched = ticks.where((t) => t.value == v).firstOrNull;
+        if (matched != null) return matched.coordinate + bandSize / 2;
+      }
+    }
+    return index < ticks.length ? ticks[index].coordinate + bandSize / 2 : null;
+  }
+  final scaled = axis.scale!.map(getValueByDataKey(entry, s.dataKey));
+  return isNumber(scaled) ? scaled : null;
+}
+
 List<LinePoint>? _linePoints(
     GraphicalItem item, AxisRuntime xAxis, AxisRuntime yAxis, ChartLayout layout, List<Object?> chartData) {
   final xTicks = xAxis.itemTicks, yTicks = yAxis.itemTicks;
@@ -822,39 +857,122 @@ List<LinePoint>? _linePoints(
   final bandSize = getBandSizeOfAxis(cate.scale, cate.itemTicks) ?? 0;
   final displayed = (item.data != null && item.data!.isNotEmpty) ? item.data! : chartData;
 
-  double? cateCoordinate(AxisRuntime axis, List<TickItem> ticks, Object? entry, int index) {
-    final s = axis.settings;
-    if (axis.type == AxisDomainType.category) {
-      if (!s.allowDuplicatedCategory && s.dataKey != null) {
-        final v = getValueByDataKey(entry, s.dataKey);
-        if (v != null) {
-          final matched = ticks.where((t) => t.value == v).firstOrNull;
-          if (matched != null) return matched.coordinate + bandSize / 2;
-        }
-      }
-      return index < ticks.length ? ticks[index].coordinate + bandSize / 2 : null;
-    }
-    final scaled = axis.scale!.map(getValueByDataKey(entry, s.dataKey));
-    return isNumber(scaled) ? scaled : null;
-  }
-
   final points = <LinePoint>[];
   for (var index = 0; index < displayed.length; index++) {
     final entry = displayed[index];
     final value = getValueByDataKey(entry, item.dataKey);
     if (layout == ChartLayout.horizontal) {
-      final x = cateCoordinate(xAxis, xTicks, entry, index);
+      final x = _cateCoordinateOfLine(xAxis, xTicks, bandSize, entry, index);
       final y = value == null ? null : yAxis.scale!.map(value);
       points.add(LinePoint(x, y, value, entry));
     } else {
       final x = value == null ? null : xAxis.scale!.map(value);
-      final y = cateCoordinate(yAxis, yTicks, entry, index);
+      final y = _cateCoordinateOfLine(yAxis, yTicks, bandSize, entry, index);
       if (x == null || y == null) continue;
       points.add(LinePoint(x, y, value, entry));
     }
   }
   return points;
 }
+
+// ---------------------------------------------------------------------------
+// Areas
+
+/// `getBaseValue`: the Area's `baseValue` wins over the chart's. Reads the
+/// value axis domain, so 'dataMin' is really the domain minimum.
+Object? getBaseValue(ChartLayout layout, Object? chartBaseValue, Object? itemBaseValue, AxisRuntime xAxis,
+    AxisRuntime yAxis) {
+  final baseValue = itemBaseValue ?? chartBaseValue;
+  if (isNumber(baseValue)) return baseValue;
+  final numericAxis = layout == ChartLayout.horizontal ? yAxis : xAxis;
+  final domain = numericAxis.scale!.domain;
+  if (domain.length < 2) return domain.firstOrNull;
+  if (numericAxis.type == AxisDomainType.number) {
+    final d0 = jsNumber(domain[0]), d1 = jsNumber(domain[1]);
+    final domainMax = math.max(d0, d1), domainMin = math.min(d0, d1);
+    if (baseValue == 'dataMin') return domainMin;
+    if (baseValue == 'dataMax') return domainMax;
+    return domainMax < 0 ? domainMax : math.max(domainMin, 0);
+  }
+  return baseValue == 'dataMax' ? domain[1] : domain[0];
+}
+
+/// `selectArea` + `computeArea`.
+({List<LinePoint> points, Object baseLine, bool isRange})? _computeArea(GraphicalItem item, AxisRuntime xAxis,
+    AxisRuntime yAxis, ChartLayout layout, List<Object?> chartData, int dataStartIndex, Object? chartBaseValue) {
+  final xTicks = xAxis.itemTicks, yTicks = yAxis.itemTicks;
+  if (xAxis.scale == null || yAxis.scale == null || xTicks == null || yTicks == null) return null;
+  if (xTicks.isEmpty || yTicks.isEmpty) return null;
+  final area = item.element as Area;
+  final horizontal = layout == ChartLayout.horizontal;
+  final cate = horizontal ? xAxis : yAxis;
+  final bandSize = getBandSizeOfAxis(cate.scale, cate.itemTicks) ?? 0;
+  final displayed = (item.data != null && item.data!.isNotEmpty) ? item.data! : chartData;
+
+  // selectGraphicalItemStackedData / selectStackDataKeys on the numerical axis
+  final group = item.stackId == null ? null : (horizontal ? yAxis : xAxis).stackGroups?[item.stackId];
+  final stackedData = group?.stackedData[item.id];
+  final stackDataKeys = group?.items.map((i) => i.dataKey).toList();
+  final hasStack = stackedData != null && stackedData.isNotEmpty;
+
+  final baseValue = getBaseValue(layout, chartBaseValue, area.baseValue, xAxis, yAxis);
+  var isRange = false;
+  final points = <LinePoint>[];
+  for (var index = 0; index < displayed.length; index++) {
+    final entry = displayed[index];
+    final rawValue = getValueByDataKey(entry, item.dataKey);
+    List<Object?>? valueAsArray;
+    if (hasStack) {
+      final i = dataStartIndex + index;
+      valueAsArray = i >= 0 && i < stackedData.length ? stackedData[i] : null;
+    } else if (rawValue is List) {
+      valueAsArray = rawValue;
+      isRange = true;
+    } else {
+      valueAsArray = [baseValue, rawValue];
+    }
+    final value1 = valueAsArray != null && valueAsArray.length > 1 ? valueAsArray[1] : null;
+    // A null in one stacked series is a zero contribution; a null across the whole stack is a gap.
+    final wholeStackIsNull = hasStack &&
+        rawValue == null &&
+        stackDataKeys != null &&
+        stackDataKeys.isNotEmpty &&
+        stackDataKeys.every((k) => getValueByDataKey(entry, k) == null);
+    final isBreakPoint = value1 == null || (hasStack && !area.connectNulls && rawValue == null) || wholeStackIsNull;
+    if (horizontal) {
+      points.add(LinePoint(_cateCoordinateOfLine(xAxis, xTicks, bandSize, entry, index),
+          isBreakPoint ? null : yAxis.scale!.map(value1), valueAsArray, entry));
+    } else {
+      points.add(LinePoint(isBreakPoint ? null : xAxis.scale!.map(value1),
+          _cateCoordinateOfLine(yAxis, yTicks, bandSize, entry, index), valueAsArray, entry));
+    }
+  }
+
+  final Object baseLine;
+  if (hasStack || isRange) {
+    baseLine = [
+      for (final p in points)
+        if (horizontal)
+          LinePoint(p.x, _base(p) != null && p.y != null ? yAxis.scale!.map(_base(p)) : null, null, p.payload)
+        else
+          LinePoint(_base(p) != null ? xAxis.scale!.map(_base(p)) : null, p.y, null, p.payload),
+    ];
+  } else {
+    baseLine = (horizontal ? yAxis.scale!.map(baseValue) : xAxis.scale!.map(baseValue)) ?? 0.0;
+  }
+  return (points: points, baseLine: baseLine, isRange: isRange);
+}
+
+/// The lower value of an area point's `[base, value]` pair.
+Object? _base(LinePoint p) => p.value is List && (p.value as List).isNotEmpty ? (p.value as List)[0] : null;
+
+/// Points as the curve generators take them: null where a coordinate is missing.
+List<Offset?> pointOffsets(List<LinePoint> points) =>
+    [for (final p in points) p.x == null || p.y == null ? null : Offset(p.x!, p.y!)];
+
+/// [SeriesModel.baseLine] as the `List<Offset?>` or number `drawArea` takes.
+Object areaBaseLineOf(Object? baseLine) =>
+    baseLine is List<LinePoint> ? pointOffsets(baseLine) : (baseLine as num?)?.toDouble() ?? 0.0;
 
 // ---------------------------------------------------------------------------
 // Tooltip
@@ -972,8 +1090,18 @@ List<TooltipPayloadEntry> tooltipPayloadOf(CartesianModel m, int? activeIndex,
       value: getValueByDataKey(payload, el.dataKey),
       payload: payload,
       color: el.tooltipColor,
-      fill: el is Line ? el.fill : (el as Bar).fill,
-      stroke: el is Line ? el.stroke : (el as Bar).stroke,
+      fill: switch (el) {
+        Line l => l.fill,
+        Bar b => solidColor(b.fill),
+        Area a => solidColor(a.fill),
+        _ => null,
+      },
+      stroke: switch (el) {
+        Line l => l.stroke,
+        Bar b => b.stroke,
+        Area a => a.stroke,
+        _ => null,
+      },
       unit: el.unit,
       hide: el.hide,
       type: el.tooltipType,

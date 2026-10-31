@@ -38,13 +38,15 @@ class _ParityAppState extends State<ParityApp> {
   @override
   void initState() {
     super.initState();
+    // Ready after the frame that shows the loaded fixture (in anim mode, the
+    // empty frame before __parityStart mounts the chart).
+    _fixture.then((_) => WidgetsBinding.instance.addPostFrameCallback((_) {
+          globalContext.setProperty('__parityReady'.toJS, true.toJS);
+        }));
     if (!_deferred) return;
     globalContext.setProperty('__parityStart'.toJS, (() {
       if (mounted) setState(() => _mounted = true);
     }).toJS);
-    _fixture.then((_) => WidgetsBinding.instance.addPostFrameCallback((_) {
-          globalContext.setProperty('__parityReady'.toJS, true.toJS);
-        }));
   }
 
   @override

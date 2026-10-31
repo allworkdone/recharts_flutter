@@ -1,7 +1,7 @@
 // Ports of src/component/Label.tsx and LabelList.tsx for cartesian charts:
 // getCartesianPosition (src/cartesian/getCartesianPosition.tsx, rectangles
-// only), parseLabel / LabelListFromLabelProp, BarLabelListProvider and
-// LineLabelListProvider entries; plus getCalculatedYAxisWidth
+// only), parseLabel / LabelListFromLabelProp, BarLabelListProvider,
+// LineLabelListProvider and AreaLabelListProvider entries; plus getCalculatedYAxisWidth
 // (src/util/YAxisUtils.tsx) and the updateYAxisWidth reducer
 // (src/state/cartesianAxisSlice.ts) behind `YAxis(width: 'auto')`.
 
@@ -151,11 +151,12 @@ void paintLabel(Canvas canvas, Label? label, Rect viewBox,
 // ---------------------------------------------------------------- LabelList
 
 /// `LabelListFromLabelProp` followed by `LabelList` children, in render order
-/// (Bar renders the prop's list first, Line last).
+/// (Bar renders the prop's list first, Line and Area last).
 List<LabelList> seriesLabelLists(CartesianSeries series) {
   final (label, children) = switch (series) {
     Line l => (l.label, l.children),
     Bar b => (b.label, b.children),
+    Area a => (a.label, a.children),
     _ => (false, const <RechartsElement>[]),
   };
   final fromProp = switch (label) {
@@ -169,7 +170,8 @@ List<LabelList> seriesLabelLists(CartesianSeries series) {
 }
 
 /// Entries of BarLabelListProvider (final rectangles, chart box as parent) or
-/// LineLabelListProvider (zero-size boxes at the points, no parent).
+/// Line/AreaLabelListProvider (zero-size boxes at the points, no parent; an
+/// area point's value is its `[base, value]` pair).
 List<LabelListEntry> labelListEntries(SeriesModel s, Size chartSize) => s.rects != null
     ? [
         for (final r in s.rects!)

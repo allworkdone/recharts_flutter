@@ -1,5 +1,6 @@
 // Maps a parity fixture ({chart: {type, props, children}}) written with Recharts
-// component and prop names onto the recharts_flutter API.
+// component and prop names onto the recharts_flutter API. SVG `<defs>` children
+// only feed `url(#id)` fills: each `<linearGradient>` becomes a LinearGradient.
 
 import 'package:flutter/widgets.dart';
 import 'package:recharts_flutter/recharts_flutter.dart';
@@ -14,9 +15,9 @@ Widget renderFixture(Map<String, dynamic> fixture) {
 Widget buildChart(Map<String, dynamic> chart, {double? width, double? height}) {
   final type = chart['type'] as String;
   final p = _Props(chart['props'] as Map<String, dynamic>? ?? const {});
-  final children = [
-    for (final c in (chart['children'] as List? ?? const []).cast<Map<String, dynamic>>()) ?_child(c),
-  ];
+  final nodes = (chart['children'] as List? ?? const []).cast<Map<String, dynamic>>();
+  _gradients.addAll(_linearGradients(nodes));
+  final children = [for (final c in nodes) ?_child(c)];
   final data = (p.raw['data'] as List? ?? const []).cast<Object?>();
   final layout = p.str('layout') == 'vertical' ? ChartLayout.vertical : ChartLayout.horizontal;
   final margin = p.margin('margin') ?? const Margin.all(5);
@@ -52,6 +53,22 @@ Widget buildChart(Map<String, dynamic> chart, {double? width, double? height}) {
         barGap: p.raw['barGap'] ?? 4,
         barSize: p.raw['barSize'],
         maxBarSize: p.dbl('maxBarSize'),
+        stackOffset: _enum(StackOffset.values, p.str('stackOffset')) ?? StackOffset.none,
+        reverseStackOrder: p.boolean('reverseStackOrder') ?? false,
+        baseValue: p.raw['baseValue'],
+        syncId: p.raw['syncId'], accessibilityLayer: p.raw['accessibilityLayer'] != false,
+        children: children,
+      );
+    case 'AreaChart':
+      return AreaChart(
+        width: w,
+        height: h,
+        data: data,
+        layout: layout,
+        margin: margin,
+        stackOffset: _enum(StackOffset.values, p.str('stackOffset')) ?? StackOffset.none,
+        reverseStackOrder: p.boolean('reverseStackOrder') ?? false,
+        baseValue: p.raw['baseValue'],
         syncId: p.raw['syncId'], accessibilityLayer: p.raw['accessibilityLayer'] != false,
         children: children,
       );
@@ -204,6 +221,33 @@ RechartsElement? _child(Map<String, dynamic> node) {
         label: _labelList(p.raw['label']) ?? false,
         children: [for (final c in (node['children'] as List? ?? const []).cast<Map<String, dynamic>>()) ?_child(c)],
       );
+    case 'Area':
+      return Area(
+        dataKey: p.raw['dataKey'] as Object,
+        xAxisId: p.raw['xAxisId'] ?? 0,
+        yAxisId: p.raw['yAxisId'] ?? 0,
+        type: _enum(CurveType.values, p.str('type')) ?? CurveType.linear,
+        stroke: p.raw.containsKey('stroke') ? p.color('stroke') : const Color(0xFF3182BD),
+        strokeWidth: p.dbl('strokeWidth') ?? 1,
+        strokeDasharray: p.dash('strokeDasharray'),
+        fill: p.raw.containsKey('fill') ? p.paint('fill') : const Color(0xFF3182BD),
+        fillOpacity: p.dbl('fillOpacity') ?? 0.6,
+        dot: p.svgOrBool('dot') ?? false,
+        activeDot: p.svgOrBool('activeDot') ?? true,
+        connectNulls: p.boolean('connectNulls') ?? false,
+        stackId: p.raw['stackId'],
+        baseValue: p.raw['baseValue'],
+        hide: p.boolean('hide') ?? false,
+        legendType: _enum(LegendType.values, p.str('legendType')) ?? LegendType.line,
+        name: p.raw['name'],
+        unit: p.raw['unit']?.toString(),
+        isAnimationActive: p.boolean('isAnimationActive'),
+        animationBegin: p.dbl('animationBegin')?.toInt() ?? 0,
+        animationDuration: p.dbl('animationDuration')?.toInt() ?? 1500,
+        animationEasing: p.str('animationEasing') ?? 'ease',
+        label: _labelList(p.raw['label']) ?? false,
+        children: [for (final c in (node['children'] as List? ?? const []).cast<Map<String, dynamic>>()) ?_child(c)],
+      );
     case 'Bar':
       return Bar(
         dataKey: p.raw['dataKey'] as Object,
@@ -213,7 +257,7 @@ RechartsElement? _child(Map<String, dynamic> node) {
         barSize: p.raw['barSize'],
         maxBarSize: p.dbl('maxBarSize'),
         minPointSize: p.dbl('minPointSize') ?? 0,
-        fill: p.color('fill'),
+        fill: p.paint('fill'),
         stroke: p.color('stroke'),
         strokeWidth: p.dbl('strokeWidth'),
         radius: p.raw['radius'] ?? 0,
@@ -309,6 +353,46 @@ LabelList? _labelList(Object? v) {
 Cell _cell(_Props p) => Cell(
     fill: p.color('fill'), fillOpacity: p.dbl('fillOpacity'), stroke: p.color('stroke'), strokeWidth: p.dbl('strokeWidth'));
 
+/// `<linearGradient>`s by id, from every chart rendered so far (SVG ids are document-wide).
+final _gradients = <String, LinearGradient>{};
+
+/// The `<linearGradient>` elements under `<defs>`: x1/y1/x2/y2 are fractions of
+/// the bounding box (objectBoundingBox, default 0 0 1 0), stops have offset,
+/// stopColor and stopOpacity.
+Map<String, LinearGradient> _linearGradients(List<Map<String, dynamic>> nodes) {
+  final out = <String, LinearGradient>{};
+  for (final defs in nodes.where((n) => n['type'] == 'defs')) {
+    for (final g in (defs['children'] as List? ?? const []).cast<Map<String, dynamic>>()) {
+      if (g['type'] != 'linearGradient') continue;
+      final p = (g['props'] as Map? ?? const {}).cast<String, dynamic>();
+      double frac(String k, double d) {
+        final v = p[k];
+        if (v is num) return v.toDouble();
+        if (v is String) return v.endsWith('%') ? double.parse(v.substring(0, v.length - 1)) / 100 : double.parse(v);
+        return d;
+      }
+
+      Alignment at(double x, double y) => Alignment(x * 2 - 1, y * 2 - 1);
+      final stops = (g['children'] as List? ?? const []).cast<Map<String, dynamic>>().where((s) => s['type'] == 'stop');
+      final colors = <Color>[], offsets = <double>[];
+      for (final s in stops) {
+        final sp = _Props((s['props'] as Map? ?? const {}).cast<String, dynamic>());
+        final c = sp.color('stopColor') ?? const Color(0xFF000000);
+        final o = sp.raw['offset'];
+        colors.add(c.withValues(alpha: c.a * (sp.dbl('stopOpacity') ?? 1)));
+        offsets.add(o is String && o.endsWith('%') ? double.parse(o.substring(0, o.length - 1)) / 100 : (o as num?)?.toDouble() ?? 0);
+      }
+      out[p['id'] as String] = LinearGradient(
+        begin: at(frac('x1', 0), frac('y1', 0)),
+        end: at(frac('x2', 1), frac('y2', 0)),
+        colors: colors,
+        stops: offsets,
+      );
+    }
+  }
+  return out;
+}
+
 T? _enum<T extends Enum>(List<T> values, String? name) => values.where((v) => v.name == name).firstOrNull;
 
 AxisDomainType? _axisType(String? s) => _enum(AxisDomainType.values, s);
@@ -321,6 +405,12 @@ class _Props {
   double? dbl(String k) => raw[k] is num ? (raw[k] as num).toDouble() : null;
   bool? boolean(String k) => raw[k] is bool ? raw[k] as bool : null;
   Color? color(String k) => raw[k] is String ? parseCssColor(raw[k] as String) : null;
+
+  /// A color, or `url(#id)` of a `<linearGradient>`.
+  Object? paint(String k) {
+    final m = raw[k] is String ? RegExp(r'^url\(#(.+)\)$').firstMatch(raw[k] as String) : null;
+    return m != null ? _gradients[m[1]] : color(k);
+  }
 
   List<double>? dash(String k) {
     final v = raw[k];

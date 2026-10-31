@@ -4,7 +4,9 @@
 // src/component/DefaultLegendContent.tsx.
 
 import 'dart:math' as math;
-import 'dart:ui';
+import 'dart:ui' hide Gradient;
+
+import 'package:flutter/painting.dart' show Gradient;
 
 import '../components.dart';
 import '../util.dart';
@@ -85,6 +87,16 @@ Paint strokePaint(Color color, double width, {double opacity = 1}) => Paint()
 Paint fillPaint(Color color, {double opacity = 1}) => Paint()
   ..style = PaintingStyle.fill
   ..color = opacity == 1 ? color : color.withValues(alpha: color.a * opacity);
+
+/// A fill that is a [Color] or a [Gradient] laid over [bounds] (SVG's
+/// objectBoundingBox); `fill-opacity` scales the gradient's stop opacities.
+// ponytail: diagonal gradients on non-square boxes are not skewed like SVG's
+// bounding-box transform; vertical and horizontal ones match.
+Paint fillPaintOf(Object fill, Rect bounds, {double opacity = 1}) => fill is Gradient
+    ? (Paint()
+      ..style = PaintingStyle.fill
+      ..shader = (opacity == 1 ? fill : fill.scale(opacity)).createShader(bounds))
+    : fillPaint(fill as Color, opacity: opacity);
 
 void drawStroke(Canvas canvas, Path path, Paint paint, List<double>? dasharray) {
   canvas.drawPath(dasharray == null || dasharray.isEmpty ? path : dashPath(path, dasharray), paint);

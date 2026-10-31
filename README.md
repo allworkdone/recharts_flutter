@@ -1,7 +1,7 @@
 # recharts_flutter
 
-Recharts 3.10.1 ported to Flutter: `LineChart`, `BarChart` and `ComposedChart`
-with Recharts' own layout, tick, animation and interaction logic, drawn with
+Recharts 3.10.1 ported to Flutter: `LineChart`, `BarChart`, `AreaChart` and
+`ComposedChart` with Recharts' own layout, tick, animation and interaction logic, drawn with
 `CustomPainter` and no chart dependencies.
 
 Children are configuration objects named exactly like Recharts components and
@@ -37,7 +37,10 @@ omit `width`/`height` to fill the incoming constraints.
 
 Where Dart's types differ from Recharts' JavaScript props (colors are `Color`,
 `strokeDasharray` is `List<double>`, `isAnimationActive: null` means `'auto'`,
-`interval` is an `AxisInterval`, ...) the field's doc comment says so.
+`interval` is an `AxisInterval`, ...) the field's doc comment says so. Where
+Recharts takes `fill="url(#gradient)"`, `Area` and `Bar` take a Flutter
+`Gradient`, laid over the shape's bounding box like SVG's default
+`objectBoundingBox` units.
 
 Text inherits `DefaultTextStyle` the way SVG text inherits CSS; Recharts'
 presentation attributes (for example the `#666` tick fill) are applied on top.

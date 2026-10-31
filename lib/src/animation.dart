@@ -1,6 +1,7 @@
 // Ports of src/animation/matchBy.ts, AnimatedItems.tsx (+ useAnimationStartSnapshot.ts),
 // JavascriptAnimate.tsx / AnimationHandle.ts timing, the default interpolators
-// of Line.tsx and Bar.tsx, and src/cartesian/useAnimatedLineLength.ts.
+// of Line.tsx, Bar.tsx and Area.tsx (with Area's baseLine animation from
+// AreaWithAnimation), and src/cartesian/useAnimatedLineLength.ts.
 
 import 'dart:math' as math;
 
@@ -86,6 +87,22 @@ List<LinePoint> interpolateLinePoints(List<AnimationItem<LinePoint>>? items, dou
   return out;
 }
 
+/// `defaultAreaAnimateItems`: added points are drawn at once (the entrance is
+/// AreaRevealShape's clip), removed ones are dropped.
+List<LinePoint> interpolateAreaPoints(List<AnimationItem<LinePoint>>? items, double t) {
+  if (items == null) return const [];
+  return [
+    for (final i in items)
+      switch (i) {
+        Matched(:final prev, :final next) => t == 1
+            ? next
+            : LinePoint(interpolate(prev.x, next.x, t), interpolate(prev.y, next.y, t), next.value, next.payload),
+        Added(:final next) => next,
+        Removed() => null,
+      },
+  ].nonNulls.toList();
+}
+
 /// `defaultBarAnimateItems`.
 List<BarRect> interpolateBarRects(List<AnimationItem<BarRect>>? items, double t, ChartLayout layout) {
   if (items == null) return const [];
@@ -140,6 +157,7 @@ class SeriesAnimator<T> {
   VoidCallback? onAnimationEnd;
 
   List<T>? target;
+  Object? _targetKey;
   List<T>? _startSnapshot;
   List<T>? _previousRendered;
   bool _readyToCommit = true;
@@ -151,7 +169,12 @@ class SeriesAnimator<T> {
   /// `useAnimationCallbacks().isAnimating`.
   bool get isAnimating => _running;
 
-  /// Returns true when a new animation cycle started.
+  /// AnimatedItems' `isEntrance`: nothing was rendered before this cycle.
+  bool get isEntrance => _startSnapshot == null;
+
+  /// Returns true when a new animation cycle started. A change of [key] (by
+  /// value, lists element-wise) also starts one: Area's input is its points
+  /// and baseLine.
   bool update(
     List<T>? items, {
     required bool active,
@@ -160,10 +183,13 @@ class SeriesAnimator<T> {
     required Object easing,
     VoidCallback? onAnimationStart,
     VoidCallback? onAnimationEnd,
+    Object? key,
   }) {
     this.onAnimationEnd = onAnimationEnd;
     _easing = createEasingFunction(easing) ?? _easing;
-    if (target != null && items != null && listEquals(items, target)) {
+    final sameKey = key is List && _targetKey is List ? listEquals(key, _targetKey as List) : key == _targetKey;
+    _targetKey = key;
+    if (target != null && items != null && listEquals(items, target) && sameKey) {
       if (!active && _active) {
         _active = false;
         controller.value = 1;
@@ -244,6 +270,48 @@ class SeriesAnimator<T> {
   void dispose() {
     _cancelPendingStart();
     controller.dispose();
+  }
+}
+
+/// Area's baseLine through an animation cycle: its own
+/// `useAnimationStartSnapshot` and the step of AreaWithAnimation.
+class AreaBaseLineAnimation {
+  Object? _previous;
+  Object? _startValue;
+  bool _readyToCommit = true;
+
+  /// A new animation cycle started (the animator restarted).
+  void restart() {
+    _startValue = _previous;
+    _readyToCommit = false;
+  }
+
+  /// The baseLine to draw at [t]: a number or a list of [LinePoint]s.
+  Object step(Object baseLine, double t, {required bool isEntrance}) {
+    final prev = _startValue;
+    final Object stepBaseLine;
+    if (t == 1) {
+      stepBaseLine = baseLine;
+    } else if (baseLine is List<LinePoint>) {
+      stepBaseLine = interpolateAreaPoints(
+          matchAnimationItems(prev is List<LinePoint> ? prev : null, baseLine, MatchBy.byIndex), t);
+    } else {
+      stepBaseLine = isEntrance ? baseLine : _interpolateScalarBaseLine(baseLine as double, prev, t);
+    }
+    // syncStepValue
+    if (t == 0) {
+      _readyToCommit = true;
+    } else {
+      if (t == 1) _startValue = stepBaseLine;
+      if (_readyToCommit) _previous = stepBaseLine;
+    }
+    return stepBaseLine;
+  }
+
+  /// `interpolateScalarBaseLine`.
+  static double _interpolateScalarBaseLine(double baseLine, Object? prev, double t) {
+    final from = prev is double && !prev.isNaN ? prev : null;
+    return interpolate(from, baseLine.isNaN ? 0 : baseLine, t)!;
   }
 }
 

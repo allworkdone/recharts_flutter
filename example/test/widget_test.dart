@@ -28,6 +28,16 @@ void main() {
     });
   }
 
+  testWidgets('resolves url(#id) fills from <defs> linearGradients', (tester) async {
+    final fixture = jsonDecode(File('assets/parity/fixtures/area-gradient.json').readAsStringSync());
+    final chart = renderFixture(fixture as Map<String, dynamic>) as CategoricalChart;
+    final fill = chart.children.whereType<Area>().first.fill as LinearGradient;
+    expect(fill.begin, Alignment.topLeft);
+    expect(fill.end, Alignment.bottomLeft);
+    expect(fill.stops, [0.05, 0.95]);
+    expect(fill.colors, [const Color(0xFF8884D8).withValues(alpha: 0.8), const Color(0x008884D8)]);
+  });
+
   test('parses CSS colors', () {
     expect(parseCssColor('#8884d8'), const Color(0xFF8884D8));
     expect(parseCssColor('#ccc'), const Color(0xFFCCCCCC));

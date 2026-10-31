@@ -42,4 +42,5 @@ The web page disables text selection and focus outlines so drags don't draw sele
 ## Contract for the Flutter example app
 - `?fixture=<name>` renders only that fixture at (0,0), exactly width x height, white background, default text style Roboto 12px black.
 - Fixtures load from asset `assets/parity/fixtures/<name>.json`.
+- Sets `window.__parityReady = true` after the frame that first shows the fixture; the harness waits for it on both sides.
 - pubspec registers `assets/parity/fixtures/` and font family `Roboto` -> `assets/fonts/Roboto-Regular.ttf` (Roboto 3 classic, OFL; see `OFL.txt`).

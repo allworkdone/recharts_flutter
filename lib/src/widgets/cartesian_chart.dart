@@ -1,4 +1,4 @@
-// LineChart / BarChart / ComposedChart: src/chart/CartesianChart.tsx and
+// LineChart / BarChart / AreaChart / ComposedChart: src/chart/CartesianChart.tsx and
 // RechartsWrapper.tsx, with the tooltip state machine of
 // src/state/tooltipSlice.ts + combiners/combineTooltipInteractionState.ts,
 // the mouse/touch middleware (mouseEventsMiddleware.ts,
@@ -54,6 +54,7 @@ abstract class CategoricalChart extends StatefulWidget {
     this.maxBarSize,
     this.stackOffset = StackOffset.none,
     this.reverseStackOrder = false,
+    this.baseValue,
     this.syncId,
     this.accessibilityLayer = true,
     this.onClick,
@@ -83,6 +84,9 @@ abstract class CategoricalChart extends StatefulWidget {
   final double? maxBarSize;
   final StackOffset stackOffset;
   final bool reverseStackOrder;
+
+  /// Default [Area.baseValue]: `num`, `'dataMin'` or `'dataMax'`.
+  final Object? baseValue;
 
   /// Charts with the same id share the active tooltip index (`syncMethod: 'index'`).
   final Object? syncId;
@@ -148,6 +152,29 @@ class BarChart extends CategoricalChart {
   String get chartName => 'BarChart';
 }
 
+class AreaChart extends CategoricalChart {
+  const AreaChart({
+    super.key,
+    super.width,
+    super.height,
+    super.data,
+    super.layout,
+    super.margin,
+    super.stackOffset,
+    super.reverseStackOrder,
+    super.baseValue,
+    super.syncId,
+    super.accessibilityLayer,
+    super.onClick,
+    super.onMouseEnter,
+    super.onMouseMove,
+    super.onMouseLeave,
+    super.children,
+  });
+  @override
+  String get chartName => 'AreaChart';
+}
+
 /// The Brush panorama: the Brush's chart child cloned with the brush size,
 /// `padding` as margin and the full data (`compact`). Recharts renders it in
 /// the main chart's store, so axis settings, chart name and layout come from
@@ -171,6 +198,7 @@ class _Panorama extends CategoricalChart {
           maxBarSize: source.maxBarSize,
           stackOffset: source.stackOffset,
           reverseStackOrder: source.reverseStackOrder,
+          baseValue: source.baseValue,
           children: source.children,
         );
   final CategoricalChart source;
@@ -195,6 +223,7 @@ class ComposedChart extends CategoricalChart {
     super.maxBarSize,
     super.stackOffset,
     super.reverseStackOrder,
+    super.baseValue,
     super.syncId,
     super.accessibilityLayer,
     super.onClick,
@@ -266,6 +295,7 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
   final Map<String, SeriesAnimator<BarRect>> _barAnimators = {};
   final Map<String, SeriesAnimator<LinePoint>> _lineAnimators = {};
   final Map<String, AnimatedLineLength> _lineLengths = {};
+  final Map<String, AreaBaseLineAnimation> _areaBaseLines = {};
   final _ViewNotifier _view = _ViewNotifier();
 
   _Interaction _hover = const _Interaction();
@@ -809,6 +839,27 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
             easing: el.animationEasing,
             onAnimationStart: el.onAnimationStart,
             onAnimationEnd: el.onAnimationEnd);
+      } else if (s.item.isArea) {
+        final a = _lineAnimators.putIfAbsent(id, () => SeriesAnimator<LinePoint>(this, matchBy: MatchBy.byIndex));
+        final hidden = s.item.hide || s.points == null;
+        final restarted = a.update(hidden ? null : s.points,
+            active: active,
+            begin: el.animationBegin,
+            duration: el.animationDuration,
+            easing: el.animationEasing,
+            onAnimationStart: el.onAnimationStart,
+            onAnimationEnd: el.onAnimationEnd,
+            key: s.baseLine);
+        // A hidden Area unmounts, dropping its baseline ref with it.
+        if (hidden) _areaBaseLines.remove(id);
+        // A fresh one starts like the refs of a newly mounted Area.
+        if (restarted && !hidden) {
+          if (_areaBaseLines[id] case final b?) {
+            b.restart();
+          } else {
+            _areaBaseLines[id] = AreaBaseLineAnimation();
+          }
+        }
       } else {
         final a = _lineAnimators.putIfAbsent(id, () => SeriesAnimator<LinePoint>(this, matchBy: MatchBy.byIndex));
         final restarted = a.update(s.item.hide ? null : s.points,
@@ -828,6 +879,7 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
     for (final id in _lineAnimators.keys.where((k) => !live.contains(k)).toList()) {
       _lineAnimators.remove(id)!.dispose();
       _lineLengths.remove(id);
+      _areaBaseLines.remove(id);
     }
   }
 
@@ -910,6 +962,7 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
       rootOffset: w is _Panorama ? w.rootOffset : null,
       rootSize: w is _Panorama ? w.rootSize : null,
       yAxisWidths: {for (final e in _yAxisWidths.entries) if (e.value.width != null) e.key: e.value.width!},
+      baseValue: widget.baseValue,
     );
     var m = compute();
     // YAxisImpl's layout effect measures and dispatches updateYAxisWidth until
@@ -931,6 +984,7 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
       barAnimators: _barAnimators,
       lineAnimators: _lineAnimators,
       lineLengths: _lineLengths,
+      areaBaseLines: _areaBaseLines,
     );
     final animations = Listenable.merge([
       for (final a in _barAnimators.values) a.controller,
