@@ -23,16 +23,27 @@ const WEB_LAG_MS = +(process.env.WEB_LAG_MS ?? 0);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const browser = await chromium.launch();
 
-async function open(side, base, fx, clock, anim) {
+// A cold page (Flutter compiles its engine per browser context) can miss the
+// readiness deadline when several boot at once: retry, then fail loudly rather
+// than diff a blank page.
+async function open(side, base, fx, clock, anim, attempt = 1) {
   const ctx = await browser.newContext({
     viewport: { width: fx.width + 40, height: fx.height + 40 }, deviceScaleFactor: 2,
   });
   const page = await ctx.newPage();
   if (clock) await page.clock.install({ time: 0 });
   await page.goto(`${base}/?fixture=${fx.name}${anim ? '&anim=1' : ''}`, { waitUntil: 'load' });
+  const t0 = Date.now();
   try {
     await page.waitForFunction('window.__parityReady === true', null, { timeout: 30000 });
-  } catch (e) { console.warn(`  [${side}] not ready: ${e.message.split('\n')[0]}`); }
+  } catch (e) {
+    await ctx.close();
+    if (attempt < 3) {
+      console.warn(`  [${side}] ${fx.name} not ready after ${Date.now() - t0} ms, retrying`);
+      return open(side, base, fx, clock, anim, attempt + 1);
+    }
+    throw new Error(`[${side}] ${fx.name} never became ready`);
+  }
   return { ctx, page };
 }
 
@@ -127,10 +138,14 @@ async function captureFixture(fx) {
 
 // Fixtures are independent (own browser contexts), so run a few at once.
 // PARITY_CONCURRENCY=1 restores the old one-at-a-time order.
+const failures = [];
 const CONCURRENCY = Math.max(1, +(process.env.PARITY_CONCURRENCY ?? 4));
 const queue = [...fixtures];
 await Promise.all(Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
-  while (queue.length) await captureFixture(queue.shift());
+  while (queue.length) {
+    const fx = queue.shift();
+    try { await captureFixture(fx); } catch (e) { failures.push(`${fx.name}: ${e.message}`); }
+  }
 }));
 await browser.close();
 
@@ -157,3 +172,7 @@ ${results.map((r) => `<tr><td>${r.fixture}<br>${r.state}</td><td>${r.mismatchPer
 console.log('\nmismatch%  fixture/state');
 for (const r of results) console.log(String(r.mismatchPercent ?? 'n/a').padStart(9), ' ', r.fixture + '/' + r.state);
 console.log(`\naverage: ${avg == null ? 'n/a' : avg.toFixed(3) + '%'}\nreport: ${path.join(outDir, 'report.html')}`);
+if (failures.length) {
+  console.error(`\nFAILED ${failures.length} fixture(s):\n  ${failures.join('\n  ')}`);
+  process.exitCode = 1;
+}
