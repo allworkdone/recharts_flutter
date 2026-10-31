@@ -2,15 +2,17 @@
 // Recharts' DefaultZIndexes (src/zIndex/DefaultZIndexes.tsx):
 //   background: grid (-100), bar background (-50)
 //   cursorBelow: BarChart cursor rectangle (200)
-//   main: areas (100), bars (300), lines + reference lines (400), axis lines (500), dots (600)
+//   main: areas (100), bars (300), lines + reference lines + error bars (400),
+//     axis lines (500), dots and scatters (600)
 //   activeBar: Bar `activeBar` (1000)
-//   overlay: cursor line (1100), active dots (1200)
+//   overlay: cursor line or cross (1100), active dots and scatter points (1200)
 //   labels: tick labels, Label and LabelList (2000)
 // Geometry follows CartesianAxis.tsx (getTickLineCoord, AxisLine),
 // CartesianGrid.tsx, Line.tsx/LineDrawShape.tsx, Area.tsx/AreaRevealShape.tsx,
 // Dots.tsx, ActivePoints.tsx,
 // Bar.tsx/Rectangle.tsx (BarRectangleWithActiveState), ActiveShapeUtils.tsx,
-// ReferenceLine.tsx and Cursor.tsx.
+// Scatter.tsx (ScatterLine, ScatterPoint) with ScatterUtils.tsx and Symbols.tsx,
+// ErrorBar.tsx, ReferenceLine.tsx, Cursor.tsx and Cross.tsx.
 
 import 'dart:math' as math;
 
@@ -20,6 +22,7 @@ import 'package:flutter/rendering.dart';
 import '../animation.dart';
 import '../components.dart';
 import '../core/curve.dart';
+import '../core/symbols.dart';
 import '../engine/axis.dart';
 import '../engine/get_ticks.dart';
 import '../engine/funnel.dart';
@@ -123,6 +126,8 @@ class ChartFrame {
     required this.lineLengths,
     this.areaBaseLines = const {},
     this.funnelAnimators = const {},
+    this.scatterAnimators = const {},
+    this.errorBarAnimations = const {},
   });
   final CartesianModel model;
   final List<RechartsElement> children;
@@ -134,6 +139,10 @@ class ChartFrame {
   final Map<String, SeriesAnimator<LinePoint>> lineAnimators;
   final Map<String, AnimatedLineLength> lineLengths;
   final Map<String, AreaBaseLineAnimation> areaBaseLines;
+  final Map<String, SeriesAnimator<ScatterPoint>> scatterAnimators;
+
+  /// By [errorBarAnimationKey].
+  final Map<String, ErrorBarAnimation> errorBarAnimations;
 
   /// Funnel trapezoids by funnel id.
   final Map<String, SeriesAnimator<FunnelTrapezoid>> funnelAnimators;
@@ -173,6 +182,7 @@ class CartesianPainter extends CustomPainter {
       case ChartLayer.overlay:
         _paintCursor(canvas, rectangle: false);
         _paintActiveDots(canvas);
+        _paintActiveScatterPoints(canvas);
       case ChartLayer.labels:
         _paintLabels(canvas);
     }
@@ -336,8 +346,13 @@ class CartesianPainter extends CustomPainter {
         _paintTrapezoid(canvas, f.settings, t, f.settings.activeShape != null && active == t.index);
       }
     }
-    // Lines and reference lines (z 400), in document order.
+    // Lines, reference lines and error bars (z 400), in document order; an
+    // item's error bars mount into the layer before the item's own line.
     for (final c in frame.children) {
+      if (c is Bar || c is Scatter || c is Line) {
+        final s = _seriesOf(c as CartesianSeries);
+        if (s != null) _paintErrorBars(canvas, s);
+      }
       if (c is Line) {
         final s = _seriesOf(c);
         if (s == null || s.item.hide || s.points == null) continue;
@@ -359,8 +374,13 @@ class CartesianPainter extends CustomPainter {
     for (final a in m.axes) {
       _paintAxisLines(canvas, a);
     }
-    // Dots (z 600)
+    // Dots and scatters (z 600)
     for (final s in m.series) {
+      if (s.item.element case final Scatter scatter when !s.item.hide) {
+        final points = frame.scatterAnimators[s.item.id]?.step(interpolateScatterPoints) ?? s.scatterPoints;
+        if (points != null) _withClip(canvas, _clipFor(s.item), () => _paintScatter(canvas, scatter, points));
+        continue;
+      }
       final points = lineSteps[s.item.id];
       if (points == null) continue;
       _withClip(canvas, _clipFor(s.item), () => _paintDots(canvas, s.item.element, points));
@@ -532,6 +552,61 @@ class CartesianPainter extends CustomPainter {
     }
   }
 
+  /// ScatterSymbols: the line, then a symbol per point; the active point
+  /// moves to the activeDot layer ([_paintActiveScatterPoints]).
+  void _paintScatter(Canvas canvas, Scatter scatter, List<ScatterPoint> points) {
+    if (points.isEmpty) return;
+    _paintScatterLine(canvas, scatter, points);
+    final h = hover?.value;
+    for (var i = 0; i < points.length; i++) {
+      if (!isActiveScatterPoint(h, scatter, i)) paintScatterPoint(canvas, scatter, points[i], i);
+    }
+  }
+
+  /// ScatterLine, stroked with the fill unless `line` sets a stroke (no stroke, no line).
+  void _paintScatterLine(Canvas canvas, Scatter scatter, List<ScatterPoint> points) {
+    final line = scatter.line;
+    if (line == false) return;
+    final style = line is SvgStyle ? line : null;
+    final stroke = style?.stroke ?? scatter.fill;
+    if (stroke == null) return;
+    final curve = scatterLine(scatter, points);
+    drawStroke(
+        canvas,
+        linePath(curve.points, curve.type),
+        strokePaint(stroke, style?.strokeWidth ?? scatter.strokeWidth ?? 1, opacity: style?.strokeOpacity ?? 1),
+        style?.strokeDasharray);
+  }
+
+  /// ErrorBarImpl: `<line>`s stroked with the ErrorBar's props, each scaled
+  /// around its origin while it animates in.
+  void _paintErrorBars(Canvas canvas, SeriesModel s) {
+    for (var b = 0; b < s.errorBars.length; b++) {
+      final (bar, lines) = s.errorBars[b];
+      if (bar.stroke == null || bar.strokeWidth <= 0) continue;
+      final animation = frame.errorBarAnimations[errorBarAnimationKey(s.item, b)];
+      final paint = strokePaint(bar.stroke!, bar.strokeWidth);
+      final horizontal = errorBarDirection(bar, m.layout) == ErrorBarDirection.x;
+      for (final l in lines) {
+        final scale = animation?.scaleOf(l.key) ?? 1;
+        if (scale <= 0) continue;
+        final path = Path()
+          ..moveTo(l.p1.dx, l.p1.dy)
+          ..lineTo(l.p2.dx, l.p2.dy);
+        if (scale == 1) {
+          canvas.drawPath(path, paint);
+          continue;
+        }
+        canvas.save();
+        canvas.translate(l.origin.dx, l.origin.dy);
+        canvas.scale(horizontal ? scale : 1, horizontal ? 1 : scale);
+        canvas.translate(-l.origin.dx, -l.origin.dy);
+        canvas.drawPath(path, paint);
+        canvas.restore();
+      }
+    }
+  }
+
   // ---------------------------------------------------------------- axes
 
   void _paintAxisLines(Canvas canvas, AxisLayout a) {
@@ -652,9 +727,14 @@ class CartesianPainter extends CustomPainter {
         // Labels show once the series stops animating (`showLabels={!isAnimating}`).
         final s = _seriesOf(c);
         if (s == null || s.item.hide) continue;
-        final animator = s.item.isBar ? frame.barAnimators[s.item.id] : frame.lineAnimators[s.item.id];
+        final animator = s.item.isBar
+            ? frame.barAnimators[s.item.id]
+            : s.item.isScatter
+                ? frame.scatterAnimators[s.item.id]
+                : frame.lineAnimators[s.item.id];
         if (animator?.isAnimating ?? false) continue;
-        paintLabelLists(canvas, s, m.size, baseStyle: frame.textStyle, scaler: frame.textScaler);
+        paintLabelLists(canvas, s, m.size,
+            viewBox: m.viewBox, baseStyle: frame.textStyle, scaler: frame.textScaler);
       }
     }
   }
@@ -676,6 +756,16 @@ class CartesianPainter extends CustomPainter {
       if (style?.stroke != null) {
         drawStroke(canvas, path, strokePaint(style!.stroke!, style.strokeWidth ?? 1), style.strokeDasharray);
       }
+    } else if (m.chartName == 'ScatterChart') {
+      // Cross: `M${x},${top}v${height}M${left},${y}h${width}`.
+      final c = h.coordinate!, o = m.offset;
+      final path = Path()
+        ..moveTo(c.dx, o.top)
+        ..lineTo(c.dx, o.top + o.height)
+        ..moveTo(o.left, c.dy)
+        ..lineTo(o.left + o.width, c.dy);
+      drawStroke(canvas, path, strokePaint(style?.stroke ?? const Color(0xFFCCCCCC), style?.strokeWidth ?? 1),
+          style?.strokeDasharray);
     } else {
       final pts = cursorPoints(m.layout, h.coordinate!, m.offset);
       final path = Path()
@@ -727,6 +817,122 @@ class CartesianPainter extends CustomPainter {
       }
     }
   }
+
+  /// Active ScatterPoints render in the activeDot ZIndexLayer: a portal,
+  /// outside the scatter's clip.
+  void _paintActiveScatterPoints(Canvas canvas) {
+    final h = hover?.value;
+    if (h == null || h.activeIndex == null) return;
+    for (final s in m.series) {
+      final scatter = s.item.element;
+      if (scatter is! Scatter || s.item.hide) continue;
+      final points = currentScatterPoints(frame, s);
+      final i = h.activeIndex!;
+      if (points == null || i >= points.length || !isActiveScatterPoint(h, scatter, i)) continue;
+      paintScatterPoint(canvas, scatter, points[i], i, active: true);
+    }
+  }
+}
+
+/// The points a Scatter shows this frame (mid-animation they are interpolated).
+List<ScatterPoint>? currentScatterPoints(ChartFrame frame, SeriesModel s) =>
+    frame.scatterAnimators[s.item.id]?.peek(interpolateScatterPoints) ?? s.scatterPoints;
+
+/// ScatterPoint's `isActive`: an `activeShape` is set and the point's index is
+/// the active tooltip index (of any item).
+bool isActiveScatterPoint(HoverState? h, Scatter scatter, int index) =>
+    h != null && scatter.activeShape != null && scatter.activeShape != false && h.activeIndex == index;
+
+String errorBarAnimationKey(GraphicalItem item, int errorBarIndex) => '${item.id}/errorBar$errorBarIndex';
+
+/// The option a point renders with ([Scatter.shape], or [Scatter.activeShape]
+/// when active) as `(symbol type, style merged over the point, painter)`:
+/// Shape renders `true` and object options with its DefaultShape, a circle.
+(SymbolType, SvgStyle?, ScatterShapePainter?) _scatterOption(Scatter scatter, bool active) {
+  final option = active ? scatter.activeShape : scatter.shape;
+  return switch (option) {
+    SymbolType t => (t, null, null),
+    SvgStyle style => (SymbolType.circle, style, null),
+    ScatterShapePainter p => (SymbolType.circle, null, p),
+    _ => (SymbolType.circle, null, null),
+  };
+}
+
+/// The `<Symbols>` path of point [p] at its center, as painted and hit
+/// tested; null where Symbols renders nothing.
+Path? scatterSymbolPath(Scatter scatter, ScatterPoint p, {bool active = false}) {
+  final cx = p.cx, cy = p.cy, size = p.size;
+  if (cx == null || cy == null || size == null || size.isNaN) return null;
+  return symbolPath(_scatterOption(scatter, active).$1, size).shift(Offset(cx, cy));
+}
+
+/// ScatterSymbol: `{...scatterProps, ...entry (data fields, Cell), ...option}`.
+/// A Color under `fill` in a Map entry counts like Recharts' data `fill`.
+void paintScatterPoint(Canvas canvas, Scatter scatter, ScatterPoint p, int index, {bool active = false}) {
+  final (_, style, painter) = _scatterOption(scatter, active);
+  final dataFill = p.payload is Map ? (p.payload as Map)['fill'] : null;
+  final fill = style?.fill ?? p.cell?.fill ?? (dataFill is Color ? dataFill : null) ?? scatter.fill;
+  final stroke = style?.stroke ?? p.cell?.stroke ?? scatter.stroke;
+  final strokeWidth = style?.strokeWidth ?? p.cell?.strokeWidth ?? scatter.strokeWidth;
+  if (painter != null) {
+    if (p.cx == null || p.cy == null || p.size == null) return;
+    painter(
+        canvas,
+        ScatterShapeProps(
+          cx: p.cx!,
+          cy: p.cy!,
+          size: p.size!,
+          index: index,
+          payload: p.payload,
+          isActive: active,
+          fill: fill,
+          stroke: stroke,
+          strokeWidth: strokeWidth,
+        ));
+    return;
+  }
+  final path = scatterSymbolPath(scatter, p, active: active);
+  if (path == null) return;
+  canvas.drawPath(path,
+      fillPaint(fill ?? const Color(0xFF000000), opacity: style?.fillOpacity ?? p.cell?.fillOpacity ?? scatter.fillOpacity ?? 1));
+  if (stroke != null) {
+    drawStroke(canvas, path, strokePaint(stroke, strokeWidth ?? 1, opacity: style?.strokeOpacity ?? 1),
+        style?.strokeDasharray);
+  }
+}
+
+/// ScatterLine's Curve: through the points (`joint`, `lineJointType`) or
+/// along their linear regression (`fitting`).
+({List<Offset?> points, CurveType type}) scatterLine(Scatter scatter, List<ScatterPoint> points) {
+  // The Curve gets no layout, so getCurveFactory has no monotone or bump to resolve.
+  final type = switch (scatter.lineJointType) {
+    CurveType.monotone || CurveType.bump => CurveType.linear,
+    final t => t,
+  };
+  if (scatter.lineType == ScatterLineType.fitting) {
+    final r = getLinearRegression(points);
+    return (points: [Offset(r.xmin, r.a * r.xmin + r.b), Offset(r.xmax, r.a * r.xmax + r.b)], type: type);
+  }
+  return (points: [for (final p in points) p.cx == null || p.cy == null ? null : Offset(p.cx!, p.cy!)], type: type);
+}
+
+/// `getLinearRegression` over the points' centers (a missing one counts as 0).
+({double xmin, double xmax, double a, double b}) getLinearRegression(List<ScatterPoint> data) {
+  final len = data.length;
+  var xsum = 0.0, ysum = 0.0, xysum = 0.0, xxsum = 0.0;
+  var xmin = double.infinity, xmax = double.negativeInfinity;
+  for (final p in data) {
+    final x = p.cx == null || p.cx!.isNaN ? 0.0 : p.cx!;
+    final y = p.cy == null || p.cy!.isNaN ? 0.0 : p.cy!;
+    xsum += x;
+    ysum += y;
+    xysum += x * y;
+    xxsum += x * x;
+    xmin = math.min(xmin, x);
+    xmax = math.max(xmax, x);
+  }
+  final a = len * xxsum != xsum * xsum ? (len * xysum - xsum * ysum) / (len * xxsum - xsum * xsum) : 0.0;
+  return (xmin: xmin, xmax: xmax, a: a, b: (ysum - a * xsum) / len);
 }
 
 /// AreaRevealShape `RevealClipRect`: grows from the first point towards the

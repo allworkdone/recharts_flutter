@@ -16,6 +16,9 @@ import { getPath } from 'recharts/es6/shape/Curve.js';
 import { rechartsScaleFactory } from 'recharts/es6/util/scale/RechartsScale.js';
 import { stackOffsetSilhouette, stackOffsetWiggle, stack as d3stack } from 'victory-vendor/d3-shape';
 import { scaleLinear, scaleLog, scalePow, scaleBand, scalePoint } from 'victory-vendor/d3-scale';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server.browser';
+import { Symbols } from 'recharts/es6/shape/Symbols.js';
 
 const outDir = new URL('../../../test/core/fixtures/', import.meta.url);
 mkdirSync(outDir, { recursive: true });
@@ -322,4 +325,20 @@ write('js_math.json', {
   pow10,
 });
 
-console.log(`fixtures: ${nice.length} nice, ${linear.length + log.length + pow.length + band.length + point.length} scales, ${curves.length} curves, ${areaCases.length} areas, ${stackCases.length} stacks`);
+// ---------------------------------------------------------------------------
+// Symbols: the `d` Recharts' <Symbols> renders (calculateAreaSize + d3 symbol).
+
+const symbolTypes = ['circle', 'cross', 'diamond', 'square', 'star', 'triangle', 'wye'];
+const symbolSizes = [0, 1, 2.5, 4, 9, 10, 12.3456, 14, 20, 32, 50, 64, 100, 144, 200.5, 333.333, 1000, 12345.678];
+const symbolCases = [];
+for (const type of symbolTypes) {
+  for (const sizeType of ['area', 'diameter']) {
+    for (const size of symbolSizes) {
+      const html = renderToStaticMarkup(React.createElement(Symbols, { type, size, sizeType, cx: 0, cy: 0 }));
+      symbolCases.push({ type, sizeType, size, d: /\sd="([^"]*)"/.exec(html)?.[1] ?? null });
+    }
+  }
+}
+write('symbols.json', symbolCases);
+
+console.log(`fixtures: ${symbolCases.length} symbols, ${nice.length} nice, ${linear.length + log.length + pow.length + band.length + point.length} scales, ${curves.length} curves, ${areaCases.length} areas, ${stackCases.length} stacks`);

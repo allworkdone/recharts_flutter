@@ -1,4 +1,4 @@
-// LineChart / BarChart / AreaChart / ComposedChart: src/chart/CartesianChart.tsx and
+// LineChart / BarChart / AreaChart / ComposedChart / ScatterChart: src/chart/CartesianChart.tsx and
 // RechartsWrapper.tsx, with the tooltip state machine of
 // src/state/tooltipSlice.ts + combiners/combineTooltipInteractionState.ts,
 // the mouse/touch middleware (mouseEventsMiddleware.ts,
@@ -9,11 +9,12 @@
 // BrushInternal (Brush.tsx), and the Brush panorama (CategoricalChart.tsx
 // `compact`, PanoramaContext).
 //
-// Tooltip event type 'item' (selectTooltipEventType.ts; only BarChart allows
-// it): bars and their backgrounds dispatch item hover/click like the
-// onMouseEnter/onMouseLeave/onClick handlers of tooltipContext.tsx, picked by
-// hit testing what is painted under the pointer, and
-// combineTooltipPayloadConfigurations.ts narrows the payload to that item.
+// Tooltip event type 'item' (selectTooltipEventType.ts; BarChart allows it,
+// ScatterChart has nothing else): bars, their backgrounds and scatter symbols
+// dispatch item hover/click like the onMouseEnter/onMouseLeave/onClick
+// handlers of tooltipContext.tsx, picked by hit testing what is painted under
+// the pointer, and combineTooltipPayloadConfigurations.ts narrows the payload
+// to that item.
 //
 // Pointer input uses a Listener (raw pointer events, no gesture arena) plus a
 // MouseRegion for hover enter/exit, so a chart inside a scroll view never
@@ -195,6 +196,28 @@ class FunnelChart extends CategoricalChart {
   String get chartName => 'FunnelChart';
 }
 
+/// src/chart/ScatterChart.tsx: tooltips are always per item ('item' event
+/// type) with a cross cursor; the axes usually need `type: number`.
+class ScatterChart extends CategoricalChart {
+  const ScatterChart({
+    super.key,
+    super.width,
+    super.height,
+    super.data,
+    super.layout,
+    super.margin,
+    super.syncId,
+    super.accessibilityLayer,
+    super.onClick,
+    super.onMouseEnter,
+    super.onMouseMove,
+    super.onMouseLeave,
+    super.children,
+  });
+  @override
+  String get chartName => 'ScatterChart';
+}
+
 /// The Brush panorama: the Brush's chart child cloned with the brush size,
 /// `padding` as margin and the full data (`compact`). Recharts renders it in
 /// the main chart's store, so axis settings, chart name and layout come from
@@ -272,7 +295,7 @@ class _Interaction {
 }
 
 /// The graphical item element under the pointer: a bar or its background.
-typedef _ItemHit = ({String id, Object dataKey, int index, Offset tooltipPosition, bool background});
+typedef _ItemHit = ({String id, Object? dataKey, int index, Offset tooltipPosition, bool background});
 
 /// Everything the tooltip and the hover layer render.
 class _TooltipView extends HoverState {
@@ -317,6 +340,8 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
   final Map<String, AnimatedLineLength> _lineLengths = {};
   final Map<String, AreaBaseLineAnimation> _areaBaseLines = {};
   final Map<String, SeriesAnimator<FunnelTrapezoid>> _funnelAnimators = {};
+  final Map<String, SeriesAnimator<ScatterPoint>> _scatterAnimators = {};
+  final Map<String, ErrorBarAnimation> _errorBarAnimations = {};
   final _ViewNotifier _view = _ViewNotifier();
 
   _Interaction _hover = const _Interaction();
@@ -374,6 +399,12 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
       a.dispose();
     }
     for (final a in _funnelAnimators.values) {
+      a.dispose();
+    }
+    for (final a in _scatterAnimators.values) {
+      a.dispose();
+    }
+    for (final a in _errorBarAnimations.values) {
       a.dispose();
     }
     _view.dispose();
@@ -465,9 +496,11 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
   // -------------------------------------------------------------- tooltip state
 
   /// `combineTooltipEventType`: `shared={false}` selects 'item' where the
-  /// chart validates it, and only BarChart does.
+  /// chart validates it, BarChart; FunnelChart and ScatterChart only know 'item'.
   bool _isItemEventType(CartesianModel m) =>
-      m.chartName == 'FunnelChart' || (m.tooltipSettings?.shared == false && m.chartName == 'BarChart');
+      m.chartName == 'FunnelChart' ||
+      m.chartName == 'ScatterChart' ||
+      (m.tooltipSettings?.shared == false && m.chartName == 'BarChart');
 
   _Interaction _interactionState(CartesianModel m) {
     final tooltip = m.tooltipSettings;
@@ -528,7 +561,7 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
     }
     return _TooltipView(
       // Cursor.tsx renders nothing for the 'item' event type outside ScatterChart.
-      cursorVisible: tooltip != null && finalIsActive && !item,
+      cursorVisible: tooltip != null && finalIsActive && (!item || m.chartName == 'ScatterChart'),
       coordinate: coordinate,
       activeDataPoints: {for (final p in payload) ?p.payload}.toList(),
       activeIndex: activeIndex,
@@ -548,8 +581,14 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
     _view.set(_computeView(m));
   }
 
-  /// `combineCoordinateForDefaultIndex` (Line and Bar have no `getPosition`).
+  /// `combineCoordinateForDefaultIndex`: the first item's `getPosition` (only
+  /// Scatter has one: the point's tooltip position), else the tooltip tick.
   Offset? _coordinateForIndex(CartesianModel m, int i) {
+    final first = m.items.firstOrNull;
+    if (first != null && first.isScatter) {
+      final p = scatterPointsOf(m, first)?.elementAtOrNull(i);
+      if (p != null) return p.tooltipPosition;
+    }
     if (i < 0 || i >= m.tooltipTicks.length) return null;
     final c = m.tooltipTicks[i].coordinate;
     return m.layout == ChartLayout.horizontal
@@ -758,6 +797,8 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
           background: background,
         );
     for (final layer in [true, false]) {
+      // Scatter symbols: active ones (z 1200) over the activeBar layer, the rest (600) over bars.
+      if (_scatterAt(m, frame, h, p, active: layer) case final hit?) return hit;
       for (final (s, bar) in bars) {
         for (final r in (currentBarRects(frame, s) ?? const <BarRect>[]).reversed) {
           if (inActiveBarLayer(h, s.item, bar, r) != layer) continue;
@@ -771,6 +812,24 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
       for (final r in (s.rects ?? const <BarRect>[]).reversed) {
         final b = r.background;
         if (b != null && b.width != 0 && b.height != 0 && b.contains(p)) return hit(s, r, background: true);
+      }
+    }
+    return null;
+  }
+
+  /// The topmost scatter symbol under [p], among the active points or the others.
+  _ItemHit? _scatterAt(CartesianModel m, ChartFrame frame, HoverState h, Offset p, {required bool active}) {
+    for (final s in m.series.reversed) {
+      final scatter = s.item.element;
+      if (scatter is! Scatter || s.item.hide) continue;
+      final points = currentScatterPoints(frame, s) ?? const <ScatterPoint>[];
+      for (var i = points.length - 1; i >= 0; i--) {
+        if (isActiveScatterPoint(h, scatter, i) != active) continue;
+        final position = points[i].tooltipPosition;
+        if (position == null || !(scatterSymbolPath(scatter, points[i], active: active)?.contains(p) ?? false)) {
+          continue;
+        }
+        return (id: s.item.id, dataKey: scatter.dataKey, index: i, tooltipPosition: position, background: false);
       }
     }
     return null;
@@ -872,12 +931,32 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
 
   void _syncAnimators(CartesianModel m, bool reducedMotion) {
     final live = <String>{};
+    final liveErrorBars = <String>{};
     for (final s in m.series) {
       final el = s.item.element;
       final id = s.item.id;
       live.add(id);
       final active = el.isAnimationActive ?? !reducedMotion;
-      if (s.item.isBar) {
+      for (var b = 0; b < s.errorBars.length; b++) {
+        final (bar, lines) = s.errorBars[b];
+        final key = errorBarAnimationKey(s.item, b);
+        liveErrorBars.add(key);
+        _errorBarAnimations.putIfAbsent(key, () => ErrorBarAnimation(this)).update({for (final l in lines) l.key},
+            active: bar.isAnimationActive,
+            begin: bar.animationBegin,
+            duration: bar.animationDuration,
+            easing: bar.animationEasing);
+      }
+      if (s.item.isScatter) {
+        _scatterAnimators.putIfAbsent(id, () => SeriesAnimator<ScatterPoint>(this, matchBy: MatchBy.append)).update(
+            s.item.hide ? null : s.scatterPoints,
+            active: active,
+            begin: el.animationBegin,
+            duration: el.animationDuration,
+            easing: el.animationEasing,
+            onAnimationStart: el.onAnimationStart,
+            onAnimationEnd: el.onAnimationEnd);
+      } else if (s.item.isBar) {
         final a = _barAnimators.putIfAbsent(id, () => SeriesAnimator<BarRect>(this, matchBy: MatchBy.append));
         a.update(s.item.hide ? null : s.rects,
             active: active,
@@ -944,6 +1023,12 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
       _lineAnimators.remove(id)!.dispose();
       _lineLengths.remove(id);
       _areaBaseLines.remove(id);
+    }
+    for (final id in _scatterAnimators.keys.where((k) => !live.contains(k)).toList()) {
+      _scatterAnimators.remove(id)!.dispose();
+    }
+    for (final key in _errorBarAnimations.keys.where((k) => !liveErrorBars.contains(k)).toList()) {
+      _errorBarAnimations.remove(key)!.dispose();
     }
   }
 
@@ -1050,15 +1135,24 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
       lineLengths: _lineLengths,
       areaBaseLines: _areaBaseLines,
       funnelAnimators: _funnelAnimators,
+      scatterAnimators: _scatterAnimators,
+      errorBarAnimations: _errorBarAnimations,
     );
     final animations = Listenable.merge([
       for (final a in _barAnimators.values) a.controller,
       for (final a in _lineAnimators.values) a.controller,
       for (final a in _funnelAnimators.values) a.controller,
+      for (final a in _scatterAnimators.values) a.controller,
+      for (final a in _errorBarAnimations.values) a.controller,
     ]);
     // Bars move between the main and activeBar layers as the tooltip moves.
     final hasActiveBar = m.series.any((s) => s.item.element is Bar && (s.item.element as Bar).activeBar != false);
-    final hasActiveShape = m.funnels.any((f) => f.settings.activeShape != null);
+    // So do funnel trapezoids and scatter points with an activeShape, between main and overlay.
+    final hasActiveShape = m.funnels.any((f) => f.settings.activeShape != null) ||
+        m.series.any((s) {
+          final el = s.item.element;
+          return el is Scatter && el.activeShape != null && el.activeShape != false;
+        });
     final animationsAndView = Listenable.merge([animations, _view]);
 
     Widget layer(ChartLayer l, {Listenable? repaint}) => Positioned.fill(
@@ -1103,7 +1197,8 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
         layer(ChartLayer.cursorBelow, repaint: _view),
         layer(ChartLayer.main, repaint: hasActiveBar || hasActiveShape ? animationsAndView : animations),
         if (hasActiveBar) layer(ChartLayer.activeBar, repaint: animationsAndView),
-        layer(ChartLayer.overlay, repaint: _view),
+        // Active scatter points animate there.
+        layer(ChartLayer.overlay, repaint: _scatterAnimators.isEmpty ? _view : animationsAndView),
         // Repaints when a series finishes animating and its LabelLists appear.
         layer(ChartLayer.labels, repaint: animations),
         if (legend != null) _buildLegend(legend, legendLayout, size, scaler),

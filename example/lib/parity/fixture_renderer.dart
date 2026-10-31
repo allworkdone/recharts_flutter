@@ -74,6 +74,9 @@ Widget buildChart(Map<String, dynamic> chart, {double? width, double? height}) {
         syncId: p.raw['syncId'], accessibilityLayer: p.raw['accessibilityLayer'] != false,
         children: children,
       );
+    case 'ScatterChart':
+      return ScatterChart(
+          width: w, height: h, data: data, layout: layout, margin: margin, syncId: p.raw['syncId'], accessibilityLayer: p.raw['accessibilityLayer'] != false, children: children);
     case 'ResponsiveContainer':
       final inner = (chart['children'] as List).cast<Map<String, dynamic>>().first;
       return ResponsiveContainer(
@@ -317,6 +320,58 @@ RechartsElement? _child(Map<String, dynamic> node) {
       );
     case 'LabelList':
       return _labelList(p.raw);
+    case 'Scatter':
+      return Scatter(
+        dataKey: p.raw['dataKey'],
+        xAxisId: p.raw['xAxisId'] ?? 0,
+        yAxisId: p.raw['yAxisId'] ?? 0,
+        zAxisId: p.raw['zAxisId'] ?? 0,
+        data: (p.raw['data'] as List?)?.cast<Object?>(),
+        shape: _enum(SymbolType.values, p.str('shape')) ?? SymbolType.circle,
+        activeShape: _enum(SymbolType.values, p.str('activeShape')) ?? p.svgOrBool('activeShape'),
+        fill: p.color('fill'),
+        fillOpacity: p.dbl('fillOpacity'),
+        stroke: p.color('stroke'),
+        strokeWidth: p.dbl('strokeWidth'),
+        line: p.svgOrBool('line') ?? false,
+        lineType: _enum(ScatterLineType.values, p.str('lineType')) ?? ScatterLineType.joint,
+        lineJointType: _enum(CurveType.values, p.str('lineJointType')) ?? CurveType.linear,
+        hide: p.boolean('hide') ?? false,
+        legendType: _enum(LegendType.values, p.str('legendType')) ?? LegendType.circle,
+        name: p.raw['name'],
+        isAnimationActive: p.boolean('isAnimationActive'),
+        animationBegin: p.dbl('animationBegin')?.toInt() ?? 0,
+        animationDuration: p.dbl('animationDuration')?.toInt() ?? 400,
+        animationEasing: p.str('animationEasing') ?? 'linear',
+        label: _labelList(p.raw['label']) ?? false,
+        children: [
+          for (final c in (node['children'] as List? ?? const []).cast<Map<String, dynamic>>())
+            if (c['type'] == 'Cell') _cell(_Props(c['props'] as Map<String, dynamic>? ?? const {})) else ?_child(c),
+        ],
+      );
+    case 'ZAxis':
+      return ZAxis(
+        zAxisId: p.raw['zAxisId'] ?? 0,
+        dataKey: p.raw['dataKey'],
+        type: _axisType(p.str('type')) ?? AxisDomainType.number,
+        domain: p.raw['domain'],
+        range: [for (final v in (p.raw['range'] as List? ?? const [64, 64])) (v as num).toDouble()],
+        scale: p.str('scale') ?? 'auto',
+        name: p.str('name'),
+        unit: p.raw['unit']?.toString(),
+      );
+    case 'ErrorBar':
+      return ErrorBar(
+        dataKey: p.raw['dataKey'] as Object,
+        width: p.dbl('width') ?? 5,
+        direction: _enum(ErrorBarDirection.values, p.str('direction')),
+        stroke: p.raw.containsKey('stroke') ? p.color('stroke') : const Color(0xFF000000),
+        strokeWidth: p.dbl('strokeWidth') ?? 1.5,
+        isAnimationActive: p.boolean('isAnimationActive') ?? true,
+        animationBegin: p.dbl('animationBegin')?.toInt() ?? 0,
+        animationDuration: p.dbl('animationDuration')?.toInt() ?? 400,
+        animationEasing: p.str('animationEasing') ?? 'ease-in-out',
+      );
     case 'Brush':
       final panorama = (node['children'] as List? ?? const []).cast<Map<String, dynamic>>().firstOrNull;
       return Brush(

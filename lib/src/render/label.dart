@@ -224,6 +224,7 @@ List<LabelList> seriesLabelLists(CartesianSeries series) {
     Line l => (l.label, l.children),
     Bar b => (b.label, b.children),
     Area a => (a.label, a.children),
+    Scatter sc => (sc.label, sc.children),
     _ => (false, const <RechartsElement>[]),
   };
   final fromProp = switch (label) {
@@ -236,10 +237,21 @@ List<LabelList> seriesLabelLists(CartesianSeries series) {
   return series is Bar ? [?fromProp, ...lists] : [...lists, ?fromProp];
 }
 
-/// Entries of BarLabelListProvider (final rectangles, chart box as parent) or
+/// Entries of BarLabelListProvider (final rectangles, chart box as parent),
 /// Line/AreaLabelListProvider (zero-size boxes at the points, no parent; an
-/// area point's value is its `[base, value]` pair).
-List<LabelListEntry> labelListEntries(SeriesModel s, Size chartSize) => s.rects != null
+/// area point's value is its `[base, value]` pair) or ScatterLabelListProvider
+/// (the box around each symbol, no value, the plot area [viewBox] as parent).
+List<LabelListEntry> labelListEntries(SeriesModel s, Size chartSize, {Rect? viewBox}) => s.scatterPoints != null
+    ? [
+        for (final p in s.scatterPoints!)
+          LabelListEntry(
+            value: null,
+            payload: p.payload,
+            viewBox: Rect.fromLTWH(p.x ?? 0, p.y ?? 0, p.width, p.height),
+            parentViewBox: viewBox,
+          ),
+      ]
+    : s.rects != null
     ? [
         for (final r in s.rects!)
           LabelListEntry(
@@ -306,10 +318,10 @@ void paintFunnelLabelLists(Canvas canvas, FunnelModel f, {required TextStyle bas
 }
 
 void paintLabelLists(Canvas canvas, SeriesModel s, Size chartSize,
-    {required TextStyle baseStyle, required TextScaler scaler}) {
+    {Rect? viewBox, required TextStyle baseStyle, required TextScaler scaler}) {
   final lists = seriesLabelLists(s.item.element);
   if (lists.isEmpty) return;
-  final entries = labelListEntries(s, chartSize);
+  final entries = labelListEntries(s, chartSize, viewBox: viewBox);
   for (final list in lists) {
     for (var i = 0; i < entries.length; i++) {
       final e = entries[i];

@@ -1,0 +1,149 @@
+{
+ "name": "scatter-joint-line",
+ "description": "Joint lines (linear and monotoneX) through cross and diamond symbols; ZAxis range [100] without dataKey keeps size 64.",
+ "width": 500,
+ "height": 300,
+ "chart": {
+  "type": "ScatterChart",
+  "props": {
+   "margin": {
+    "top": 20,
+    "right": 20,
+    "bottom": 20,
+    "left": 20
+   }
+  },
+  "children": [
+   {
+    "type": "CartesianGrid",
+    "props": {}
+   },
+   {
+    "type": "XAxis",
+    "props": {
+     "type": "number",
+     "dataKey": "x",
+     "name": "stature",
+     "unit": "cm"
+    }
+   },
+   {
+    "type": "YAxis",
+    "props": {
+     "type": "number",
+     "dataKey": "y",
+     "name": "weight",
+     "unit": "kg"
+    }
+   },
+   {
+    "type": "ZAxis",
+    "props": {
+     "type": "number",
+     "range": [
+      100
+     ]
+    }
+   },
+   {
+    "type": "Tooltip",
+    "props": {
+     "cursor": {
+      "strokeDasharray": "3 3"
+     }
+    }
+   },
+   {
+    "type": "Legend",
+    "props": {}
+   },
+   {
+    "type": "Scatter",
+    "props": {
+     "name": "A school",
+     "data": [
+      {
+       "x": 10,
+       "y": 30
+      },
+      {
+       "x": 30,
+       "y": 200
+      },
+      {
+       "x": 45,
+       "y": 100
+      },
+      {
+       "x": 50,
+       "y": 400
+      },
+      {
+       "x": 70,
+       "y": 150
+      },
+      {
+       "x": 100,
+       "y": 250
+      }
+     ],
+     "fill": "#8884d8",
+     "line": true,
+     "shape": "cross"
+    }
+   },
+   {
+    "type": "Scatter",
+    "props": {
+     "name": "B school",
+     "data": [
+      {
+       "x": 30,
+       "y": 20
+      },
+      {
+       "x": 50,
+       "y": 180
+      },
+      {
+       "x": 75,
+       "y": 240
+      },
+      {
+       "x": 100,
+       "y": 100
+      },
+      {
+       "x": 120,
+       "y": 190
+      }
+     ],
+     "fill": "#82ca9d",
+     "line": true,
+     "lineJointType": "monotoneX",
+     "shape": "diamond"
+    }
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-cross",
+   "type": "hover",
+   "x": 180,
+   "y": 128
+  },
+  {
+   "id": "hover-on-line",
+   "type": "hover",
+   "x": 147,
+   "y": 173
+  },
+  {
+   "id": "hover-right",
+   "type": "hover",
+   "x": 480,
+   "y": 133
+  }
+ ]
+}
