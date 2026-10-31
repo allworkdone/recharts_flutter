@@ -1,0 +1,137 @@
+{
+ "name": "pie-simple",
+ "description": "Pie with Cells, Tooltip and Legend; default radius 80% and the entrance sweep.",
+ "width": 400,
+ "height": 400,
+ "chart": {
+  "type": "PieChart",
+  "props": {},
+  "children": [
+   {
+    "type": "Pie",
+    "props": {
+     "data": [
+      {
+       "name": "Group A",
+       "value": 400
+      },
+      {
+       "name": "Group B",
+       "value": 300
+      },
+      {
+       "name": "Group C",
+       "value": 300
+      },
+      {
+       "name": "Group D",
+       "value": 200
+      },
+      {
+       "name": "Group E",
+       "value": 278
+      },
+      {
+       "name": "Group F",
+       "value": 189
+      }
+     ],
+     "dataKey": "value"
+    },
+    "children": [
+     {
+      "type": "Cell",
+      "props": {
+       "fill": "#0088FE"
+      }
+     },
+     {
+      "type": "Cell",
+      "props": {
+       "fill": "#00C49F"
+      }
+     },
+     {
+      "type": "Cell",
+      "props": {
+       "fill": "#FFBB28"
+      }
+     },
+     {
+      "type": "Cell",
+      "props": {
+       "fill": "#FF8042"
+      }
+     },
+     {
+      "type": "Cell",
+      "props": {
+       "fill": "#AF19FF"
+      }
+     },
+     {
+      "type": "Cell",
+      "props": {
+       "fill": "#FF4560"
+      }
+     }
+    ]
+   },
+   {
+    "type": "Tooltip",
+    "props": {}
+   },
+   {
+    "type": "Legend",
+    "props": {}
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-a",
+   "type": "hover",
+   "x": 273,
+   "y": 117
+  },
+  {
+   "id": "hover-c",
+   "type": "hover",
+   "x": 100,
+   "y": 191
+  },
+  {
+   "id": "hover-e",
+   "type": "hover",
+   "x": 233,
+   "y": 280
+  },
+  {
+   "id": "hover-outside",
+   "type": "hover",
+   "x": 360,
+   "y": 60
+  },
+  {
+   "id": "hover-leave",
+   "type": "hover",
+   "x": 273,
+   "y": 117,
+   "then": [
+    {
+     "id": "off",
+     "type": "hover",
+     "x": 360,
+     "y": 60
+    }
+   ]
+  }
+ ],
+ "captureAnimation": [
+  0,
+  200,
+  500,
+  1000,
+  1500
+ ]
+}

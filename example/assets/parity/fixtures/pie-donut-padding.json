@@ -1,0 +1,97 @@
+{
+ "name": "pie-donut-padding",
+ "description": "Donut with innerRadius, paddingAngle and cornerRadius.",
+ "width": 400,
+ "height": 400,
+ "chart": {
+  "type": "PieChart",
+  "props": {},
+  "children": [
+   {
+    "type": "Pie",
+    "props": {
+     "data": [
+      {
+       "name": "Group A",
+       "value": 400
+      },
+      {
+       "name": "Group B",
+       "value": 300
+      },
+      {
+       "name": "Group C",
+       "value": 300
+      },
+      {
+       "name": "Group D",
+       "value": 200
+      }
+     ],
+     "dataKey": "value",
+     "innerRadius": 60,
+     "outerRadius": 120,
+     "paddingAngle": 5,
+     "cornerRadius": 6,
+     "fill": "#8884d8"
+    },
+    "children": [
+     {
+      "type": "Cell",
+      "props": {
+       "fill": "#0088FE"
+      }
+     },
+     {
+      "type": "Cell",
+      "props": {
+       "fill": "#00C49F"
+      }
+     },
+     {
+      "type": "Cell",
+      "props": {
+       "fill": "#FFBB28"
+      }
+     },
+     {
+      "type": "Cell",
+      "props": {
+       "fill": "#FF8042"
+      }
+     }
+    ]
+   },
+   {
+    "type": "Tooltip",
+    "props": {}
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-a",
+   "type": "hover",
+   "x": 249,
+   "y": 125
+  },
+  {
+   "id": "hover-c",
+   "type": "hover",
+   "x": 170,
+   "y": 285
+  },
+  {
+   "id": "hover-hole",
+   "type": "hover",
+   "x": 200,
+   "y": 200
+  },
+  {
+   "id": "hover-gap",
+   "type": "hover",
+   "x": 160,
+   "y": 119
+  }
+ ]
+}

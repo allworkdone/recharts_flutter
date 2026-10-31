@@ -1,0 +1,109 @@
+{
+ "name": "pie-active-shape",
+ "description": "activeShape given as props merged over the hovered sector.",
+ "width": 400,
+ "height": 400,
+ "chart": {
+  "type": "PieChart",
+  "props": {},
+  "children": [
+   {
+    "type": "Pie",
+    "props": {
+     "data": [
+      {
+       "name": "Group A",
+       "value": 400
+      },
+      {
+       "name": "Group B",
+       "value": 300
+      },
+      {
+       "name": "Group C",
+       "value": 300
+      },
+      {
+       "name": "Group D",
+       "value": 200
+      }
+     ],
+     "dataKey": "value",
+     "innerRadius": 50,
+     "outerRadius": 110,
+     "fill": "#8884d8",
+     "activeShape": {
+      "outerRadius": 130,
+      "fill": "#ff7300",
+      "stroke": "#333333",
+      "strokeWidth": 2
+     }
+    },
+    "children": [
+     {
+      "type": "Cell",
+      "props": {
+       "fill": "#0088FE"
+      }
+     },
+     {
+      "type": "Cell",
+      "props": {
+       "fill": "#00C49F"
+      }
+     },
+     {
+      "type": "Cell",
+      "props": {
+       "fill": "#FFBB28"
+      }
+     },
+     {
+      "type": "Cell",
+      "props": {
+       "fill": "#FF8042"
+      }
+     }
+    ]
+   },
+   {
+    "type": "Tooltip",
+    "props": {}
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-a",
+   "type": "hover",
+   "x": 240,
+   "y": 131
+  },
+  {
+   "id": "hover-c",
+   "type": "hover",
+   "x": 179,
+   "y": 277
+  },
+  {
+   "id": "hover-grown",
+   "type": "hover",
+   "x": 240,
+   "y": 131,
+   "then": [
+    {
+     "id": "grown",
+     "type": "hover",
+     "x": 260,
+     "y": 96
+    }
+   ]
+  },
+  {
+   "id": "hover-outside",
+   "type": "hover",
+   "x": 370,
+   "y": 30
+  }
+ ]
+}

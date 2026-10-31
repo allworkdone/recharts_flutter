@@ -85,6 +85,16 @@ Widget buildChart(Map<String, dynamic> chart, {double? width, double? height}) {
         maxHeight: p.dbl('maxHeight'),
         child: buildChart(inner),
       );
+    case 'PieChart':
+      return PieChart(
+        width: w,
+        height: h,
+        data: data,
+        margin: margin,
+        syncId: p.raw['syncId'],
+        accessibilityLayer: p.raw['accessibilityLayer'] != false,
+        children: children,
+      );
   }
   throw ArgumentError('Unsupported chart type $type');
 }
@@ -371,8 +381,72 @@ RechartsElement? _child(Map<String, dynamic> node) {
         label: _label(p.raw['label']),
         ifOverflow: _enum(IfOverflow.values, p.str('ifOverflow')) ?? IfOverflow.discard,
       );
+    case 'Pie':
+      return Pie(
+        dataKey: p.raw['dataKey'] ?? 'value',
+        nameKey: p.raw['nameKey'] ?? 'name',
+        data: (p.raw['data'] as List?)?.cast<Object?>(),
+        cx: p.raw['cx'] ?? '50%',
+        cy: p.raw['cy'] ?? '50%',
+        innerRadius: p.raw['innerRadius'] ?? 0,
+        outerRadius: p.raw['outerRadius'] ?? '80%',
+        startAngle: p.dbl('startAngle') ?? 0,
+        endAngle: p.dbl('endAngle') ?? 360,
+        paddingAngle: p.dbl('paddingAngle') ?? 0,
+        minAngle: p.dbl('minAngle') ?? 0,
+        cornerRadius: p.raw['cornerRadius'],
+        fill: p.raw.containsKey('fill') ? p.color('fill') : const Color(0xFF808080),
+        stroke: p.raw.containsKey('stroke') ? p.color('stroke') : const Color(0xFFFFFFFF),
+        strokeWidth: p.dbl('strokeWidth'),
+        name: p.raw['name'],
+        hide: p.boolean('hide') ?? false,
+        legendType: _enum(LegendType.values, p.str('legendType')) ?? LegendType.rect,
+        label: _pieLabel(p.raw['label']),
+        labelLine: p.svgOrBool('labelLine') ?? true,
+        activeShape: _sectorStyle(p.raw['activeShape']),
+        inactiveShape: _sectorStyle(p.raw['inactiveShape']),
+        isAnimationActive: p.boolean('isAnimationActive'),
+        animationBegin: p.dbl('animationBegin')?.toInt() ?? 400,
+        animationDuration: p.dbl('animationDuration')?.toInt() ?? 1500,
+        animationEasing: p.str('animationEasing') ?? 'ease',
+        children: [
+          for (final c in (node['children'] as List? ?? const []).cast<Map<String, dynamic>>())
+            if (c['type'] == 'Cell') _cell(_Props(c['props'] as Map<String, dynamic>? ?? const {})) else ?_child(c),
+        ],
+      );
   }
   return null;
+}
+
+/// Pie `label`: true, LabelList props (with `position`) or Pie label props.
+Object _pieLabel(Object? v) {
+  if (v == true) return true;
+  if (v is! Map) return false;
+  if (v.containsKey('position')) return _labelList(v)!;
+  final p = _Props(v.cast<String, dynamic>());
+  return PieLabel(offsetRadius: p.dbl('offsetRadius') ?? 20, fill: p.color('fill'), fontSize: p.dbl('fontSize'));
+}
+
+/// `activeShape` / `inactiveShape` given as props: true or Sector props.
+Object? _sectorStyle(Object? v) {
+  if (v is bool) return v;
+  if (v is! Map) return null;
+  final p = _Props(v.cast<String, dynamic>());
+  return SectorStyle(
+    fill: p.color('fill'),
+    fillOpacity: p.dbl('fillOpacity'),
+    stroke: p.color('stroke'),
+    strokeWidth: p.dbl('strokeWidth'),
+    strokeOpacity: p.dbl('strokeOpacity'),
+    strokeDasharray: p.dash('strokeDasharray'),
+    cx: p.dbl('cx'),
+    cy: p.dbl('cy'),
+    innerRadius: p.dbl('innerRadius'),
+    outerRadius: p.dbl('outerRadius'),
+    startAngle: p.dbl('startAngle'),
+    endAngle: p.dbl('endAngle'),
+    cornerRadius: p.raw['cornerRadius'],
+  );
 }
 
 /// `label` of an axis or ReferenceLine: string, number or Label props.

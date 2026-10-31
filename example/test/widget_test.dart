@@ -23,7 +23,7 @@ void main() {
         child: Align(alignment: Alignment.topLeft, child: renderFixture(fixture)),
       ));
       await tester.pump(const Duration(seconds: 2));
-      expect(find.byWidgetPredicate((w) => w is CategoricalChart), findsOneWidget);
+      expect(find.byWidgetPredicate((w) => w is CategoricalChart || w is PolarChart), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }
