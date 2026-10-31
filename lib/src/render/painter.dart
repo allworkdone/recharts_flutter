@@ -5,7 +5,7 @@
 //   main: bars (300), lines + reference lines (400), axis lines (500), dots (600)
 //   activeBar: Bar `activeBar` (1000)
 //   overlay: cursor line (1100), active dots (1200)
-//   labels: tick labels and reference line labels (2000)
+//   labels: tick labels, Label and LabelList (2000)
 // Geometry follows CartesianAxis.tsx (getTickLineCoord, AxisLine),
 // CartesianGrid.tsx, Line.tsx/LineDrawShape.tsx, Dots.tsx, ActivePoints.tsx,
 // Bar.tsx/Rectangle.tsx (BarRectangleWithActiveState), ActiveShapeUtils.tsx,
@@ -21,6 +21,7 @@ import '../engine/axis.dart';
 import '../engine/get_ticks.dart';
 import '../engine/model.dart';
 import '../util.dart';
+import 'label.dart';
 import 'shapes.dart';
 import 'svg_text.dart';
 
@@ -484,7 +485,7 @@ class CartesianPainter extends CustomPainter {
           textAnchor: anchor,
           verticalAnchor: vAnchor,
           angle: s.angle,
-          width: s is YAxis ? s.width : null,
+          width: s is YAxis && s.width is num ? (s.width as num).toDouble() : null,
           scaler: frame.textScaler);
     }
   }
@@ -494,16 +495,22 @@ class CartesianPainter extends CustomPainter {
       if (c is CartesianAxisElement) {
         for (final a in m.axes.where((a) => a.settings == c)) {
           _paintTickLabels(canvas, a);
+          if (a.rect.width > 0 && a.rect.height > 0) {
+            paintLabel(canvas, parseLabel(c.label), a.rect, baseStyle: frame.textStyle, scaler: frame.textScaler);
+          }
         }
       } else if (c is ReferenceLine && c.label != null) {
         final r = m.referenceLines.where((r) => r.settings == c).firstOrNull;
         if (r == null) continue;
-        final rect = Rect.fromPoints(r.p1, r.p2);
-        paintSvgText(canvas, c.label!, rect.left + rect.width / 2, rect.top + rect.height / 2,
-            style: frame.textStyle.copyWith(color: const Color(0xFF808080)),
-            textAnchor: TextAnchor.middle,
-            verticalAnchor: TextVerticalAnchor.middle,
-            scaler: frame.textScaler);
+        paintLabel(canvas, parseLabel(c.label), Rect.fromPoints(r.p1, r.p2),
+            baseStyle: frame.textStyle, scaler: frame.textScaler);
+      } else if (c is CartesianSeries) {
+        // Labels show once the series stops animating (`showLabels={!isAnimating}`).
+        final s = m.series.where((s) => identical(s.item.element, c)).firstOrNull;
+        if (s == null || s.item.hide) continue;
+        final animator = s.item.isBar ? frame.barAnimators[s.item.id] : frame.lineAnimators[s.item.id];
+        if (animator?.isAnimating ?? false) continue;
+        paintLabelLists(canvas, s, m.size, baseStyle: frame.textStyle, scaler: frame.textScaler);
       }
     }
   }

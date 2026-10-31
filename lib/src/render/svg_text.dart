@@ -1,6 +1,6 @@
-// Port of src/component/Text.tsx (anchors, capHeight-based dy, word wrapping
-// by width, rotate(angle, x, y)) and a TextPainter-based replacement for
-// getStringSize in src/util/DOMUtils.ts.
+// Port of src/component/Text.tsx (anchors, capHeight-based dy, getWordsByLines
+// with width, breakAll, maxLines and scaleToFit, rotate(angle, x, y)) and a
+// TextPainter-based replacement for getStringSize in src/util/DOMUtils.ts.
 
 import 'dart:math' as math;
 
@@ -51,27 +51,89 @@ Size measureText(String text, TextStyle style, [TextScaler scaler = TextScaler.n
   return Size(tp.width, tp.height);
 }
 
-final _breakingSpaces = RegExp(r'[ \f\n\r\t\v  ]+');
+final _breakingSpaces = RegExp('[ \f\n\r\t\v\u2028\u2029]+');
 
-/// `getWordsByLines` without `scaleToFit`/`maxLines`.
-List<String> wordsByLines(String text, double? width, TextStyle style, TextScaler scaler) {
-  if (width == null || width == 0) return [text];
-  final words = text.split(_breakingSpaces);
-  final spaceWidth = measureText(' ', style, scaler).width;
-  final lines = <({List<String> words, double width})>[];
-  for (final word in words) {
-    final w = measureText(word, style, scaler).width;
-    if (lines.isNotEmpty && lines.last.width + w + spaceWidth < width) {
-      final last = lines.removeLast();
-      lines.add((words: [...last.words, word], width: last.width + w + spaceWidth));
+/// One line of `getWordsByLines`; [width] is null when nothing was measured.
+typedef TextLineWords = ({List<String> words, double? width});
+
+class _Line {
+  _Line(this.words, this.width);
+  final List<String> words;
+  double width;
+}
+
+/// `calculateWordWidths`: [style] stands in for the measurement span's CSS
+/// (the page font plus Text's `style` prop, not its `fontSize` attribute).
+(List<(String, double)>, double) _wordWidths(String text, bool breakAll, TextStyle style, TextScaler scaler) {
+  final words = breakAll ? text.split('') : text.split(_breakingSpaces);
+  return (
+    [for (final w in words) (w, measureText(w, style, scaler).width)],
+    breakAll ? 0.0 : measureText('\u00A0', style, scaler).width,
+  );
+}
+
+List<_Line> _calculate(List<(String, double)> words, double? lineWidth, double spaceWidth, bool scaleToFit) {
+  final result = <_Line>[];
+  for (final (word, width) in words) {
+    final current = result.isEmpty ? null : result.last;
+    if (current != null && (lineWidth == null || scaleToFit || current.width + width + spaceWidth < lineWidth)) {
+      current.words.add(word);
+      current.width += width + spaceWidth;
     } else {
-      lines.add((words: [word], width: w));
+      result.add(_Line([word], width));
     }
   }
-  return [for (final l in lines) l.words.join(' ')];
+  return result;
+}
+
+double _longest(List<_Line> lines) => lines.fold(lines.first.width, (a, b) => a > b.width ? a : b.width);
+
+/// `getWordsByLines`: words split on breaking spaces (or per character with
+/// [breakAll]), wrapped at [width], truncated with an ellipsis to [maxLines].
+List<TextLineWords> getWordsByLines(
+  String text, {
+  double? width,
+  bool scaleToFit = false,
+  bool breakAll = false,
+  int? maxLines,
+  required TextStyle style,
+  TextScaler scaler = TextScaler.noScaling,
+}) {
+  final hasWidth = width != null && width != 0 && !width.isNaN;
+  if (!hasWidth && !scaleToFit) return [(words: text.split(_breakingSpaces), width: null)];
+  final (words, spaceWidth) = _wordWidths(text, breakAll, style, scaler);
+  List<TextLineWords> out(List<_Line> lines) => [for (final l in lines) (words: l.words, width: l.width)];
+  final original = _calculate(words, width, spaceWidth, scaleToFit);
+  if (maxLines == null || scaleToFit) return out(original);
+  bool overflows(List<_Line> r) => r.length > maxLines || (width != null && _longest(r) > width);
+  if (!overflows(original)) return out(original);
+
+  (bool, List<_Line>) checkOverflow(int index) {
+    // JS `text.slice(0, index)`: a negative index counts from the end.
+    final end = index < 0 ? math.max(text.length + index, 0) : math.min(index, text.length);
+    final r = _calculate(_wordWidths('${text.substring(0, end)}…', breakAll, style, scaler).$1, width, spaceWidth, false);
+    return (overflows(r), r);
+  }
+
+  var start = 0, end = text.length - 1, iterations = 0;
+  List<_Line>? trimmed;
+  while (start <= end && iterations <= text.length - 1) {
+    final middle = ((start + end) / 2).floor();
+    final (prevOverflows, result) = checkOverflow(middle - 1);
+    final (middleOverflows, _) = checkOverflow(middle);
+    if (!prevOverflows && !middleOverflows) start = middle + 1;
+    if (prevOverflows && middleOverflows) end = middle - 1;
+    if (!prevOverflows && middleOverflows) {
+      trimmed = result;
+      break;
+    }
+    iterations++;
+  }
+  return out(trimmed ?? original);
 }
 
 /// Draws `<Text x y textAnchor verticalAnchor angle width>` with [style].
+/// Lines are measured with [measureStyle] (default [style]).
 void paintSvgText(
   Canvas canvas,
   String text,
@@ -82,10 +144,22 @@ void paintSvgText(
   TextVerticalAnchor verticalAnchor = TextVerticalAnchor.end,
   double angle = 0,
   double? width,
+  bool breakAll = false,
+  bool scaleToFit = false,
+  int? maxLines,
+  TextStyle? measureStyle,
   TextScaler scaler = TextScaler.noScaling,
 }) {
   if (!x.isFinite || !y.isFinite) return;
-  final lines = wordsByLines(text, width, style, scaler);
+  final wordLines = getWordsByLines(text,
+      width: width,
+      scaleToFit: scaleToFit,
+      breakAll: breakAll,
+      maxLines: maxLines,
+      style: measureStyle ?? style,
+      scaler: scaler);
+  if (wordLines.isEmpty) return;
+  final lines = [for (final l in wordLines) l.words.join(breakAll ? '' : ' ')];
   final em = scaler.scale(style.fontSize ?? 14);
   // capHeight '0.71em', lineHeight '1em' (textDefaultProps)
   final double startDy = switch (verticalAnchor) {
@@ -93,8 +167,12 @@ void paintSvgText(
     TextVerticalAnchor.middle => (lines.length - 1) / 2 * -em + 0.355 * em,
     TextVerticalAnchor.end => (lines.length - 1) * -em,
   };
-  if (angle != 0) {
+  final firstWidth = wordLines.first.width;
+  final scale = scaleToFit ? (width != null && firstWidth != null ? width / firstWidth : 1.0) : null;
+  if (angle != 0 || scale != null) {
     canvas.save();
+    // transform="scale(k) rotate(angle, x, y)"
+    if (scale != null) canvas.scale(scale);
     canvas.translate(x, y);
     canvas.rotate(angle * math.pi / 180);
     canvas.translate(-x, -y);
@@ -110,7 +188,7 @@ void paintSvgText(
     };
     tp.paint(canvas, Offset(left, baseline - ascent));
   }
-  if (angle != 0) canvas.restore();
+  if (angle != 0 || scale != null) canvas.restore();
 }
 
 /// CSS `line-height: normal` as Blink computes it: rounded ascent + rounded

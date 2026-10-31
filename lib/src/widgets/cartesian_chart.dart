@@ -28,8 +28,10 @@ import 'package:flutter/widgets.dart';
 import '../animation.dart';
 import '../components.dart';
 import '../core/curve.dart';
+import '../core/js_math.dart' show jsRound;
 import '../engine/axis.dart' show GraphicalItem;
 import '../engine/model.dart';
+import '../render/label.dart';
 import '../render/painter.dart';
 import '../render/svg_text.dart';
 import 'brush.dart';
@@ -284,6 +286,7 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
   final GlobalKey<BrushLayerState> _brushKey = GlobalKey();
   CartesianModel? _model;
   ChartFrame? _frame;
+  final Map<Object, AutoYAxisWidth> _yAxisWidths = {};
   Size? _customLegendSize;
   Offset? _downPosition;
   Object? _registeredSyncId;
@@ -880,7 +883,9 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
       return style;
     }
 
-    final m = computeCartesianModel(
+    // replaceYAxis: changed settings start over from 'auto'.
+    _yAxisWidths.removeWhere((_, w) => !children.any((c) => identical(c, w.settings)));
+    CartesianModel compute() => computeCartesianModel(
       chartName: widget.chartName,
       size: size,
       data: widget.data,
@@ -904,7 +909,15 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
       sharedChildren: w is _Panorama ? w.main.children : (_brush?.child?.children ?? const []),
       rootOffset: w is _Panorama ? w.rootOffset : null,
       rootSize: w is _Panorama ? w.rootSize : null,
+      yAxisWidths: {for (final e in _yAxisWidths.entries) if (e.value.width != null) e.key: e.value.width!},
     );
+    var m = compute();
+    // YAxisImpl's layout effect measures and dispatches updateYAxisWidth until
+    // the width settles, all before the browser paints.
+    // ponytail: capped at 10 passes; React gives up after 50 nested updates.
+    for (var pass = 0; pass < 10 && _updateAutoYAxisWidths(m, tickStyle, textStyle, scaler); pass++) {
+      m = compute();
+    }
     _model = m;
     _syncAnimators(m, reducedMotion);
     // Everything that reads the view is rebuilt below, so no notification.
@@ -970,7 +983,8 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
         layer(ChartLayer.main, repaint: hasActiveBar ? animationsAndView : animations),
         if (hasActiveBar) layer(ChartLayer.activeBar, repaint: animationsAndView),
         layer(ChartLayer.overlay, repaint: _view),
-        layer(ChartLayer.labels),
+        // Repaints when a series finishes animating and its LabelLists appear.
+        layer(ChartLayer.labels, repaint: animations),
         if (legend != null) _buildLegend(legend, legendLayout, size, scaler),
         if (tooltip != null) Positioned.fill(child: IgnorePointer(child: _buildTooltip(tooltip, m, reducedMotion))),
       ],
@@ -1012,6 +1026,23 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
       // The panorama is a nested svg without tabIndex.
       child: isPanorama ? content : Focus(focusNode: _focusNode, onKeyEvent: _onKey, child: content),
     );
+  }
+
+  /// Returns whether any `YAxis(width: 'auto')` changed width.
+  bool _updateAutoYAxisWidths(
+      CartesianModel m, TextStyle Function(CartesianAxisElement) tickStyle, TextStyle textStyle, TextScaler scaler) {
+    var changed = false;
+    for (final a in m.axes) {
+      final s = a.settings;
+      // No measuring for a label drawn by a function.
+      if (s is! YAxis || s.width != 'auto' || s.label is Function) continue;
+      final calculated =
+          getCalculatedYAxisWidth(a, tickStyle: tickStyle(s), baseStyle: textStyle, scaler: scaler);
+      if (jsRound(a.rect.width) != jsRound(calculated)) {
+        changed = _yAxisWidths.putIfAbsent(s.id, () => AutoYAxisWidth(s)).update(calculated) || changed;
+      }
+    }
+    return changed;
   }
 
   Widget _buildLegend(Legend legend, LegendLayout? layout, Size size, TextScaler scaler) {

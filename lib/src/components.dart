@@ -168,6 +168,150 @@ class DotProps {
 
 typedef DotPainter = void Function(Canvas canvas, DotProps props);
 
+/// `position` of a [Label] / [LabelList] (src/cartesian/getCartesianPosition.tsx).
+/// Cartesian boxes treat the polar-only names and `inside`/`outside` like [middle].
+enum LabelPosition {
+  top,
+  left,
+  right,
+  bottom,
+  inside,
+  outside,
+  insideLeft,
+  insideRight,
+  insideTop,
+  insideBottom,
+  insideTopLeft,
+  insideBottomLeft,
+  insideTopRight,
+  insideBottomRight,
+  insideStart,
+  insideEnd,
+  end,
+  center,
+  centerTop,
+  centerBottom,
+  middle,
+}
+
+/// Values passed to a custom label painter (the props Recharts gives `content`).
+class LabelProps {
+  const LabelProps({
+    required this.x,
+    required this.y,
+    required this.viewBox,
+    required this.value,
+    required this.position,
+    required this.offset,
+    required this.angle,
+    required this.style,
+    this.index,
+  });
+
+  /// The position computed for [position], before anchoring.
+  final double x, y;
+  final Rect viewBox;
+  final Object? value;
+  final LabelPosition position;
+  final double offset, angle;
+
+  /// Text style with the label's `fill` (default `#808080`) and `fontSize`.
+  final TextStyle style;
+
+  /// Entry index inside a [LabelList].
+  final int? index;
+}
+
+typedef LabelPainter = void Function(Canvas canvas, LabelProps props);
+
+/// src/component/Label.tsx. Pass it as `label` to [XAxis], [YAxis] or [ReferenceLine];
+/// a plain String or num there is `Label(value: ...)`.
+class Label {
+  const Label({
+    this.value,
+    this.position = LabelPosition.middle,
+    this.offset = 5,
+    this.angle = 0,
+    this.fill,
+    this.fontSize,
+    this.textAnchor,
+    this.width,
+    this.textBreakAll = false,
+    this.formatter,
+    this.content,
+  });
+
+  /// String, num or bool; nothing is drawn when null (unless [content] is set).
+  final Object? value;
+  final LabelPosition position;
+  final double offset;
+
+  /// Rotation in degrees around the label's anchor point.
+  final double angle;
+
+  /// Text fill, default `#808080`.
+  final Color? fill;
+  final double? fontSize;
+
+  /// Overrides the anchor the position picks.
+  final TextAnchor? textAnchor;
+
+  /// Wraps the text at this width (`Text` `width`).
+  final double? width;
+  final bool textBreakAll;
+  final Object? Function(Object? value)? formatter;
+  final LabelPainter? content;
+}
+
+/// Input of [LabelList.valueAccessor] (`CartesianLabelListEntry`).
+class LabelListEntry {
+  const LabelListEntry({required this.value, required this.payload, required this.viewBox, this.fill, this.parentViewBox});
+
+  /// The item's value; `[start, end]` for stacked bars.
+  final Object? value;
+  final Object? payload;
+
+  /// The bar rectangle, or a zero-size box at the line point.
+  final Rect viewBox;
+  final Color? fill;
+
+  /// The chart box for bars, null for lines.
+  final Rect? parentViewBox;
+}
+
+/// src/component/LabelList.tsx: one [Label] per data point of the enclosing
+/// [Line] or [Bar]. Labels are hidden while the series animates.
+class LabelList extends RechartsElement {
+  const LabelList({
+    this.dataKey,
+    this.valueAccessor,
+    this.position = LabelPosition.middle,
+    this.offset = 5,
+    this.angle = 0,
+    this.fill,
+    this.fontSize,
+    this.textBreakAll = false,
+    this.formatter,
+    this.content,
+  });
+
+  /// Reads the label from each entry's payload; overrides [valueAccessor].
+  final Object? dataKey;
+
+  /// Defaults to the entry's value (the last element of a `[start, end]` pair).
+  final Object? Function(LabelListEntry entry, int index)? valueAccessor;
+  final LabelPosition position;
+  final double offset;
+  final double angle;
+
+  /// Text fill; falls back to the entry's (a [Cell]'s) fill, then `#808080`.
+  final Color? fill;
+  final double? fontSize;
+  final bool textBreakAll;
+  final Object? Function(Object? value)? formatter;
+  final LabelPainter? content;
+}
+
 /// Shared props of [XAxis] and [YAxis] (`BaseCartesianAxis` + CartesianAxis props).
 abstract class CartesianAxisElement extends RechartsElement {
   const CartesianAxisElement({
@@ -202,6 +346,7 @@ abstract class CartesianAxisElement extends RechartsElement {
     this.stroke = const Color(0xFF666666),
     this.textAnchor,
     this.fontSize,
+    this.label,
   });
 
   /// `xAxisId` / `yAxisId` (String or int).
@@ -255,6 +400,10 @@ abstract class CartesianAxisElement extends RechartsElement {
   final TextAnchor? textAnchor;
   final double? fontSize;
 
+  /// A String, a num, a [Label] or a [LabelPainter], drawn in the axis box. It
+  /// never changes the axis size, except through `YAxis(width: 'auto')`.
+  final Object? label;
+
   bool get isX;
 }
 
@@ -292,6 +441,7 @@ class XAxis extends CartesianAxisElement {
     super.stroke,
     super.textAnchor,
     super.fontSize,
+    super.label,
   }) : super(id: xAxisId);
 
   Object get xAxisId => id;
@@ -335,12 +485,16 @@ class YAxis extends CartesianAxisElement {
     super.stroke,
     super.textAnchor,
     super.fontSize,
-  }) : super(id: yAxisId);
+    super.label,
+  })  : assert(width is num || width == 'auto'),
+        super(id: yAxisId);
 
   Object get yAxisId => id;
 
-  /// Recharts also accepts `'auto'`; only numbers are supported here.
-  final double width;
+  /// A number, or `'auto'` to size the axis to its widest tick label plus
+  /// `tickSize + tickMargin`, plus the label and a 5px gap when [label] is set
+  /// (`getCalculatedYAxisWidth`). Until measured, `'auto'` counts as 60.
+  final Object width;
 
   @override
   bool get isX => false;
@@ -470,6 +624,8 @@ class Line extends CartesianSeries {
     super.onAnimationStart,
     super.onAnimationEnd,
     super.id,
+    this.label = false,
+    this.children = const [],
   });
   final CurveType type;
   final Color? stroke;
@@ -487,6 +643,12 @@ class Line extends CartesianSeries {
   final bool connectNulls;
   final List<Object?>? data;
   final bool animateNewValues;
+
+  /// `true`, a [LabelList], or a [LabelPainter] drawing each label.
+  final Object label;
+
+  /// [LabelList]s.
+  final List<RechartsElement> children;
 
   @override
   Object? get itemData => data;
@@ -523,6 +685,7 @@ class Bar extends CartesianSeries {
     super.onAnimationStart,
     super.onAnimationEnd,
     super.id,
+    this.label = false,
     this.children = const [],
   });
 
@@ -552,7 +715,14 @@ class Bar extends CartesianSeries {
   /// others, above lines and axes), or an [SvgStyle] merged over its props.
   /// It switches without a transition, like Recharts' default Rectangle.
   final Object activeBar;
-  final List<Cell> children;
+
+  /// `true`, a [LabelList], or a [LabelPainter] drawing each label.
+  final Object label;
+
+  /// [Cell]s (matched to entries by index) and [LabelList]s.
+  final List<RechartsElement> children;
+
+  List<Cell> get cells => children.whereType<Cell>().toList();
 
   @override
   Object? get stackIdOrNull => stackId;
@@ -591,8 +761,8 @@ class ReferenceLine extends RechartsElement {
   final double strokeWidth;
   final List<double>? strokeDasharray;
 
-  /// Only simple string labels are supported (Recharts' `label="..."`).
-  final String? label;
+  /// A String, a num, a [Label] or a [LabelPainter], positioned in the line's box.
+  final Object? label;
   final BandPosition position;
 }
 
