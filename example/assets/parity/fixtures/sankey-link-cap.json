@@ -1,0 +1,70 @@
+{
+ "name": "sankey-link-cap",
+ "description": "Link hover stops at the link end points (butt caps).",
+ "width": 1000,
+ "height": 500,
+ "chart": {
+  "type": "Sankey",
+  "props": {
+   "data": {
+    "nodes": [
+     {
+      "name": "a"
+     },
+     {
+      "name": "b"
+     },
+     {
+      "name": "c"
+     }
+    ],
+    "links": [
+     {
+      "source": 0,
+      "target": 1,
+      "value": 100
+     },
+     {
+      "source": 1,
+      "target": 2,
+      "value": 100
+     }
+    ]
+   }
+  },
+  "children": [
+   {
+    "type": "Tooltip",
+    "props": {
+     "isAnimationActive": false
+    }
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-link",
+   "type": "hover",
+   "x": 400,
+   "y": 250
+  },
+  {
+   "id": "hover-node",
+   "type": "hover",
+   "x": 500,
+   "y": 250
+  },
+  {
+   "id": "hover-empty",
+   "type": "hover",
+   "x": 997,
+   "y": 250
+  },
+  {
+   "id": "hover-link-end",
+   "type": "hover",
+   "x": 250,
+   "y": 250
+  }
+ ]
+}
