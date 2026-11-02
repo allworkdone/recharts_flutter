@@ -21,6 +21,7 @@ export 'src/widgets/polar_chart.dart' show PolarChart, PieChart;
 // ---- sankey: exports ----
 // ---- end sankey ----
 // ---- sunburst: exports ----
+export 'src/widgets/sunburst_chart.dart' show SunburstChart, SunburstTextOptions, SunburstNodeHandler;
 // ---- end sunburst ----
 
 class RechartsFlutter {

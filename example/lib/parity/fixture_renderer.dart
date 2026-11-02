@@ -18,7 +18,7 @@ Widget buildChart(Map<String, dynamic> chart, {double? width, double? height}) {
   final nodes = (chart['children'] as List? ?? const []).cast<Map<String, dynamic>>();
   _gradients.addAll(_linearGradients(nodes));
   final children = [for (final c in nodes) ?_child(c)];
-  final data = (p.raw['data'] as List? ?? const []).cast<Object?>();
+  final data = (p.raw['data'] is List ? p.raw['data'] as List : const []).cast<Object?>();
   final layout = p.str('layout') == 'vertical' ? ChartLayout.vertical : ChartLayout.horizontal;
   final margin = p.margin('margin') ?? const Margin.all(5);
   final w = p.dbl('width') ?? width, h = p.dbl('height') ?? height;
@@ -105,6 +105,25 @@ Widget buildChart(Map<String, dynamic> chart, {double? width, double? height}) {
     // ---- sankey: chart cases ----
     // ---- end sankey ----
     // ---- sunburst: chart cases ----
+    case 'SunburstChart':
+      return SunburstChart(
+        width: w,
+        height: h,
+        data: _sunburstNode(p.raw['data'] as Map<String, dynamic>),
+        padding: p.dbl('padding') ?? 2,
+        dataKey: p.str('dataKey') ?? 'value',
+        nameKey: p.raw['nameKey'] ?? 'name',
+        ringPadding: p.dbl('ringPadding') ?? 2,
+        innerRadius: p.dbl('innerRadius') ?? 50,
+        outerRadius: p.dbl('outerRadius'),
+        cx: p.dbl('cx'),
+        cy: p.dbl('cy'),
+        startAngle: p.dbl('startAngle') ?? 0,
+        endAngle: p.dbl('endAngle') ?? 360,
+        fill: p.color('fill') ?? const Color(0xFF333333),
+        stroke: p.color('stroke') ?? const Color(0xFFFFFFFF),
+        children: children,
+      );
     // ---- end sunburst ----
   }
   throw ArgumentError('Unsupported chart type $type');
@@ -720,3 +739,13 @@ Color? parseCssColor(String input) {
   }
   return null;
 }
+
+/// A Sunburst data node with its `fill` strings turned into colors.
+Map<String, Object?> _sunburstNode(Map<String, dynamic> n) => {
+      for (final e in n.entries)
+        e.key: switch (e.key) {
+          'fill' when e.value is String => parseCssColor(e.value as String),
+          'children' when e.value is List => [for (final c in e.value as List) _sunburstNode(c as Map<String, dynamic>)],
+          _ => e.value,
+        },
+    };

@@ -1,0 +1,148 @@
+{
+ "name": "sunburst-simple",
+ "description": "Recharts example hierarchy, default props, item tooltip.",
+ "width": 500,
+ "height": 500,
+ "chart": {
+  "type": "SunburstChart",
+  "props": {
+   "data": {
+    "name": "Root",
+    "value": 100,
+    "children": [
+     {
+      "name": "Child1",
+      "fill": "#264653",
+      "value": 30,
+      "children": [
+       {
+        "name": "third child",
+        "value": 10
+       },
+       {
+        "name": "another child",
+        "value": 5
+       },
+       {
+        "name": "next child",
+        "value": 15,
+        "children": [
+         {
+          "name": "third level child",
+          "value": 5
+         },
+         {
+          "name": "third level child",
+          "value": 5
+         },
+         {
+          "name": "third level child",
+          "value": 5,
+          "children": [
+           {
+            "name": "level 4",
+            "value": 2
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "name": "Child2",
+      "fill": "#2a9d8f",
+      "value": 20,
+      "children": [
+       {
+        "name": "another child",
+        "value": 10
+       },
+       {
+        "name": "next child",
+        "value": 10,
+        "children": [
+         {
+          "name": "level 3 of child 2",
+          "value": 5
+         },
+         {
+          "name": "level 3 of child 2",
+          "value": 3
+         },
+         {
+          "name": "level 3 of child 2",
+          "value": 2
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "name": "Child3",
+      "fill": "#e9c46a",
+      "value": 20
+     },
+     {
+      "name": "Child4",
+      "fill": "#F4A261",
+      "value": 10,
+      "children": [
+       {
+        "name": "child4 child",
+        "value": 5
+       },
+       {
+        "name": "child4 child",
+        "value": 5
+       }
+      ]
+     },
+     {
+      "name": "Child5",
+      "fill": "#e76f51",
+      "value": 20
+     }
+    ]
+   }
+  },
+  "children": [
+   {
+    "type": "Tooltip",
+    "props": {}
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-ring0-child2",
+   "type": "hover",
+   "x": 193,
+   "y": 209
+  },
+  {
+   "id": "hover-ring1-next-child",
+   "type": "hover",
+   "x": 268,
+   "y": 139
+  },
+  {
+   "id": "hover-ring2-level3",
+   "type": "hover",
+   "x": 274,
+   "y": 98
+  },
+  {
+   "id": "hover-ring3-level4",
+   "type": "hover",
+   "x": 238,
+   "y": 54
+  },
+  {
+   "id": "hover-outside",
+   "type": "hover",
+   "x": 12,
+   "y": 12
+  }
+ ]
+}
