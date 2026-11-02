@@ -23,7 +23,8 @@ void main() {
         child: Align(alignment: Alignment.topLeft, child: renderFixture(fixture)),
       ));
       await tester.pump(const Duration(seconds: 2));
-      expect(find.byWidgetPredicate((w) => w is CategoricalChart || w is PolarChart), findsOneWidget);
+      final type = (fixture['chart'] as Map<String, dynamic>)['type'];
+      expect(find.byWidgetPredicate((w) => w.runtimeType.toString() == type), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }

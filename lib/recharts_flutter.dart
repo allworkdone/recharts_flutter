@@ -14,6 +14,14 @@ export 'src/widgets/tooltip.dart' show DefaultTooltipContent;
 export 'src/polar_components.dart';
 export 'src/engine/pie.dart' show PieSector;
 export 'src/widgets/polar_chart.dart' show PolarChart, PieChart;
+// ---- polar: exports ----
+// ---- end polar ----
+// ---- treemap: exports ----
+// ---- end treemap ----
+// ---- sankey: exports ----
+// ---- end sankey ----
+// ---- sunburst: exports ----
+// ---- end sunburst ----
 
 class RechartsFlutter {
   Future<String?> getPlatformVersion() {

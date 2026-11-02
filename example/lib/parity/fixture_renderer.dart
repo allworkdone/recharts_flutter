@@ -98,6 +98,14 @@ Widget buildChart(Map<String, dynamic> chart, {double? width, double? height}) {
         accessibilityLayer: p.raw['accessibilityLayer'] != false,
         children: children,
       );
+    // ---- polar: chart cases ----
+    // ---- end polar ----
+    // ---- treemap: chart cases ----
+    // ---- end treemap ----
+    // ---- sankey: chart cases ----
+    // ---- end sankey ----
+    // ---- sunburst: chart cases ----
+    // ---- end sunburst ----
   }
   throw ArgumentError('Unsupported chart type $type');
 }
@@ -469,6 +477,14 @@ RechartsElement? _child(Map<String, dynamic> node) {
             if (c['type'] == 'Cell') _cell(_Props(c['props'] as Map<String, dynamic>? ?? const {})) else ?_child(c),
         ],
       );
+    // ---- polar: child element cases ----
+    // ---- end polar ----
+    // ---- treemap: child element cases ----
+    // ---- end treemap ----
+    // ---- sankey: child element cases ----
+    // ---- end sankey ----
+    // ---- sunburst: child element cases ----
+    // ---- end sunburst ----
   }
   return null;
 }
