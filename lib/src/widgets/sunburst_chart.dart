@@ -8,6 +8,7 @@ import 'package:flutter/gestures.dart' show kTouchSlop, PointerDeviceKind;
 import 'package:flutter/widgets.dart';
 
 import '../components.dart';
+import '../render/polar_painter.dart' show svgTextBox;
 import '../render/sector.dart';
 import '../render/shapes.dart';
 import '../render/svg_text.dart';
@@ -17,38 +18,64 @@ import 'responsive_container.dart';
 import 'tooltip.dart';
 
 /// `textOptions` (the `<Text>` props of defaultTextProps). Like in Recharts a
-/// given object replaces the defaults as a whole; unset fields are the SVG
-/// defaults (black fill, no stroke, normal weight, inherited size).
+/// given object replaces the defaults as a whole; unset fields are the Text
+/// defaults (fill '#808080', no stroke, normal weight, inherited size,
+/// verticalAnchor 'end'). textAnchor, x and y are always set by the chart.
 class SunburstTextOptions {
   const SunburstTextOptions({
     this.fontWeight,
     this.fontSize,
+    this.fontStyle,
+    this.letterSpacing,
     this.fill,
     this.stroke,
     this.strokeWidth = 1,
+    this.fillOpacity = 1,
+    this.strokeOpacity = 1,
     this.strokeBeforeFill = false,
     this.fontFamily,
+    this.verticalAnchor = TextVerticalAnchor.end,
+    this.angle = 0,
+    this.width,
+    this.maxLines,
+    this.breakAll = false,
+    this.scaleToFit = false,
+    this.dx = 0,
+    this.dy = 0,
+    this.pointerEventsNone = false,
   });
 
-  /// `{fontWeight: 'bold', paintOrder: 'stroke fill', fontSize: '.75rem', stroke: '#FFF', fill: 'black'}`.
+  /// `{fontWeight: 'bold', paintOrder: 'stroke fill', fontSize: '.75rem', stroke: '#FFF', fill: 'black', pointerEvents: 'none'}`.
   static const defaults = SunburstTextOptions(
     fontWeight: FontWeight.bold,
     fontSize: 12,
     fill: Color(0xFF000000),
     stroke: Color(0xFFFFFFFF),
     strokeBeforeFill: true,
+    pointerEventsNone: true,
   );
 
   final FontWeight? fontWeight;
 
   /// Pixels (`.75rem` is 12).
   final double? fontSize;
+  final FontStyle? fontStyle;
+  final double? letterSpacing;
   final Color? fill, stroke;
-  final double strokeWidth;
+  final double strokeWidth, fillOpacity, strokeOpacity;
 
   /// `paintOrder: 'stroke fill'`.
   final bool strokeBeforeFill;
   final String? fontFamily;
+  final TextVerticalAnchor verticalAnchor;
+  final double angle;
+  final double? width;
+  final int? maxLines;
+  final bool breakAll, scaleToFit;
+  final double dx, dy;
+
+  /// `pointerEvents: 'none'`; otherwise labels take the pointer from the sector under them.
+  final bool pointerEventsNone;
 }
 
 typedef SunburstNodeHandler = void Function(Map<String, Object?> node, PointerEvent event);
@@ -141,6 +168,7 @@ class _SunburstChartState extends State<SunburstChart> with TickerProviderStateM
   Offset? _downPosition;
   SunburstLayout? _layout;
   List<Path?> _paths = const [];
+  List<Rect?> _labelBoxes = const [];
   Tooltip? _tooltip;
 
   @override
@@ -208,6 +236,8 @@ class _SunburstChartState extends State<SunburstChart> with TickerProviderStateM
     if (layout == null) return null;
     final width = widget.padding;
     for (var i = layout.sectors.length - 1; i >= 0; i--) {
+      // A label is painted above its own sector, so it takes the pointer first.
+      if (_labelBoxes[i]?.contains(p) ?? false) return null;
       final path = _paths[i];
       if (path == null) continue;
       if (path.contains(p) || (widget.stroke != null && strokeContains(path, p, width))) return i;
@@ -305,6 +335,15 @@ class _SunburstChartState extends State<SunburstChart> with TickerProviderStateM
     _view.set(_computeView(), notify: false);
 
     final painter = _SunburstPainter(layout, _paths, w, base, scaler);
+    final o = w.textOptions;
+    _labelBoxes = [
+      for (final s in layout.sectors)
+        o.pointerEventsNone || o.angle != 0 || s.node[w.dataKey] == null || o.scaleToFit
+            ? null
+            : svgTextBox(jsString(s.node[w.dataKey]), s.textPosition.dx + o.dx, s.textPosition.dy + o.dy,
+                painter.fillStyle, scaler,
+                textAnchor: TextAnchor.middle, verticalAnchor: o.verticalAnchor),
+    ];
     final stack = Stack(
       clipBehavior: Clip.none,
       children: [
@@ -360,14 +399,19 @@ class _SunburstChartState extends State<SunburstChart> with TickerProviderStateM
 class _SunburstPainter extends CustomPainter {
   _SunburstPainter(this.layout, this.paths, this.w, TextStyle base, this.scaler) {
     final o = w.textOptions;
-    final style = base.copyWith(fontSize: o.fontSize, fontWeight: o.fontWeight ?? FontWeight.normal, fontFamily: o.fontFamily);
-    fillStyle = style.copyWith(foreground: fillPaint(o.fill ?? const Color(0xFF000000)));
+    final style = base.copyWith(
+        fontSize: o.fontSize,
+        fontWeight: o.fontWeight ?? FontWeight.normal,
+        fontStyle: o.fontStyle,
+        letterSpacing: o.letterSpacing,
+        fontFamily: o.fontFamily);
+    fillStyle = style.copyWith(foreground: fillPaint(o.fill ?? const Color(0xFF808080), opacity: o.fillOpacity));
     strokeStyle = o.stroke == null
         ? null
         : style.copyWith(
             foreground: Paint()
               ..style = PaintingStyle.stroke
-              ..color = o.stroke!
+              ..color = o.stroke!.withValues(alpha: o.stroke!.a * o.strokeOpacity)
               ..strokeWidth = o.strokeWidth
               ..strokeMiterLimit = 4);
     strokeFirst = o.strokeBeforeFill;
@@ -393,8 +437,18 @@ class _SunburstPainter extends CustomPainter {
       final v = s.node[w.dataKey];
       if (v == null) continue;
       final text = jsString(v);
-      void draw(TextStyle st) => paintSvgText(canvas, text, s.textPosition.dx, s.textPosition.dy,
-          style: st, textAnchor: TextAnchor.middle, scaler: scaler);
+      final o = w.textOptions;
+      void draw(TextStyle st) => paintSvgText(canvas, text, s.textPosition.dx + o.dx, s.textPosition.dy + o.dy,
+          style: st,
+          measureStyle: fillStyle,
+          textAnchor: TextAnchor.middle,
+          verticalAnchor: o.verticalAnchor,
+          angle: o.angle,
+          width: o.width,
+          maxLines: o.maxLines,
+          breakAll: o.breakAll,
+          scaleToFit: o.scaleToFit,
+          scaler: scaler);
       if (strokeFirst && strokeStyle != null) draw(strokeStyle!);
       draw(fillStyle);
       if (!strokeFirst && strokeStyle != null) draw(strokeStyle!);
