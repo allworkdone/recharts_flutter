@@ -1,0 +1,166 @@
+{
+ "name": "sunburst-options",
+ "description": "textOptions, cx/cy/outerRadius, padding 0, custom dataKey and nameKey; a hover on a label.",
+ "width": 500,
+ "height": 500,
+ "chart": {
+  "type": "SunburstChart",
+  "props": {
+   "data": {
+    "label": "Root",
+    "size": 100,
+    "children": [
+     {
+      "label": "Child1",
+      "size": 30,
+      "fill": "#264653",
+      "children": [
+       {
+        "label": "third child",
+        "size": 10
+       },
+       {
+        "label": "another child",
+        "size": 5
+       },
+       {
+        "label": "next child",
+        "size": 15,
+        "children": [
+         {
+          "label": "third level child",
+          "size": 5
+         },
+         {
+          "label": "third level child",
+          "size": 5
+         },
+         {
+          "label": "third level child",
+          "size": 5,
+          "children": [
+           {
+            "label": "level 4",
+            "size": 2
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "label": "Child2",
+      "size": 20,
+      "fill": "#2a9d8f",
+      "children": [
+       {
+        "label": "another child",
+        "size": 10
+       },
+       {
+        "label": "next child",
+        "size": 10,
+        "children": [
+         {
+          "label": "level 3 of child 2",
+          "size": 5
+         },
+         {
+          "label": "level 3 of child 2",
+          "size": 3
+         },
+         {
+          "label": "level 3 of child 2",
+          "size": 2
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "label": "Child3",
+      "size": 20,
+      "fill": "#e9c46a"
+     },
+     {
+      "label": "Child4",
+      "size": 10,
+      "fill": "#F4A261",
+      "children": [
+       {
+        "label": "child4 child",
+        "size": 5
+       },
+       {
+        "label": "child4 child",
+        "size": 5
+       }
+      ]
+     },
+     {
+      "label": "Child5",
+      "size": 20,
+      "fill": "#e76f51"
+     }
+    ]
+   },
+   "dataKey": "size",
+   "nameKey": "label",
+   "padding": 0,
+   "innerRadius": 40,
+   "outerRadius": 200,
+   "cx": 220,
+   "cy": 260,
+   "textOptions": {
+    "fontSize": 14,
+    "fill": "#ffffff",
+    "fontWeight": "normal"
+   }
+  },
+  "children": [
+   {
+    "type": "Tooltip",
+    "props": {}
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-ring0-edge",
+   "type": "hover",
+   "x": 166,
+   "y": 246
+  },
+  {
+   "id": "hover-ring0-label",
+   "type": "hover",
+   "x": 175,
+   "y": 227
+  },
+  {
+   "id": "hover-ring1",
+   "type": "hover",
+   "x": 209,
+   "y": 171
+  },
+  {
+   "id": "hover-ring2",
+   "type": "hover",
+   "x": 251,
+   "y": 140
+  },
+  {
+   "id": "hover-ring3",
+   "type": "hover",
+   "x": 210,
+   "y": 102
+  },
+  {
+   "id": "hover-outside",
+   "type": "hover",
+   "x": 12,
+   "y": 12
+  }
+ ]
+}

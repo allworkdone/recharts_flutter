@@ -122,6 +122,7 @@ Widget buildChart(Map<String, dynamic> chart, {double? width, double? height}) {
         endAngle: p.dbl('endAngle') ?? 360,
         fill: p.color('fill') ?? const Color(0xFF333333),
         stroke: p.color('stroke') ?? const Color(0xFFFFFFFF),
+        textOptions: _sunburstText(p.raw['textOptions']),
         children: children,
       );
     // ---- end sunburst ----
@@ -749,3 +750,22 @@ Map<String, Object?> _sunburstNode(Map<String, dynamic> n) => {
           _ => e.value,
         },
     };
+
+/// `textOptions` of a SunburstChart; absent means the chart's defaults.
+SunburstTextOptions _sunburstText(Object? raw) {
+  if (raw is! Map) return SunburstTextOptions.defaults;
+  final p = _Props(raw.cast<String, dynamic>());
+  final weight = raw['fontWeight'];
+  return SunburstTextOptions(
+    fontWeight: weight == 'bold' ? FontWeight.bold : (weight is num ? FontWeight.values[(weight ~/ 100 - 1).clamp(0, 8)] : null),
+    fontSize: p.dbl('fontSize'),
+    fill: p.color('fill'),
+    stroke: p.color('stroke'),
+    strokeWidth: p.dbl('strokeWidth') ?? 1,
+    strokeBeforeFill: raw['paintOrder'] == 'stroke fill',
+    dx: p.dbl('dx') ?? 0,
+    dy: p.dbl('dy') ?? 0,
+    angle: p.dbl('angle') ?? 0,
+    pointerEventsNone: raw['pointerEvents'] == 'none',
+  );
+}
