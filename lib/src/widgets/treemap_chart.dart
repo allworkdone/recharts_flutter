@@ -288,10 +288,21 @@ class _TreemapState extends State<Treemap> with TickerProviderStateMixin {
     _rehover();
   }
 
-  /// A browser re-hit-tests under a still pointer after the layout changed.
+  /// Chrome re-hit-tests under a still pointer after the DOM changed and fires
+  /// mouseenter on the new node. The tooltip keeps its coordinate when the
+  /// index is unchanged (observed against Recharts 3.10.1; the reason is not
+  /// in the Treemap source).
   void _rehover() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _pointerInside && _pointer != null) _setHover(_itemAt(_pointer!));
+      final p = _pointer;
+      if (!mounted || !_pointerInside || p == null) return;
+      final item = _itemAt(p);
+      _hoveredKey = null;
+      if (item == null) return;
+      final index = item.node['tooltipIndex'] as String;
+      final keep = _hover.active && _hover.index == index;
+      _hoveredKey = item.key;
+      setState(() => _hover = _Interaction(active: true, index: index, coordinate: keep ? _hover.coordinate : _center(item)));
     });
   }
 
@@ -566,7 +577,9 @@ class _Box {
 final Map<Color, Paint> _strokePaints = {};
 Paint _strokePaint(Color c) => _strokePaints.putIfAbsent(c, () => Paint()
   ..style = PaintingStyle.stroke
-  ..strokeWidth = 1
+  ..strokeWidth = 0.9 // ponytail: empirical; matches Chrome's 1px svg stroke raster better than 1.0
+  ..strokeJoin = StrokeJoin.miter
+  ..strokeMiterLimit = 4
   ..color = c);
 
 class _TreemapPainter extends CustomPainter {
@@ -660,8 +673,12 @@ class _TreemapPainter extends CustomPainter {
       tp.paint(canvas, Offset(x, y - tp.computeDistanceToActualBaseline(TextBaseline.alphabetic)));
     }
 
+    // Chrome's glyph contrast is heavier than Skia's; a second pass darkens the antialiased edges alike.
     draw(style(color: fill));
-    if (stroke != null) draw(style(foreground: _strokePaint(stroke)));
+    if (stroke == null) draw(style(color: fill));
+    if (stroke != null) {
+      draw(style(foreground: _strokePaint(stroke)));
+    }
   }
 
   void _paintBreadcrumb(Canvas canvas) {

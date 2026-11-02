@@ -128,9 +128,24 @@ async function captureFixture(fx) {
       let t = 0;
       for (const ms of fx.captureAnimation) {
         if (ms + lag > t) { await page.clock.runFor(ms + lag - t); t = ms + lag; }
-        // CSS transitions (Treemap's slide-in) follow the real compositor clock, not the faked one: pin them to
-        // the fake time. The transition starts on the frame after t=0, like the JS animations' progress 0.
-        if (side === 'web') await page.evaluate((e) => document.getAnimations().forEach((a) => { a.pause(); a.currentTime = e; }), Math.max(0, ms - 16));
+        // Treemap's slide-in is a CSS transition on the compositor's real clock, and the browser may skip it
+        // when React commits both states in one frame: replay each node's transform as a paused Web Animation
+        // at the fake time of the last 16 ms frame (the transition starts one frame after t=0, like the JS animations).
+        if (side === 'web') {
+          await page.evaluate((e) => {
+            document.querySelectorAll('g.recharts-layer[style*="transition: transform"]').forEach((g) => {
+              const r = g.querySelector('path.recharts-rectangle');
+              const m = /transition: transform (\d+)ms ([^\s;]+)/.exec(g.getAttribute('style'));
+              if (!r || !m) return;
+              g.getAnimations().forEach((a) => a.cancel());
+              const from = -(+r.getAttribute('x')) - +r.getAttribute('width');
+              const a = g.animate([{ transform: `translate(${from}px, 0px)` }, { transform: 'translate(0px, 0px)' }],
+                { duration: +m[1], easing: m[2], fill: 'both' });
+              a.pause();
+              a.currentTime = e;
+            });
+          }, Math.max(0, Math.floor(ms / 16) * 16 - 16));
+        }
         frames[side][ms] = await shot(page, fx);
       }
       await ctx.close();
