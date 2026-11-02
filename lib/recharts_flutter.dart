@@ -19,6 +19,9 @@ export 'src/widgets/polar_chart.dart' show PolarChart, PieChart;
 // ---- treemap: exports ----
 // ---- end treemap ----
 // ---- sankey: exports ----
+export 'src/sankey.dart'
+    show SankeyData, SankeyLinkDatum, SankeyNode, SankeyLink, SankeyNodeProps, SankeyLinkProps, SankeyElementType, SankeyVerticalAlign, SankeyAlign;
+export 'src/widgets/sankey_chart.dart' show Sankey, SankeyNodePainter, SankeyLinkPainter, SankeyEventHandler;
 // ---- end sankey ----
 // ---- sunburst: exports ----
 export 'src/widgets/sunburst_chart.dart' show SunburstChart, SunburstTextOptions, SunburstNodeHandler;

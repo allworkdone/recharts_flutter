@@ -103,6 +103,25 @@ Widget buildChart(Map<String, dynamic> chart, {double? width, double? height}) {
     // ---- treemap: chart cases ----
     // ---- end treemap ----
     // ---- sankey: chart cases ----
+    case 'Sankey':
+      return Sankey(
+        width: w,
+        height: h,
+        data: SankeyData.fromJson(p.raw['data'] as Map<String, dynamic>),
+        nodePadding: p.dbl('nodePadding') ?? 10,
+        nodeWidth: p.dbl('nodeWidth') ?? 10,
+        linkCurvature: p.dbl('linkCurvature') ?? 0.5,
+        iterations: p.dbl('iterations')?.toInt() ?? 32,
+        node: _sankeyStyle(p.raw['node']),
+        link: _sankeyStyle(p.raw['link']),
+        margin: margin,
+        sort: p.boolean('sort') ?? true,
+        verticalAlign: p.str('verticalAlign') == 'top' ? SankeyVerticalAlign.top : SankeyVerticalAlign.justify,
+        align: p.str('align') == 'left' ? SankeyAlign.left : SankeyAlign.justify,
+        dataKey: p.raw['dataKey'] ?? 'value',
+        nameKey: p.raw['nameKey'] ?? 'name',
+        children: children,
+      );
     // ---- end sankey ----
     // ---- sunburst: chart cases ----
     case 'SunburstChart':
@@ -769,3 +788,19 @@ SunburstTextOptions _sunburstText(Object? raw) {
     pointerEventsNone: raw['pointerEvents'] == 'none',
   );
 }
+
+// ---- sankey: helpers ----
+SvgStyle? _sankeyStyle(Object? v) {
+  if (v is! Map<String, dynamic>) return null;
+  final p = _Props(v);
+  return SvgStyle(
+    fill: p.color('fill'),
+    fillOpacity: p.dbl('fillOpacity'),
+    stroke: p.color('stroke'),
+    strokeWidth: p.dbl('strokeWidth'),
+    strokeOpacity: p.dbl('strokeOpacity'),
+    strokeDasharray: p.dash('strokeDasharray'),
+    radius: v['radius'],
+  );
+}
+// ---- end sankey ----

@@ -1,0 +1,161 @@
+{
+ "name": "sankey-node-style",
+ "description": "node style: fill, stroke, strokeWidth and radius.",
+ "width": 700,
+ "height": 420,
+ "chart": {
+  "type": "Sankey",
+  "props": {
+   "node": {
+    "fill": "#ff7300",
+    "stroke": "#333333",
+    "strokeWidth": 2,
+    "radius": 4
+   },
+   "data": {
+    "nodes": [
+     {
+      "name": "Visits"
+     },
+     {
+      "name": "Search"
+     },
+     {
+      "name": "Social"
+     },
+     {
+      "name": "Direct"
+     },
+     {
+      "name": "Product"
+     },
+     {
+      "name": "Cart"
+     },
+     {
+      "name": "Checkout"
+     },
+     {
+      "name": "Purchase"
+     },
+     {
+      "name": "Exit"
+     },
+     {
+      "name": "Support"
+     }
+    ],
+    "links": [
+     {
+      "source": 0,
+      "target": 1,
+      "value": 50
+     },
+     {
+      "source": 0,
+      "target": 2,
+      "value": 30
+     },
+     {
+      "source": 0,
+      "target": 3,
+      "value": 20
+     },
+     {
+      "source": 1,
+      "target": 4,
+      "value": 35
+     },
+     {
+      "source": 1,
+      "target": 8,
+      "value": 15
+     },
+     {
+      "source": 2,
+      "target": 4,
+      "value": 12
+     },
+     {
+      "source": 2,
+      "target": 8,
+      "value": 18
+     },
+     {
+      "source": 3,
+      "target": 4,
+      "value": 20
+     },
+     {
+      "source": 4,
+      "target": 5,
+      "value": 40
+     },
+     {
+      "source": 4,
+      "target": 8,
+      "value": 27
+     },
+     {
+      "source": 5,
+      "target": 6,
+      "value": 30
+     },
+     {
+      "source": 5,
+      "target": 8,
+      "value": 10
+     },
+     {
+      "source": 6,
+      "target": 7,
+      "value": 25
+     },
+     {
+      "source": 6,
+      "target": 8,
+      "value": 5
+     },
+     {
+      "source": 3,
+      "target": 9,
+      "value": 6
+     },
+     {
+      "source": 2,
+      "target": 6,
+      "value": 4
+     }
+    ]
+   }
+  },
+  "children": [
+   {
+    "type": "Tooltip",
+    "props": {
+     "isAnimationActive": false
+    }
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-node",
+   "type": "hover",
+   "x": 282,
+   "y": 202
+  },
+  {
+   "id": "hover-link",
+   "type": "hover",
+   "x": 350,
+   "y": 232
+  },
+  {
+   "id": "hover-empty",
+   "type": "hover",
+   "x": 697,
+   "y": 210
+  }
+ ]
+}
