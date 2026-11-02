@@ -9,7 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:recharts_flutter/recharts_flutter.dart';
 import 'package:recharts_flutter/src/sunburst.dart';
 
-import 'chart_widget_test.dart' show host;
+import 'chart_widget_test.dart' show host, tooltipBox;
 import 'tooltip_item_test.dart' show Probe, click, mouseAt;
 
 Map<String, Object?> exampleSunburstData() => {
@@ -87,8 +87,8 @@ void main() {
       ],
       'tooltipIndex': '[0]',
     };
-    // Child1 sits at 54 degrees, radius 50 + 100 / 3 / 2 of 3 levels.
-    final p = const Offset(250, 250) + Offset.fromDirection(-54 * 3.141592653589793 / 180, 50 + 200 / 3 / 2);
+    // Inside Child1's sector: 54 degrees at radius 83.3 around (250, 250).
+    const p = Offset(299, 183);
     final mouse = await mouseAt(tester, const Offset(2, 2));
     await mouse.moveTo(p);
     await tester.pump();
@@ -110,7 +110,7 @@ void main() {
         children: [Tooltip(isAnimationActive: false, content: probe.build, trigger: TooltipTrigger.click)],
       )));
       expect(probe.visible, isFalse);
-      final p = const Offset(500, 250) + Offset.fromDirection(-54 * 3.141592653589793 / 180, 50 + 200 / 3 / 2);
+      const p = Offset(549, 183);
       final mouse = await mouseAt(tester, const Offset(2, 2));
       await mouse.moveTo(p);
       await tester.pump();
@@ -134,13 +134,13 @@ void main() {
         data: exampleSunburstData(),
         children: [Tooltip(isAnimationActive: false, content: probe.build)],
       )));
-      final inner = const Offset(500, 250) + Offset.fromDirection(-54 * 3.141592653589793 / 180, 50 + 200 / 3 / 2);
+      const inner = Offset(549, 183);
       final mouse = await mouseAt(tester, const Offset(2, 2));
       await mouse.moveTo(inner);
       await tester.pump();
       expect(probe.rows, ['Child1 : 30']);
       // 'third child' is the second ring, 0..36 degrees
-      final outer = const Offset(500, 250) + Offset.fromDirection(-18 * 3.141592653589793 / 180, 50 + 200 / 3 * 1.5 + 2);
+      const outer = Offset(645, 203);
       await mouse.moveTo(outer);
       await tester.pump();
       expect(probe.rows, ['third child : 10']);
@@ -148,5 +148,104 @@ void main() {
       await tester.pump();
       expect(probe.visible, isFalse);
     });
+  });
+
+  group('Tooltip.visibility / Tooltip.payload specs for SunburstChart', () {
+    Widget chart(Probe probe, {bool? active}) => host(SunburstChart(
+          width: 400,
+          height: 400,
+          data: exampleSunburstData(),
+          children: [Tooltip(isAnimationActive: false, content: probe.build, active: active)],
+        ));
+    // 400x400: Child1 at 54 degrees, radius 75 around (200, 200).
+    const child1 = Offset(244, 139), child1Moved = Offset(260, 160), away = Offset(2, 2);
+
+    testWidgets('the box sits at coordinate (275, 200) plus offset 10 and does not move with the mouse', (tester) async {
+      final probe = Probe();
+      await tester.pumpWidget(chart(probe));
+      final mouse = await mouseAt(tester, away);
+      await mouse.moveTo(child1);
+      await tester.pump();
+      expect(probe.props!.coordinate, const Offset(275, 200));
+      expect(tooltipBox(tester).targetTranslate, const Offset(285, 210));
+      await mouse.moveTo(child1Moved);
+      await tester.pump();
+      expect(tooltipBox(tester).targetTranslate, const Offset(285, 210));
+    });
+
+    testWidgets('empty title, one row "Child1 : 30"', (tester) async {
+      final probe = Probe();
+      await tester.pumpWidget(chart(probe));
+      final mouse = await mouseAt(tester, away);
+      await mouse.moveTo(child1);
+      await tester.pump();
+      expect(probe.props!.label, isNull);
+      expect(probe.rows, ['Child1 : 30']);
+    });
+
+    testWidgets('active=true keeps the tooltip after the pointer leaves, with the old index and coordinate', (tester) async {
+      final probe = Probe();
+      await tester.pumpWidget(chart(probe, active: true));
+      expect(probe.visible, isFalse);
+      final mouse = await mouseAt(tester, away);
+      await mouse.moveTo(child1);
+      await tester.pump();
+      expect(probe.visible, isTrue);
+      await mouse.moveTo(away);
+      await tester.pump();
+      expect(probe.visible, isTrue);
+      expect(probe.rows, ['Child1 : 30']);
+      expect(probe.props!.coordinate, const Offset(275, 200));
+    });
+
+    testWidgets('active=false never shows it', (tester) async {
+      final probe = Probe();
+      await tester.pumpWidget(chart(probe, active: false));
+      final mouse = await mouseAt(tester, away);
+      await mouse.moveTo(child1);
+      await tester.pump();
+      expect(probe.visible, isFalse);
+    });
+
+    testWidgets('active=null shows it only while over a sector', (tester) async {
+      final probe = Probe();
+      await tester.pumpWidget(chart(probe));
+      expect(probe.visible, isFalse);
+      final mouse = await mouseAt(tester, away);
+      await mouse.moveTo(child1);
+      await tester.pump();
+      expect(probe.visible, isTrue);
+      await mouse.moveTo(away);
+      await tester.pump();
+      expect(probe.visible, isFalse);
+    });
+  });
+
+  testWidgets('a label takes the pointer from its sector unless pointerEvents is none', (tester) async {
+    final left = <Object?>[];
+    Widget chart(SunburstTextOptions o) => host(SunburstChart(
+          width: 400,
+          height: 400,
+          data: exampleSunburstData(),
+          textOptions: o,
+          onMouseLeave: (n, e) => left.add(n['name']),
+        ));
+    // Child1's label is centered at 54 degrees, radius 75: (244.1, 139.3).
+    const sector = Offset(244, 139), edge = Offset(262, 175);
+    await tester.pumpWidget(chart(const SunburstTextOptions(fill: Color(0xFF000000))));
+    final mouse = await mouseAt(tester, const Offset(2, 2));
+    await mouse.moveTo(edge);
+    await tester.pump();
+    await mouse.moveTo(sector);
+    await tester.pump();
+    expect(left, ['Child1']);
+
+    left.clear();
+    await tester.pumpWidget(chart(SunburstTextOptions.defaults));
+    await mouse.moveTo(edge);
+    await tester.pump();
+    await mouse.moveTo(sector);
+    await tester.pump();
+    expect(left, isEmpty);
   });
 }
