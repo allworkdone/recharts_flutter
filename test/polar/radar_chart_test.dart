@@ -1,7 +1,9 @@
-// RadarChart and RadialBarChart tooltips and keyboard through the widgets,
-// following component/Tooltip/Tooltip.payload.spec.tsx (polar cases).
+// RadarChart and RadialBarChart tooltips and syncId through the widgets,
+// following component/Tooltip/Tooltip.payload.spec.tsx (polar cases) and
+// Tooltip.sync.spec.tsx (index sync between different chart types).
 
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:recharts_flutter/recharts_flutter.dart';
 
@@ -91,5 +93,44 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
     await tester.pump();
     expect(probe.props!.label, 'Page A');
+  });
+
+  testWidgets('syncId shares the tooltip index between a LineChart and a RadarChart', (tester) async {
+    final probe = Probe(), lineProbe = Probe();
+    const data = [
+      {'name': 'a', 'uv': 1},
+      {'name': 'b', 'uv': 3},
+      {'name': 'c', 'uv': 2},
+    ];
+    await tester.pumpWidget(host(Column(children: [
+      SizedBox(
+          width: 400,
+          height: 200,
+          child: LineChart(width: 400, height: 200, data: data, syncId: 's', children: [
+            const XAxis(dataKey: 'name'),
+            const Line(dataKey: 'uv', isAnimationActive: false),
+            Tooltip(isAnimationActive: false, content: lineProbe.build),
+          ])),
+      SizedBox(
+          width: 400,
+          height: 400,
+          child: RadarChart(width: 400, height: 400, data: data, syncId: 's', children: [
+            const PolarAngleAxis(dataKey: 'name'),
+            const Radar(dataKey: 'uv', isAnimationActive: false),
+            Tooltip(isAnimationActive: false, content: probe.build),
+          ])),
+    ])));
+    final mouse = await mouseAt(tester, const Offset(200, 100));
+    expect(probe.props!.active, isTrue);
+    expect(probe.props!.activeIndex, 1);
+    expect(probe.props!.label, 'b');
+    expect(probe.rows, ['uv : 3']);
+    // And the other way: the radar's active spoke drives the line chart.
+    await mouse.moveTo(const Offset(200, 300));
+    await tester.pump();
+    expect(lineProbe.props!.active, isTrue);
+    expect(lineProbe.props!.activeIndex, 0);
+    expect(lineProbe.props!.label, 'a');
+    await mouse.removePointer();
   });
 }

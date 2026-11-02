@@ -39,6 +39,7 @@ import '../render/svg_text.dart';
 import 'brush.dart';
 import 'legend.dart';
 import 'responsive_container.dart';
+import 'sync_registry.dart';
 import 'tooltip.dart';
 
 /// Shared props of the cartesian charts (`CartesianChartProps`).
@@ -331,10 +332,7 @@ class _ViewNotifier extends ChangeNotifier implements ValueListenable<_TooltipVi
   }
 }
 
-/// Registry for `syncId` with `syncMethod="index"`.
-final Map<Object, Set<_CartesianChartState>> _syncGroups = {};
-
-class _CartesianChartState extends State<CategoricalChart> with TickerProviderStateMixin {
+class _CartesianChartState extends State<CategoricalChart> with TickerProviderStateMixin implements TooltipSyncPeer {
   final Map<String, SeriesAnimator<BarRect>> _barAnimators = {};
   final Map<String, SeriesAnimator<LinePoint>> _lineAnimators = {};
   final Map<String, AnimatedLineLength> _lineLengths = {};
@@ -415,7 +413,7 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
     if (_registeredSyncId == widget.syncId) return;
     _unregisterSync();
     if (widget.syncId != null) {
-      _syncGroups.putIfAbsent(widget.syncId!, () => {}).add(this);
+      joinSyncGroup(widget.syncId!, this);
       _registeredSyncId = widget.syncId;
     }
   }
@@ -423,8 +421,7 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
   void _unregisterSync() {
     final id = _registeredSyncId;
     if (id == null) return;
-    _syncGroups[id]?.remove(this);
-    if (_syncGroups[id]?.isEmpty ?? false) _syncGroups.remove(id);
+    leaveSyncGroup(id, this);
     _registeredSyncId = null;
   }
 
@@ -456,14 +453,15 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
     if (brush != null && id != null && range != _brushEmitted) {
       _brushEmitted = range;
       SchedulerBinding.instance.addPostFrameCallback((_) {
-        for (final other in [...?_syncGroups[id]]) {
-          if (!identical(other, this) && other.mounted) other._receiveBrushSync(range);
+        for (final other in syncPeers(id, this)) {
+          if (other.mounted) other.receiveBrushSync(range);
         }
       });
     }
   }
 
-  void _receiveBrushSync(BrushStartEndIndex range) {
+  @override
+  void receiveBrushSync(BrushStartEndIndex range) {
     if (range.startIndex == _dataStartIndex && range.endIndex == _dataEndIndex) return;
     setState(() {
       _dataStartIndex = range.startIndex;
@@ -862,14 +860,13 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
     final m = _model;
     if (id == null || m == null || m.tooltipSettings == null) return;
     final v = _view.value;
-    for (final other in _syncGroups[id] ?? const <_CartesianChartState>{}) {
-      if (!identical(other, this)) {
-        other._receiveSync(v.active, v.activeIndex, v.coordinate, v.activeDataKey, m.viewBox);
-      }
+    for (final other in syncPeers(id, this)) {
+      other.receiveTooltipSync(v.active, v.activeIndex, v.coordinate, v.activeDataKey, m.viewBox);
     }
   }
 
-  void _receiveSync(bool active, int? index, Offset? coordinate, Object? dataKey, Rect sourceViewBox) {
+  @override
+  void receiveTooltipSync(bool active, int? index, Offset? coordinate, Object? dataKey, Rect sourceViewBox) {
     final m = _model;
     if (m == null) return;
     if (!active) {

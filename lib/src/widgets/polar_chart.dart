@@ -28,6 +28,7 @@ import '../render/sector.dart';
 import '../render/svg_text.dart';
 import 'legend.dart';
 import 'responsive_container.dart';
+import 'sync_registry.dart';
 import 'tooltip.dart';
 
 /// Shared props of the polar charts (`PolarChartProps` with
@@ -189,10 +190,7 @@ class _ViewNotifier extends ChangeNotifier implements ValueListenable<_PolarView
   }
 }
 
-/// Registry for `syncId` with `syncMethod="index"`.
-final Map<Object, Set<_PolarChartState>> _syncGroups = {};
-
-class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin {
+class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin implements TooltipSyncPeer {
   final Map<String, SeriesAnimator<PieSector>> _pieAnimators = {};
   final Map<String, SeriesAnimator<RadarPoint>> _radarAnimators = {}, _radarBaseLineAnimators = {};
   final Map<String, SeriesAnimator<RadialBarSector>> _radialBarAnimators = {};
@@ -250,7 +248,7 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin {
     if (_registeredSyncId == widget.syncId) return;
     _unregisterSync();
     if (widget.syncId != null) {
-      _syncGroups.putIfAbsent(widget.syncId!, () => {}).add(this);
+      joinSyncGroup(widget.syncId!, this);
       _registeredSyncId = widget.syncId;
     }
   }
@@ -258,8 +256,7 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin {
   void _unregisterSync() {
     final id = _registeredSyncId;
     if (id == null) return;
-    _syncGroups[id]?.remove(this);
-    if (_syncGroups[id]?.isEmpty ?? false) _syncGroups.remove(id);
+    leaveSyncGroup(id, this);
     _registeredSyncId = null;
   }
 
@@ -593,12 +590,16 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin {
     final m = _model;
     if (id == null || m == null || m.tooltipSettings == null) return;
     final v = _view.value;
-    for (final other in _syncGroups[id] ?? const <_PolarChartState>{}) {
-      if (!identical(other, this)) other._receiveSync(v.active, v.activeIndex, v.coordinate, v.activeDataKey, m.viewBox);
+    for (final other in syncPeers(id, this)) {
+      other.receiveTooltipSync(v.active, v.activeIndex, v.coordinate, v.activeDataKey, m.viewBox);
     }
   }
 
-  void _receiveSync(bool active, int? index, Offset? coordinate, Object? dataKey, Rect sourceViewBox) {
+  @override
+  void receiveBrushSync(({int startIndex, int endIndex}) range) {}
+
+  @override
+  void receiveTooltipSync(bool active, int? index, Offset? coordinate, Object? dataKey, Rect sourceViewBox) {
     final m = _model;
     if (m == null) return;
     if (!active) {
