@@ -1,0 +1,247 @@
+{
+ "name": "treemap-nest-mode",
+ "description": "type nest: a click drills into a parent, the breadcrumb shows below the map.",
+ "width": 500,
+ "height": 300,
+ "chart": {
+  "type": "Treemap",
+  "props": {
+   "data": [
+    {
+     "name": "axis",
+     "children": [
+      {
+       "name": "Axes",
+       "size": 1302
+      },
+      {
+       "name": "Axis",
+       "size": 24593
+      },
+      {
+       "name": "AxisGridLine",
+       "size": 652
+      },
+      {
+       "name": "AxisLabel",
+       "size": 636
+      },
+      {
+       "name": "CartesianAxes",
+       "size": 6703
+      }
+     ]
+    },
+    {
+     "name": "controls",
+     "children": [
+      {
+       "name": "AnchorControl",
+       "size": 2138
+      },
+      {
+       "name": "ClickControl",
+       "size": 3824
+      },
+      {
+       "name": "Control",
+       "size": 1353
+      },
+      {
+       "name": "ControlList",
+       "size": 4665
+      },
+      {
+       "name": "DragControl",
+       "size": 2649
+      },
+      {
+       "name": "ExpandControl",
+       "size": 2832
+      },
+      {
+       "name": "HoverControl",
+       "size": 4896
+      },
+      {
+       "name": "IControl",
+       "size": 763
+      },
+      {
+       "name": "PanZoomControl",
+       "size": 5222
+      },
+      {
+       "name": "SelectionControl",
+       "size": 7862
+      },
+      {
+       "name": "TooltipControl",
+       "size": 8435
+      }
+     ]
+    },
+    {
+     "name": "data",
+     "children": [
+      {
+       "name": "Data",
+       "size": 20544
+      },
+      {
+       "name": "DataList",
+       "size": 19788
+      },
+      {
+       "name": "DataSprite",
+       "size": 10349
+      },
+      {
+       "name": "EdgeSprite",
+       "size": 3301
+      },
+      {
+       "name": "NodeSprite",
+       "size": 19382
+      },
+      {
+       "name": "render",
+       "children": [
+        {
+         "name": "ArrowType",
+         "size": 698
+        },
+        {
+         "name": "EdgeRenderer",
+         "size": 5569
+        },
+        {
+         "name": "IRenderer",
+         "size": 353
+        },
+        {
+         "name": "ShapeRenderer",
+         "size": 2247
+        }
+       ]
+      },
+      {
+       "name": "ScaleBinding",
+       "size": 11275
+      },
+      {
+       "name": "Tree",
+       "size": 7147
+      },
+      {
+       "name": "TreeBuilder",
+       "size": 9930
+      }
+     ]
+    },
+    {
+     "name": "events",
+     "children": [
+      {
+       "name": "DataEvent",
+       "size": 7313
+      },
+      {
+       "name": "SelectionEvent",
+       "size": 6880
+      },
+      {
+       "name": "TooltipEvent",
+       "size": 3701
+      },
+      {
+       "name": "VisualizationEvent",
+       "size": 2117
+      }
+     ]
+    },
+    {
+     "name": "legend",
+     "children": [
+      {
+       "name": "Legend",
+       "size": 20859
+      },
+      {
+       "name": "LegendItem",
+       "size": 4614
+      },
+      {
+       "name": "LegendRange",
+       "size": 10530
+      }
+     ]
+    }
+   ],
+   "dataKey": "size",
+   "type": "nest",
+   "isAnimationActive": false
+  },
+  "children": [
+   {
+    "type": "Tooltip",
+    "props": {}
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-controls",
+   "type": "hover",
+   "x": 60,
+   "y": 130
+  },
+  {
+   "id": "hover-right-edge",
+   "type": "hover",
+   "x": 494,
+   "y": 40
+  },
+  {
+   "id": "click-data",
+   "type": "drag",
+   "from": {
+    "x": 250,
+    "y": 40
+   },
+   "to": {
+    "x": 250,
+    "y": 40
+   },
+   "steps": 1
+  },
+  {
+   "id": "click-data-render",
+   "type": "drag",
+   "from": {
+    "x": 250,
+    "y": 40
+   },
+   "to": {
+    "x": 250,
+    "y": 40
+   },
+   "steps": 1,
+   "then": [
+    {
+     "id": "click-render",
+     "type": "drag",
+     "from": {
+      "x": 368,
+      "y": 30
+     },
+     "to": {
+      "x": 368,
+      "y": 30
+     },
+     "steps": 1
+    }
+   ]
+  }
+ ]
+}

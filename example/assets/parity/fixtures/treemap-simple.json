@@ -1,0 +1,80 @@
+{
+ "name": "treemap-simple",
+ "description": "Flat Treemap, default colorPanel, label fit rule and the slide-in entrance.",
+ "width": 500,
+ "height": 300,
+ "chart": {
+  "type": "Treemap",
+  "props": {
+   "data": [
+    {
+     "name": "Alpha",
+     "value": 400
+    },
+    {
+     "name": "Bravo",
+     "value": 300
+    },
+    {
+     "name": "Charlie",
+     "value": 300
+    },
+    {
+     "name": "Delta",
+     "value": 200
+    },
+    {
+     "name": "Echo",
+     "value": 278
+    },
+    {
+     "name": "Foxtrot",
+     "value": 189
+    },
+    {
+     "name": "Golf",
+     "value": 150
+    },
+    {
+     "name": "Hotel",
+     "value": 90
+    }
+   ],
+   "dataKey": "value",
+   "nameKey": "name"
+  },
+  "children": [
+   {
+    "type": "Tooltip",
+    "props": {}
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-alpha",
+   "type": "hover",
+   "x": 120,
+   "y": 40
+  },
+  {
+   "id": "hover-delta",
+   "type": "hover",
+   "x": 340,
+   "y": 25
+  },
+  {
+   "id": "hover-right-edge",
+   "type": "hover",
+   "x": 494,
+   "y": 60
+  }
+ ],
+ "captureAnimation": [
+  0,
+  200,
+  500,
+  1000,
+  1500
+ ]
+}

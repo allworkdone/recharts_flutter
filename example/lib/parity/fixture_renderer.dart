@@ -101,6 +101,8 @@ Widget buildChart(Map<String, dynamic> chart, {double? width, double? height}) {
     // ---- polar: chart cases ----
     // ---- end polar ----
     // ---- treemap: chart cases ----
+    case 'Treemap':
+      return _treemap(p, w, h, data, children);
     // ---- end treemap ----
     // ---- sankey: chart cases ----
     // ---- end sankey ----
@@ -720,3 +722,32 @@ Color? parseCssColor(String input) {
   }
   return null;
 }
+
+// ---- treemap: helpers ----
+Widget _treemap(_Props p, double? w, double? h, List<Object?> data, List<RechartsElement> children) {
+  const d = Treemap();
+  return Treemap(
+    width: w,
+    height: h,
+    data: data,
+    dataKey: p.raw['dataKey'] ?? d.dataKey,
+    nameKey: p.raw['nameKey'] ?? d.nameKey,
+    aspectRatio: p.dbl('aspectRatio') ?? d.aspectRatio,
+    nodeInset: p.dbl('nodeInset') ?? 0,
+    nodeGap: p.dbl('nodeGap') ?? 0,
+    fill: p.color('fill'),
+    stroke: p.color('stroke'),
+    type: p.str('type') == 'nest' ? TreemapType.nest : TreemapType.flat,
+    colorPanel: [for (final c in (p.raw['colorPanel'] as List? ?? const [])) ?parseCssColor(c as String)].nullIfEmpty,
+    isAnimationActive: p.boolean('isAnimationActive'),
+    animationBegin: p.dbl('animationBegin')?.toInt() ?? 0,
+    animationDuration: p.dbl('animationDuration')?.toInt() ?? 1500,
+    animationEasing: p.str('animationEasing') ?? 'linear',
+    children: children,
+  );
+}
+
+extension on List<Color> {
+  List<Color>? get nullIfEmpty => isEmpty ? null : this;
+}
+// ---- end treemap ----

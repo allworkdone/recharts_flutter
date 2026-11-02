@@ -128,6 +128,9 @@ async function captureFixture(fx) {
       let t = 0;
       for (const ms of fx.captureAnimation) {
         if (ms + lag > t) { await page.clock.runFor(ms + lag - t); t = ms + lag; }
+        // CSS transitions (Treemap's slide-in) follow the real compositor clock, not the faked one: pin them to
+        // the fake time. The transition starts on the frame after t=0, like the JS animations' progress 0.
+        if (side === 'web') await page.evaluate((e) => document.getAnimations().forEach((a) => { a.pause(); a.currentTime = e; }), Math.max(0, ms - 16));
         frames[side][ms] = await shot(page, fx);
       }
       await ctx.close();
