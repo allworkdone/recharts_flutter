@@ -15,12 +15,23 @@ enum SankeyVerticalAlign { justify, top }
 
 enum SankeyAlign { left, justify }
 
-/// `links` entry of `SankeyData`.
+/// `links` entry of `SankeyData`. [raw] is the whole link object (extra fields
+/// included), spread into the layout and tooltip payloads like `{...link}`.
 class SankeyLinkDatum {
-  const SankeyLinkDatum({required this.source, required this.target, required this.value});
+  SankeyLinkDatum({required this.source, required this.target, this.value = 0, Map<String, Object?> extra = const {}})
+      : raw = {...extra, 'source': source, 'target': target, 'value': value};
+
+  /// A link object as JSON; a missing `value` counts as 0 (`getValue`).
+  SankeyLinkDatum.fromMap(Map<dynamic, dynamic> m)
+      : raw = Map<String, Object?>.from(m),
+        source = (m['source'] as num).toInt(),
+        target = (m['target'] as num).toInt(),
+        value = (m['value'] as num?)?.toDouble() ?? 0;
+
   final int source;
   final int target;
   final double value;
+  final Map<String, Object?> raw;
 }
 
 /// `SankeyData`: [nodes] are arbitrary maps (`{name: ...}`), [links] reference them by index.
@@ -33,9 +44,7 @@ class SankeyData {
   factory SankeyData.fromJson(Map<String, dynamic> json) => SankeyData(
         nodes: [for (final n in (json['nodes'] as List? ?? const [])) Map<String, Object?>.from(n as Map)],
         links: [
-          for (final l in (json['links'] as List? ?? const []).cast<Map>())
-            SankeyLinkDatum(
-                source: (l['source'] as num).toInt(), target: (l['target'] as num).toInt(), value: (l['value'] as num).toDouble()),
+          for (final l in (json['links'] as List? ?? const []).cast<Map>()) SankeyLinkDatum.fromMap(l),
         ],
       );
 }
@@ -68,7 +77,8 @@ class SankeyNode {
 
 /// `LinkDataItemDy`.
 class SankeyLink {
-  SankeyLink(this.source, this.target, this.value, this.dy);
+  SankeyLink(this.source, this.target, this.value, this.dy, [this.raw = const {}]);
+  final Map<String, Object?> raw;
   final int source;
   final int target;
   final double value;
@@ -216,7 +226,7 @@ List<SankeyLink> _updateYOfTree(
       }
     }
   }
-  return [for (final l in links) SankeyLink(l.source, l.target, l.value, _getValue(l) * yRatio)];
+  return [for (final l in links) SankeyLink(l.source, l.target, l.value, _getValue(l) * yRatio, l.raw)];
 }
 
 void _resolveCollisions(List<List<SankeyNode>?> depthTree, double height, double nodePadding, bool sort) {
@@ -476,12 +486,12 @@ class SankeyLinkProps {
 
   /// `{...link, source: sourceNode, target: targetNode}` as a JS object.
   Map<String, Object?> get payload => {
-        'source': source.toMap(),
-        'target': target.toMap(),
-        'value': link.value,
+        ...link.raw,
         'dy': link.dy,
         'sy': link.sy,
         'ty': link.ty,
+        'source': source.toMap(),
+        'target': target.toMap(),
       };
 }
 
@@ -538,7 +548,7 @@ Offset sankeyLinkTooltipCoordinate(SankeyLinkProps p) => Offset((p.sourceX + p.t
 
 /// `sankeyPayloadSearcher` + `combineTooltipPayload`'s non-array branch: the
 /// one tooltip entry of item `type-index`, or null.
-TooltipPayloadEntry? sankeyTooltipEntry({
+TooltipPayloadEntry sankeyTooltipEntry({
   required SankeyElementType type,
   required int index,
   required List<SankeyNodeProps> nodes,
@@ -547,16 +557,20 @@ TooltipPayloadEntry? sankeyTooltipEntry({
   required Object? nameKey,
   Object? name,
   Color? fill,
+  Color? stroke,
 }) {
+  // An index with no item (the keyboard's '0') leaves the searcher result undefined.
+  Object? searched;
   Object? payload, itemName, itemValue;
-  if (type == SankeyElementType.node) {
-    if (index < 0 || index >= nodes.length) return null;
+  final inRange = index >= 0 && index < (type == SankeyElementType.node ? nodes.length : links.length);
+  if (!inRange) {
+    // searched stays null
+  } else if (type == SankeyElementType.node) {
     final node = nodes[index].payload.toMap();
     payload = node;
     itemName = getValueByDataKey(node, nameKey, '');
     itemValue = getValueByDataKey(node, 'value');
   } else {
-    if (index < 0 || index >= links.length) return null;
     final p = links[index].payload;
     payload = p;
     final sourceName = getValueByDataKey(p['source'], nameKey, '');
@@ -564,7 +578,7 @@ TooltipPayloadEntry? sankeyTooltipEntry({
     itemName = '${jsString(sourceName)} - ${jsString(targetName)}';
     itemValue = getValueByDataKey(p, 'value');
   }
-  final searched = <String, Object?>{'payload': payload, 'name': itemName, 'value': itemValue};
+  if (inRange) searched = <String, Object?>{'payload': payload, 'name': itemName, 'value': itemValue};
   final n = getValueByDataKey(searched, nameKey) ?? name;
   return TooltipPayloadEntry(
     dataKey: dataKey,
@@ -573,6 +587,11 @@ TooltipPayloadEntry? sankeyTooltipEntry({
     payload: searched,
     color: fill,
     fill: fill,
+    stroke: stroke,
     unit: '',
   );
 }
+
+/// `selectChartViewBox` for a Sankey: the chart less its margin.
+Rect sankeyViewBox(Size size, Margin margin) => Rect.fromLTWH(margin.left, margin.top,
+    math.max(size.width - margin.left - margin.right, 0), math.max(size.height - margin.top - margin.bottom, 0));

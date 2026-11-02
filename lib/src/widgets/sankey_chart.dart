@@ -5,8 +5,11 @@
 // shapes: a Rectangle (fill #0088fe, fill-opacity 0.8) and a stroked cubic path
 // (stroke #333, stroke-opacity 0.2). Pointer handling follows polar_chart.dart.
 
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart' show kTouchSlop, PointerDeviceKind;
+import 'package:flutter/services.dart' show KeyDownEvent, LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
 
 import '../components.dart';
@@ -16,11 +19,14 @@ import '../sankey.dart';
 import 'responsive_container.dart';
 import 'tooltip.dart';
 
-/// `SankeyNodeOptions` as a callback: paints in the chart's coordinate space.
-typedef SankeyNodePainter = void Function(Canvas canvas, SankeyNodeProps props);
+/// `SankeyNodeOptions` as a callback: paints in the chart's coordinate space
+/// ([size] is the chart). The returned path, if any, is what hover and click
+/// hit test (Recharts' events sit on the wrapping `<g>`, so anything painted
+/// reacts); null falls back to the default Rectangle.
+typedef SankeyNodePainter = Path? Function(Canvas canvas, Size size, SankeyNodeProps props);
 
-/// `SankeyLinkOptions` as a callback.
-typedef SankeyLinkPainter = void Function(Canvas canvas, SankeyLinkProps props);
+/// `SankeyLinkOptions` as a callback; null falls back to the default link path.
+typedef SankeyLinkPainter = Path? Function(Canvas canvas, Size size, SankeyLinkProps props);
 
 /// `onClick` / `onMouseEnter` / `onMouseLeave`: [item] is a [SankeyNodeProps] or a [SankeyLinkProps].
 typedef SankeyEventHandler = void Function(Object item, SankeyElementType type, PointerEvent event);
@@ -29,7 +35,7 @@ typedef SankeyEventHandler = void Function(Object item, SankeyElementType type, 
 ///
 /// [node] is an [SvgStyle] merged over the default Rectangle or a
 /// [SankeyNodePainter]; [link] an [SvgStyle] or a [SankeyLinkPainter]. A custom
-/// painter's shape is unknown to hit testing: the default shape stands in.
+/// painter's shape is its returned hit path, else the default shape.
 class Sankey extends StatefulWidget {
   const Sankey({
     super.key,
@@ -50,8 +56,11 @@ class Sankey extends StatefulWidget {
     this.nameKey = 'name',
     this.name,
     this.fill,
+    this.stroke,
+    this.strokeWidth,
     this.accessibilityLayer = true,
     this.title,
+    this.desc,
     this.onClick,
     this.onMouseEnter,
     this.onMouseLeave,
@@ -79,8 +88,13 @@ class Sankey extends StatefulWidget {
 
   /// The tooltip entry colour.
   final Color? fill;
+
+  /// Set on the svg: inherited by default nodes (not links) and put in the tooltip entry.
+  final Color? stroke;
+  final double? strokeWidth;
   final bool accessibilityLayer;
   final String? title;
+  final String? desc;
   final SankeyEventHandler? onClick;
   final SankeyEventHandler? onMouseEnter;
   final SankeyEventHandler? onMouseLeave;
@@ -121,8 +135,13 @@ class _ViewNotifier extends ChangeNotifier implements ValueListenable<_View> {
 }
 
 class _Model {
-  _Model(this.size, this.nodes, this.links, this.viewBox);
+  _Model(this.size, this.nodes, this.links, this.viewBox)
+      : nodeHit = List.filled(nodes.length, null),
+        linkHit = List.filled(links.length, null);
   final Size size;
+
+  /// Hit paths returned by custom painters, filled while painting.
+  final List<Path?> nodeHit, linkHit;
   final List<SankeyNodeProps> nodes;
   final List<SankeyLinkProps> links;
   final Rect viewBox;
@@ -132,6 +151,9 @@ class _SankeyState extends State<Sankey> with TickerProviderStateMixin {
   final _ViewNotifier _view = _ViewNotifier();
   _Interaction _hover = const _Interaction();
   _Interaction _click = const _Interaction();
+  _Interaction _keyboard = const _Interaction();
+  bool _keyboardIndexSet = false;
+  final FocusNode _focusNode = FocusNode(debugLabel: 'recharts sankey');
   _Hit? _hovered;
   _Hit? _downHit;
   Offset? _downPosition;
@@ -139,7 +161,14 @@ class _SankeyState extends State<Sankey> with TickerProviderStateMixin {
   Sankey? _modelWidget;
 
   @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  @override
   void dispose() {
+    _focusNode.dispose();
     _view.dispose();
     super.dispose();
   }
@@ -167,8 +196,7 @@ class _SankeyState extends State<Sankey> with TickerProviderStateMixin {
     }
     _modelWidget = w;
     final margin = w.margin;
-    final viewBox = Rect.fromLTWH(margin.left, margin.top, (size.width - margin.left - margin.right).clamp(0, double.infinity),
-        (size.height - margin.top - margin.bottom).clamp(0, double.infinity));
+    final viewBox = sankeyViewBox(size, margin);
     final computed = computeSankeyData(
       data: w.data,
       width: size.width - margin.left - margin.right,
@@ -207,26 +235,32 @@ class _SankeyState extends State<Sankey> with TickerProviderStateMixin {
     final m = _model, tooltip = _tooltip;
     if (m == null) return const _View();
     final mouse = tooltip?.trigger == TooltipTrigger.click ? _click : _hover;
+    // combineTooltipInteractionState: active mouse, active keyboard, then the sticky `active` prop.
     final state = mouse.active
         ? mouse
-        : (mouse.hit != null && tooltip?.active == true)
+        : _keyboard.active
+            ? _keyboard
+            : (mouse.hit != null && tooltip?.active == true)
             ? _Interaction(active: true, hit: mouse.hit, coordinate: mouse.coordinate)
             : _Interaction(coordinate: mouse.coordinate);
-    final isActive = tooltip?.active ?? (state.active && state.hit != null);
+    // The keyboard's index '0' is non-null, so it activates without an item.
+    final isActive = tooltip?.active ?? (state.active && (state.hit != null || identical(state, _keyboard)));
     var payload = const <TooltipPayloadEntry>[];
     final hit = state.hit;
-    if (isActive && hit != null) {
+    if (isActive && (hit != null || identical(state, _keyboard))) {
+      // The keyboard's index '0' is no 'node-0': the searcher finds nothing.
       final entry = sankeyTooltipEntry(
-        type: hit.type,
-        index: hit.index,
+        type: hit?.type ?? SankeyElementType.node,
+        index: hit?.index ?? -1,
         nodes: m.nodes,
         links: m.links,
         dataKey: widget.dataKey,
         nameKey: widget.nameKey,
         name: widget.name,
         fill: widget.fill,
+        stroke: widget.stroke,
       );
-      if (entry != null && (!(tooltip?.filterNull ?? true) || entry.value != null)) {
+      if (!(tooltip?.filterNull ?? true) || entry.value != null) {
         payload = [entry];
       }
     }
@@ -234,6 +268,32 @@ class _SankeyState extends State<Sankey> with TickerProviderStateMixin {
   }
 
   void _refreshView() => _view.set(_computeView());
+
+  // -------------------------------------------------------------- keyboard
+
+  /// `focusAction`: the first focus activates the keyboard tooltip at index '0'.
+  void _onFocusChange() {
+    if (_focusNode.hasFocus) {
+      if (!widget.accessibilityLayer || _keyboard.active || _keyboardIndexSet) return;
+      _keyboardIndexSet = true;
+      _keyboard = const _Interaction(active: true);
+    } else {
+      // `blurAction`: inactive, index kept.
+      if (!_keyboard.active) return;
+      _keyboard = _keyboard.inactive();
+    }
+    _refreshView();
+  }
+
+  /// `keyDownAction`: Enter toggles; arrows return early (no tooltip data).
+  KeyEventResult _onKey(FocusNode _, KeyEvent e) {
+    if (e is! KeyDownEvent || !widget.accessibilityLayer) return KeyEventResult.ignored;
+    if (e.logicalKey == LogicalKeyboardKey.enter && _keyboardIndexSet) {
+      _keyboard = _keyboard.active ? _keyboard.inactive() : const _Interaction(active: true);
+      _refreshView();
+    }
+    return KeyEventResult.ignored;
+  }
 
   // -------------------------------------------------------------- input
 
@@ -258,19 +318,30 @@ class _SankeyState extends State<Sankey> with TickerProviderStateMixin {
     if (m == null) return null;
     for (var i = m.nodes.length - 1; i >= 0; i--) {
       final n = m.nodes[i];
-      final path = _nodePath(n);
+      final custom = m.nodeHit[i];
+      final path = custom ?? _nodePath(n);
       if (path == null) continue;
-      final s = n.style;
-      if (path.contains(p) || (s?.stroke != null && strokeContains(path, p, s?.strokeWidth ?? 1))) {
+      final stroke = n.style?.stroke ?? widget.stroke;
+      if (path.contains(p) ||
+          (custom == null && stroke != null && strokeContains(path, p, n.style?.strokeWidth ?? widget.strokeWidth ?? 1))) {
         return (type: SankeyElementType.node, index: i);
       }
     }
     for (var i = m.links.length - 1; i >= 0; i--) {
       final l = m.links[i];
+      final custom = m.linkHit[i];
+      if (custom != null) {
+        if (custom.contains(p)) return (type: SankeyElementType.link, index: i);
+        continue;
+      }
       if (l.sourceX.isNaN || l.targetX.isNaN || l.sourceY.isNaN || l.targetY.isNaN) continue;
       final path = _linkPath(l);
       final width = l.style?.strokeWidth ?? l.linkWidth;
-      if ((l.style?.fill != null && path.contains(p)) || (width > 0 && strokeContains(path, p, width))) {
+      // Butt caps: the stroke ends at the end points' x. The end tangents are
+      // horizontal since each control point shares its end point's y.
+      // ponytail: exact only for 0 < linkCurvature <= 1; outside it the curve overshoots the end points.
+      final inX = p.dx >= math.min(l.sourceX, l.targetX) && p.dx <= math.max(l.sourceX, l.targetX);
+      if ((l.style?.fill != null && path.contains(p)) || (inX && width > 0 && strokeContains(path, p, width))) {
         return (type: SankeyElementType.link, index: i);
       }
     }
@@ -287,6 +358,7 @@ class _SankeyState extends State<Sankey> with TickerProviderStateMixin {
       widget.onMouseLeave?.call(_item(old), old.type, e);
     }
     if (hit != null) {
+      _keyboard = _keyboard.inactive();
       _hover = _Interaction(active: true, hit: hit, coordinate: _coordinate(hit));
       _refreshView();
       widget.onMouseEnter?.call(_item(hit), hit.type, e);
@@ -294,6 +366,7 @@ class _SankeyState extends State<Sankey> with TickerProviderStateMixin {
   }
 
   void _click_(_Hit hit, PointerEvent e) {
+    _keyboard = _keyboard.inactive();
     _click = _Interaction(active: true, hit: hit, coordinate: _coordinate(hit));
     _refreshView();
     widget.onClick?.call(_item(hit), hit.type, e);
@@ -302,7 +375,10 @@ class _SankeyState extends State<Sankey> with TickerProviderStateMixin {
   void _onPointerDown(PointerDownEvent e) {
     _downPosition = e.localPosition;
     _downHit = _hitAt(e.localPosition);
-    if (e.kind == PointerDeviceKind.mouse) _setHovered(_downHit, e);
+    if (e.kind == PointerDeviceKind.mouse) {
+      if (widget.accessibilityLayer) _focusNode.requestFocus();
+      _setHovered(_downHit, e);
+    }
   }
 
   void _onPointerUp(PointerUpEvent e) {
@@ -313,7 +389,10 @@ class _SankeyState extends State<Sankey> with TickerProviderStateMixin {
     if (touch && (e.localPosition - down).distance > kTouchSlop) return;
     final hit = _hitAt(e.localPosition);
     // The tap's emulated mouse events reach the element under the finger.
-    if (touch) _setHovered(hit, e);
+    if (touch) {
+      _setHovered(hit, e);
+      if (widget.accessibilityLayer) _focusNode.requestFocus();
+    }
     if (hit != null && (touch || hit == _downHit)) _click_(hit, e);
   }
 
@@ -345,7 +424,7 @@ class _SankeyState extends State<Sankey> with TickerProviderStateMixin {
       children: [
         Positioned.fill(
           child: RepaintBoundary(
-            child: CustomPaint(painter: _SankeyPainter(m, widget.node, widget.link)),
+            child: CustomPaint(painter: _SankeyPainter(m, widget.node, widget.link, widget.stroke, widget.strokeWidth)),
           ),
         ),
         if (tooltip != null)
@@ -384,23 +463,37 @@ class _SankeyState extends State<Sankey> with TickerProviderStateMixin {
         child: stack,
       ),
     );
-    if (widget.title != null) content = Semantics(label: widget.title, child: content);
-    return SizedBox.fromSize(size: size, child: content);
+    content = TapRegion(
+      onTapOutside: (_) {
+        if (_focusNode.hasFocus) _focusNode.unfocus();
+      },
+      child: content,
+    );
+    if (widget.title != null || widget.desc != null) {
+      content = Semantics(label: widget.title, hint: widget.desc, child: content);
+    }
+    return SizedBox.fromSize(
+      size: size,
+      child: Focus(focusNode: _focusNode, canRequestFocus: widget.accessibilityLayer, onKeyEvent: _onKey, child: content),
+    );
   }
 }
 
 class _SankeyPainter extends CustomPainter {
-  _SankeyPainter(this.model, this.node, this.link);
+  _SankeyPainter(this.model, this.node, this.link, this.stroke, this.strokeWidth);
   final _Model model;
   final Object? node;
   final Object? link;
+  final Color? stroke;
+  final double? strokeWidth;
 
   @override
   void paint(Canvas canvas, Size size) {
-    for (final l in model.links) {
+    for (var i = 0; i < model.links.length; i++) {
+      final l = model.links[i];
       final option = link;
       if (option is SankeyLinkPainter) {
-        option(canvas, l);
+        model.linkHit[i] = option(canvas, size, l);
         continue;
       }
       if (l.sourceX.isNaN || l.targetX.isNaN || l.sourceY.isNaN || l.targetY.isNaN) continue;
@@ -414,23 +507,24 @@ class _SankeyPainter extends CustomPainter {
             strokePaint(s?.stroke ?? const Color(0xFF333333), width, opacity: s?.strokeOpacity ?? 0.2), s?.strokeDasharray);
       }
     }
-    for (final n in model.nodes) {
+    for (var i = 0; i < model.nodes.length; i++) {
+      final n = model.nodes[i];
       final option = node;
       if (option is SankeyNodePainter) {
-        option(canvas, n);
+        model.nodeHit[i] = option(canvas, size, n);
         continue;
       }
       final path = _SankeyState._nodePath(n);
       if (path == null) continue;
       final s = n.style;
       canvas.drawPath(path, fillPaint(s?.fill ?? const Color(0xFF0088FE), opacity: s?.fillOpacity ?? 0.8));
-      final stroke = s?.stroke;
+      final stroke = s?.stroke ?? this.stroke;
       if (stroke != null) {
-        drawStroke(canvas, path, strokePaint(stroke, s?.strokeWidth ?? 1, opacity: s?.strokeOpacity ?? 1), s?.strokeDasharray);
+        drawStroke(canvas, path, strokePaint(stroke, s?.strokeWidth ?? strokeWidth ?? 1, opacity: s?.strokeOpacity ?? 1), s?.strokeDasharray);
       }
     }
   }
 
   @override
-  bool shouldRepaint(_SankeyPainter old) => old.model != model || old.node != node || old.link != link;
+  bool shouldRepaint(_SankeyPainter old) => old.model != model || old.node != node || old.link != link || old.stroke != stroke || old.strokeWidth != strokeWidth;
 }
