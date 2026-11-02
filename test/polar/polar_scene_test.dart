@@ -9,11 +9,15 @@ import 'dart:ui';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:recharts_flutter/recharts_flutter.dart';
+import 'package:recharts_flutter/src/animation.dart';
 import 'package:recharts_flutter/src/core/polar_utils.dart';
 import 'package:recharts_flutter/src/engine/pie.dart';
 import 'package:recharts_flutter/src/engine/polar_axis.dart';
+import 'package:recharts_flutter/src/engine/polar_items.dart';
+import 'package:recharts_flutter/src/engine/polar_scene.dart';
 import 'package:recharts_flutter/src/render/polar_painter.dart' show getAttrsOfPolarLabel;
 import 'package:recharts_flutter/src/render/polar_scene_painter.dart';
+import 'package:recharts_flutter/src/util.dart';
 
 // test/_data.ts
 const exampleRadarData = [
@@ -123,6 +127,70 @@ void main() {
       const viewBox = PolarViewBox(cx: 250, cy: 250, innerRadius: 0, outerRadius: 196, startAngle: 0, endAngle: 0);
       final label = getAttrsOfPolarLabel(viewBox, 5, LabelPosition.middle)!;
       expect([label.x, label.y], [348, 250]);
+    });
+  });
+
+  group('Radar (Radar.animation.spec: 100x100, cx 50, cy 50, outerRadius 40, PageData.slice(0, 3))', () {
+    PolarModel model(String dataKey) => radarModel(pageData.sublist(0, 3), [
+          const PolarGrid(),
+          const PolarAngleAxis(dataKey: 'name'),
+          const PolarRadiusAxis(),
+          Radar(dataKey: dataKey, dot: true),
+        ], size: const Size(100, 100), cx: 50, cy: 50, outerRadius: 40);
+
+    test('points without animation', () {
+      final points = model('pv').scene!.radars.single.points!;
+      expect([for (final p in points) p.x], [near(50), near(76.36758679389021), near(41.92864323672903)]);
+      expect([for (final p in points) p.y], [near(34), near(65.22333333333333), near(54.66)]);
+      expect([for (final p in points) p.radius.toStringAsFixed(2)], ['16.00', '30.45', '9.32']);
+    });
+
+    test('points grow from the center with the ease curve', () {
+      final points = model('amt').scene!.radars.single.points!;
+      final items = matchAnimationItems<RadarPoint>(null, points, MatchBy.byIndex);
+      final ease = createEasingFunction('ease')!;
+      // expectAnimatedRadarDots: progress 0.1 + 0.18 * n
+      const expected = [
+        [(50.0, 31.0857), (66.3803, 59.4572), (33.6197, 59.4572)],
+        [(50.0, 19.6171), (76.3123, 65.1914), (23.6877, 65.1914)],
+        [(50.0, 13.5884), (81.5333, 68.2058), (18.4667, 68.2058)],
+        [(50.0, 10.7784), (83.9669, 69.6108), (16.0331, 69.6108)],
+      ];
+      for (final (i, progress) in [0.28, 0.46, 0.64, 0.82].indexed) {
+        final step = interpolateRadarPoints(items, ease(round4(progress)));
+        expect([for (final p in step) (round4(p.x), round4(p.y))], expected[i], reason: 'progress $progress');
+      }
+      final done = interpolateRadarPoints(items, 1);
+      expect(done[0].y, near(10));
+      expect(done[1].x, near(84.64101615137756));
+      expect(done[2].x, near(15.35898384862245));
+    });
+  });
+
+  group('axis tooltip (Tooltip.payload.spec: 600x600, PageData, hover at 200,200)', () {
+    test('RadarChart: the pointer maps to the nearest spoke; the label is the tick value', () {
+      final children = <RechartsElement>[
+        const Radar(dataKey: 'uv'),
+        const Radar(dataKey: 'pv', name: 'My custom name'),
+        const Radar(dataKey: 'amt'),
+      ];
+      final m = radarModel(pageData, children, size: const Size(600, 600));
+      final props = polarActivePropsFromPointer(m.scene!, const Offset(200, 200))!;
+      expect(props.activeIndex, 5);
+      expect(polarActiveLabel(m.scene!, 5), 5);
+      final payload = polarTooltipPayload(m.scene!, pageData, 5);
+      expect([for (final e in payload) '${e.name} : ${e.value}'], ['uv : 189', 'My custom name : 4800', 'amt : 2400']);
+
+      final withAxis = radarModel(pageData, [...children, const PolarAngleAxis(dataKey: 'name')], size: const Size(600, 600));
+      final p2 = polarActivePropsFromPointer(withAxis.scene!, const Offset(200, 200))!;
+      expect(polarActiveLabel(withAxis.scene!, p2.activeIndex), 'Page F');
+      expect(p2.coordinate.angle, near(-210));
+    });
+
+    test('RadarChart: outside the polar view box there is no active index', () {
+      final m = radarModel(pageData, [const Radar(dataKey: 'uv')], size: const Size(600, 600));
+      expect(polarActivePropsFromPointer(m.scene!, const Offset(5, 5)), isNull);
+      expect(polarActivePropsFromPointer(m.scene!, const Offset(300, 300)), isNull);
     });
   });
 }

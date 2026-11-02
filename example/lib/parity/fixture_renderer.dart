@@ -99,6 +99,22 @@ Widget buildChart(Map<String, dynamic> chart, {double? width, double? height}) {
         children: children,
       );
     // ---- polar: chart cases ----
+    case 'RadarChart':
+      return RadarChart(
+        width: w,
+        height: h,
+        data: _polarData(data),
+        margin: margin,
+        cx: p.raw['cx'] ?? '50%',
+        cy: p.raw['cy'] ?? '50%',
+        innerRadius: p.raw['innerRadius'] ?? 0,
+        outerRadius: p.raw['outerRadius'] ?? '80%',
+        startAngle: p.dbl('startAngle') ?? 90,
+        endAngle: p.dbl('endAngle') ?? -270,
+        syncId: p.raw['syncId'],
+        accessibilityLayer: p.raw['accessibilityLayer'] != false,
+        children: children,
+      );
     // ---- end polar ----
     // ---- treemap: chart cases ----
     // ---- end treemap ----
@@ -533,6 +549,31 @@ RechartsElement? _child(Map<String, dynamic> node) {
         stroke: p.raw.containsKey('stroke') ? p.color('stroke') : const Color(0xFFCCCCCC),
         fontSize: p.dbl('fontSize'),
       );
+    case 'Radar':
+      return Radar(
+        dataKey: p.raw['dataKey'] as Object,
+        angleAxisId: p.raw['angleAxisId'] ?? 0,
+        radiusAxisId: p.raw['radiusAxisId'] ?? 0,
+        name: p.raw['name'],
+        hide: p.boolean('hide') ?? false,
+        legendType: _enum(LegendType.values, p.str('legendType')) ?? LegendType.rect,
+        dot: p.svgOrBool('dot') ?? false,
+        activeDot: p.svgOrBool('activeDot') ?? true,
+        label: _labelList(p.raw['label']) ?? false,
+        connectNulls: p.boolean('connectNulls') ?? false,
+        fill: p.raw.containsKey('fill') ? p.color('fill') : const Color(0xFF000000),
+        fillOpacity: p.dbl('fillOpacity'),
+        stroke: p.color('stroke'),
+        strokeWidth: p.dbl('strokeWidth'),
+        strokeDasharray: p.dash('strokeDasharray'),
+        isAnimationActive: p.boolean('isAnimationActive'),
+        animationBegin: p.dbl('animationBegin')?.toInt() ?? 0,
+        animationDuration: p.dbl('animationDuration')?.toInt() ?? 1500,
+        animationEasing: p.str('animationEasing') ?? 'ease',
+        children: [
+          for (final c in (node['children'] as List? ?? const []).cast<Map<String, dynamic>>()) ?_child(c),
+        ],
+      );
     // ---- end polar ----
     // ---- treemap: child element cases ----
     // ---- end treemap ----
@@ -775,3 +816,20 @@ Color? parseCssColor(String input) {
   }
   return null;
 }
+
+// ---- polar: helpers ----
+
+/// Data entries as the polar charts read them: `fill` and `stroke` strings become colors.
+List<Object?> _polarData(List<Object?> data) => [
+      for (final e in data)
+        if (e is Map<String, dynamic>)
+          {
+            for (final kv in e.entries)
+              kv.key: (kv.key == 'fill' || kv.key == 'stroke') && kv.value is String
+                  ? parseCssColor(kv.value as String)
+                  : kv.value,
+          }
+        else
+          e,
+    ];
+// ---- end polar ----
