@@ -18,7 +18,7 @@ Widget buildChart(Map<String, dynamic> chart, {double? width, double? height}) {
   final nodes = (chart['children'] as List? ?? const []).cast<Map<String, dynamic>>();
   _gradients.addAll(_linearGradients(nodes));
   final children = [for (final c in nodes) ?_child(c)];
-  final data = (p.raw['data'] as List? ?? const []).cast<Object?>();
+  final data = (p.raw['data'] is List ? p.raw['data'] as List : const []).cast<Object?>();
   final layout = p.str('layout') == 'vertical' ? ChartLayout.vertical : ChartLayout.horizontal;
   final margin = p.margin('margin') ?? const Margin.all(5);
   final w = p.dbl('width') ?? width, h = p.dbl('height') ?? height;
@@ -103,6 +103,25 @@ Widget buildChart(Map<String, dynamic> chart, {double? width, double? height}) {
     // ---- treemap: chart cases ----
     // ---- end treemap ----
     // ---- sankey: chart cases ----
+    case 'Sankey':
+      return Sankey(
+        width: w,
+        height: h,
+        data: SankeyData.fromJson(p.raw['data'] as Map<String, dynamic>),
+        nodePadding: p.dbl('nodePadding') ?? 10,
+        nodeWidth: p.dbl('nodeWidth') ?? 10,
+        linkCurvature: p.dbl('linkCurvature') ?? 0.5,
+        iterations: p.dbl('iterations')?.toInt() ?? 32,
+        node: _sankeyStyle(p.raw['node']),
+        link: _sankeyStyle(p.raw['link']),
+        margin: margin,
+        sort: p.boolean('sort') ?? true,
+        verticalAlign: p.str('verticalAlign') == 'top' ? SankeyVerticalAlign.top : SankeyVerticalAlign.justify,
+        align: p.str('align') == 'left' ? SankeyAlign.left : SankeyAlign.justify,
+        dataKey: p.raw['dataKey'] ?? 'value',
+        nameKey: p.raw['nameKey'] ?? 'name',
+        children: children,
+      );
     // ---- end sankey ----
     // ---- sunburst: chart cases ----
     // ---- end sunburst ----
@@ -720,3 +739,19 @@ Color? parseCssColor(String input) {
   }
   return null;
 }
+
+// ---- sankey: helpers ----
+SvgStyle? _sankeyStyle(Object? v) {
+  if (v is! Map<String, dynamic>) return null;
+  final p = _Props(v);
+  return SvgStyle(
+    fill: p.color('fill'),
+    fillOpacity: p.dbl('fillOpacity'),
+    stroke: p.color('stroke'),
+    strokeWidth: p.dbl('strokeWidth'),
+    strokeOpacity: p.dbl('strokeOpacity'),
+    strokeDasharray: p.dash('strokeDasharray'),
+    radius: v['radius'],
+  );
+}
+// ---- end sankey ----

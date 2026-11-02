@@ -1,0 +1,87 @@
+{
+ "name": "sankey-simple",
+ "description": "Classic docs data: nodePadding 50, partial margin (bottom only), green link stroke, Tooltip.",
+ "width": 600,
+ "height": 400,
+ "chart": {
+  "type": "Sankey",
+  "props": {
+   "nodePadding": 50,
+   "margin": {
+    "bottom": 30
+   },
+   "link": {
+    "stroke": "#77c878"
+   },
+   "data": {
+    "nodes": [
+     {
+      "name": "Visit"
+     },
+     {
+      "name": "Direct-Favourite"
+     },
+     {
+      "name": "Page-Click"
+     },
+     {
+      "name": "Detail-Favourite"
+     },
+     {
+      "name": "Lost"
+     }
+    ],
+    "links": [
+     {
+      "source": 0,
+      "target": 1,
+      "value": 3728.3
+     },
+     {
+      "source": 0,
+      "target": 2,
+      "value": 354170
+     },
+     {
+      "source": 2,
+      "target": 3,
+      "value": 62429
+     },
+     {
+      "source": 2,
+      "target": 4,
+      "value": 291741
+     }
+    ]
+   }
+  },
+  "children": [
+   {
+    "type": "Tooltip",
+    "props": {
+     "isAnimationActive": false
+    }
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-node",
+   "type": "hover",
+   "x": 300,
+   "y": 144
+  },
+  {
+   "id": "hover-link",
+   "type": "hover",
+   "x": 447,
+   "y": 116
+  },
+  {
+   "id": "hover-empty",
+   "type": "hover",
+   "x": 585,
+   "y": 245
+  }
+ ]
+}
