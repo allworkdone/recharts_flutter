@@ -4,7 +4,6 @@
 // (hover at {x: 583.33.., y: 250} on a 1000x500 chart; click state surviving
 // mouseleave), plus the geometry drawArcs produces.
 
-import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:recharts_flutter/recharts_flutter.dart';
