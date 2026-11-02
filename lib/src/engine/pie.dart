@@ -14,6 +14,8 @@ import '../core/polar_utils.dart';
 import '../polar_components.dart';
 import '../util.dart';
 import 'model.dart' show ChartOffset, appendOffsetOfLegend;
+import 'polar_axis.dart' show PolarLayout, PolarOptions;
+import 'polar_scene.dart' show PolarScene, computePolarScene;
 
 /// `PieSectorDataItem`: one sector with its data entry.
 class PieSector {
@@ -138,6 +140,7 @@ class PolarModel {
     required this.offset,
     required this.pies,
     required this.tooltipSettings,
+    this.scene,
   });
   final Size size;
   final String chartName;
@@ -145,6 +148,9 @@ class PolarModel {
   final ChartOffset offset;
   final List<PieModel> pies;
   final Tooltip? tooltipSettings;
+
+  /// Radars, RadialBars and polar axes; null for a chart without polar options.
+  final PolarScene? scene;
 
   /// `selectChartViewBox`.
   Rect get viewBox => offset.plotArea;
@@ -176,6 +182,14 @@ PolarModel computePolarModel({
   required List<RechartsElement> children,
   Margin margin = const Margin.all(5),
   Size legendSize = Size.zero,
+  PolarLayout layout = PolarLayout.radial,
+  PolarOptions? options,
+  StackOffset stackOffset = StackOffset.none,
+  bool reverseStackOrder = false,
+  Object barGap = 4,
+  Object barCategoryGap = '10%',
+  Object? barSize,
+  double? maxBarSize,
 }) {
   final legend = children.whereType<Legend>().firstOrNull;
   final off = appendOffsetOfLegend(
@@ -194,6 +208,22 @@ PolarModel computePolarModel({
     chartData: data,
     offset: offset,
     tooltipSettings: children.whereType<Tooltip>().firstOrNull,
+    scene: options == null
+        ? null
+        : computePolarScene(
+            chartName: chartName,
+            data: data,
+            children: children,
+            layout: layout,
+            options: options,
+            size: size,
+            offset: off,
+            stackOffset: stackOffset,
+            reverseStackOrder: reverseStackOrder,
+            barGap: barGap,
+            barCategoryGap: barCategoryGap,
+            barSize: barSize,
+            maxBarSize: maxBarSize),
     pies: [
       for (final (id, pie) in collectPies(children))
         () {
@@ -381,6 +411,11 @@ List<LegendPayload> pieLegendPayload(PolarModel m, Legend legend) {
       ));
     }
   }
+  return sortLegendPayload(payload, legend);
+}
+
+/// The Legend's `itemSorter` applied to [payload].
+List<LegendPayload> sortLegendPayload(List<LegendPayload> payload, Legend legend) {
   final sorter = legend.itemSorter;
   if (sorter == 'value') return sortByKey(payload, (p) => p.value);
   if (sorter == 'dataKey') return sortByKey(payload, (p) => p.dataKey is Function ? null : p.dataKey);

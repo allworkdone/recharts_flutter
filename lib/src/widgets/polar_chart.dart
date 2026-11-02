@@ -17,8 +17,13 @@ import 'package:flutter/widgets.dart';
 import '../animation.dart';
 import '../components.dart';
 import '../engine/pie.dart';
+import '../engine/polar_axis.dart';
+import '../engine/polar_items.dart';
+import '../engine/polar_scene.dart';
+import '../polar_axes.dart';
 import '../polar_components.dart';
 import '../render/polar_painter.dart';
+import '../render/polar_scene_painter.dart';
 import '../render/sector.dart';
 import '../render/svg_text.dart';
 import 'legend.dart';
@@ -41,6 +46,13 @@ abstract class PolarChart extends StatefulWidget {
     this.outerRadius = '80%',
     required this.startAngle,
     required this.endAngle,
+    this.layout = PolarLayout.radial,
+    this.stackOffset = StackOffset.none,
+    this.reverseStackOrder = false,
+    this.barCategoryGap = '10%',
+    this.barGap = 4,
+    this.barSize,
+    this.maxBarSize,
     this.syncId,
     this.accessibilityLayer = true,
     this.onClick,
@@ -58,6 +70,16 @@ abstract class PolarChart extends StatefulWidget {
   final Object cx, cy, innerRadius, outerRadius;
   final double startAngle, endAngle;
 
+  /// `layout`: 'centric' puts the category on the angle axis, 'radial' on the radius axis.
+  final PolarLayout layout;
+  final StackOffset stackOffset;
+  final bool reverseStackOrder;
+
+  /// RadialBar sizing, like the BarChart props (percent `barSize` is not supported).
+  final Object barCategoryGap, barGap;
+  final Object? barSize;
+  final double? maxBarSize;
+
   /// Polar charts with the same id share the active tooltip index.
   final Object? syncId;
 
@@ -71,6 +93,15 @@ abstract class PolarChart extends StatefulWidget {
   final List<RechartsElement> children;
 
   String get chartName;
+
+  /// `defaultTooltipEventType`.
+  String get defaultTooltipEventType => 'item';
+
+  /// `validateTooltipEventTypes`.
+  List<String> get allowedTooltipTypes => const ['item'];
+
+  /// Whether the chart builds the polar axes and items of [PolarScene].
+  bool get usesPolarScene => false;
 
   @override
   State<PolarChart> createState() => _PolarChartState();
@@ -104,7 +135,7 @@ class PieChart extends PolarChart {
 
 /// `TooltipInteractionState`.
 class _Interaction {
-  const _Interaction({this.active = false, this.index, this.coordinate, this.dataKey, this.itemId});
+  const _Interaction({this.active = false, this.index, this.coordinate, this.dataKey, this.itemId, this.polar});
   final bool active;
   final int? index;
   final Offset? coordinate;
@@ -112,13 +143,17 @@ class _Interaction {
 
   /// `graphicalItemId`.
   final String? itemId;
-  _Interaction inactive() => _Interaction(index: index, coordinate: coordinate, dataKey: dataKey, itemId: itemId);
+
+  /// The axis tooltip's coordinate with its polar parts.
+  final PolarCoordinate? polar;
+  _Interaction inactive() =>
+      _Interaction(index: index, coordinate: coordinate, dataKey: dataKey, itemId: itemId, polar: polar);
   _Interaction activate() =>
-      _Interaction(active: true, index: index, coordinate: coordinate, dataKey: dataKey, itemId: itemId);
+      _Interaction(active: true, index: index, coordinate: coordinate, dataKey: dataKey, itemId: itemId, polar: polar);
 }
 
 /// The sector under the pointer.
-typedef _SectorHit = ({String id, Object dataKey, int index, Offset tooltipPosition});
+typedef _SectorHit = ({String id, Object dataKey, int index, Offset? tooltipPosition});
 
 /// Everything the tooltip and the sectors render from the tooltip state.
 class _PolarView extends PolarHoverState {
@@ -126,15 +161,22 @@ class _PolarView extends PolarHoverState {
     super.activeIndex,
     super.activeDataKey,
     super.activeItemId,
+    super.polarCoordinate,
+    super.cursorVisible,
+    super.activeDataPoints,
     this.active = false,
     this.coordinate,
     this.payload = const [],
     this.interactionActive = false,
+    this.label,
   });
   final bool active;
   final Offset? coordinate;
   final List<TooltipPayloadEntry> payload;
   final bool interactionActive;
+
+  /// The axis tooltip's label (`selectActiveLabel`).
+  final Object? label;
 }
 
 class _ViewNotifier extends ChangeNotifier implements ValueListenable<_PolarView> {
@@ -152,10 +194,14 @@ final Map<Object, Set<_PolarChartState>> _syncGroups = {};
 
 class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin {
   final Map<String, SeriesAnimator<PieSector>> _pieAnimators = {};
+  final Map<String, SeriesAnimator<RadarPoint>> _radarAnimators = {}, _radarBaseLineAnimators = {};
+  final Map<String, SeriesAnimator<RadialBarSector>> _radialBarAnimators = {};
   final _ViewNotifier _view = _ViewNotifier();
 
   _Interaction _itemHover = const _Interaction();
   _Interaction _itemClick = const _Interaction();
+  _Interaction _axisHover = const _Interaction();
+  _Interaction _axisClick = const _Interaction();
   _Interaction _sync = const _Interaction();
   _Interaction _keyboard = const _Interaction();
   _SectorHit? _hoveredItem;
@@ -188,7 +234,12 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin {
     PaintingBinding.instance.systemFonts.removeListener(_onFontsChanged);
     _unregisterSync();
     _focusNode.dispose();
-    for (final a in _pieAnimators.values) {
+    for (final a in [
+      ..._pieAnimators.values,
+      ..._radarAnimators.values,
+      ..._radarBaseLineAnimators.values,
+      ..._radialBarAnimators.values,
+    ]) {
       a.dispose();
     }
     _view.dispose();
@@ -214,9 +265,18 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin {
 
   // -------------------------------------------------------------- tooltip state
 
+  /// `combineTooltipEventType`.
+  bool _isAxisEvent(PolarModel m) {
+    final shared = m.tooltipSettings?.shared;
+    final defaultType = widget.defaultTooltipEventType;
+    final type = shared == null ? defaultType : (shared ? 'axis' : 'item');
+    return (widget.allowedTooltipTypes.contains(type) ? type : defaultType) == 'axis' && m.scene != null;
+  }
+
   _Interaction _interactionState(PolarModel m) {
     final tooltip = m.tooltipSettings;
-    final mouse = tooltip?.trigger == TooltipTrigger.click ? _itemClick : _itemHover;
+    final click = tooltip?.trigger == TooltipTrigger.click;
+    final mouse = _isAxisEvent(m) ? (click ? _axisClick : _axisHover) : (click ? _itemClick : _itemHover);
     if (mouse.active) return mouse;
     if (_keyboard.active) return _keyboard;
     if (_sync.active && _sync.index != null) return _sync;
@@ -225,30 +285,64 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin {
     } else if (tooltip?.defaultIndex != null) {
       return _Interaction(active: true, index: tooltip!.defaultIndex);
     }
-    return _Interaction(coordinate: mouse.coordinate);
+    return _Interaction(coordinate: mouse.coordinate, polar: mouse.polar);
   }
 
   /// `combineActiveTooltipIndex`: clamped into the tooltip data.
   int? _activeIndex(PolarModel m, int? index) {
     if (index == null) return null;
+    final scene = m.scene;
+    if (scene != null) return combinePolarActiveIndex(scene, m.chartData, index);
     final length = m.tooltipDisplayedData.length;
     return length > 0 ? index.clamp(0, length - 1) : (index < 0 ? 0 : index);
   }
 
-  /// `combineTooltipPayloadConfigurations` for the 'item' event type.
-  Iterable<PieModel> _payloadConfigurations(PolarModel m) {
-    final pies = m.pies.where((p) => !p.settings.hide && p.sectors != null).toList();
-    if (pies.isEmpty) return const [];
-    final id = (m.tooltipSettings?.trigger == TooltipTrigger.click ? _itemClick : _itemHover).itemId;
-    if (_sync.active && id == null) return pies;
-    if (id == null && (m.tooltipSettings?.defaultIndex != null || _keyboard.active)) return [pies.first];
-    return pies.where((p) => p.id == id);
+  /// The tooltip entries in registration order: one per Pie, Radar and RadialBar.
+  List<({String id, List<TooltipPayloadEntry> Function(int index) entries})> _payloadSources(PolarModel m) {
+    final scene = m.scene;
+    return [
+      for (final c in widget.children)
+        if (c is Pie)
+          for (final p in m.pies.where((p) => identical(p.settings, c) && !p.settings.hide && p.sectors != null))
+            (id: p.id, entries: (int i) => pieTooltipPayload(m, [p], i))
+        else if (c is Radar && scene != null)
+          for (final r in scene.radars.where((r) => identical(r.settings, c)))
+            (id: r.id, entries: (int i) => polarTooltipPayload(scene, m.chartData, i, ids: {r.id}, axis: false))
+        else if (c is RadialBar && scene != null)
+          for (final b in scene.radialBars.where((b) => identical(b.settings, c)))
+            (id: b.id, entries: (int i) => polarTooltipPayload(scene, m.chartData, i, ids: {b.id}, axis: false)),
+    ];
   }
 
-  /// `combineCoordinateForDefaultIndex`: the first Pie's sector position.
+  /// `combineTooltipPayloadConfigurations` for the 'item' event type.
+  List<TooltipPayloadEntry> _itemPayload(PolarModel m, int? index) {
+    if (index == null) return const [];
+    final sources = _payloadSources(m);
+    if (sources.isEmpty) return const [];
+    final id = (m.tooltipSettings?.trigger == TooltipTrigger.click ? _itemClick : _itemHover).itemId;
+    final Iterable<({String id, List<TooltipPayloadEntry> Function(int index) entries})> chosen;
+    if (_sync.active && id == null) {
+      chosen = sources;
+    } else if (id == null && (m.tooltipSettings?.defaultIndex != null || _keyboard.active)) {
+      chosen = [sources.first];
+    } else {
+      chosen = sources.where((s) => s.id == id);
+    }
+    return [for (final s in chosen) ...s.entries(index)];
+  }
+
+  /// `combineCoordinateForDefaultIndex`.
   Offset? _coordinateForIndex(PolarModel m, int i) {
-    final first = _payloadConfigurations(m).firstOrNull ?? m.pies.where((p) => p.sectors != null).firstOrNull;
-    final sectors = first?.sectors;
+    final scene = m.scene;
+    if (scene != null && _isAxisEvent(m)) {
+      // The first item's `getPosition` is a noop for Radar and RadialBar; the tick decides.
+      final ticks = scene.tooltipTicks;
+      if (i < 0 || i >= ticks.length) return null;
+      return Offset((m.offset.left + m.size.width) / 2, ticks[i].coordinate);
+    }
+    final first = _payloadSources(m).firstOrNull;
+    final pie = m.pies.where((p) => p.id == first?.id).firstOrNull ?? m.pies.where((p) => p.sectors != null).firstOrNull;
+    final sectors = pie?.sectors;
     return sectors != null && i >= 0 && i < sectors.length ? sectors[i].tooltipPosition : null;
   }
 
@@ -257,9 +351,13 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin {
     final state = _interactionState(m);
     final activeIndex = _activeIndex(m, state.index);
     final finalIsActive = tooltip?.active ?? (state.active && activeIndex != null);
+    final axis = _isAxisEvent(m);
     var coordinate = state.coordinate;
     if (coordinate == null && tooltip?.defaultIndex != null) coordinate = _coordinateForIndex(m, tooltip!.defaultIndex!);
-    var payload = finalIsActive ? pieTooltipPayload(m, _payloadConfigurations(m), activeIndex) : const <TooltipPayloadEntry>[];
+    final all = axis
+        ? polarTooltipPayload(m.scene!, m.chartData, activeIndex)
+        : _itemPayload(m, activeIndex);
+    var payload = finalIsActive ? all : const <TooltipPayloadEntry>[];
     if (tooltip?.filterNull ?? true) {
       payload = [
         for (final e in payload)
@@ -270,10 +368,15 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin {
       activeIndex: activeIndex,
       activeDataKey: state.dataKey,
       activeItemId: state.itemId,
+      polarCoordinate: axis ? state.polar : null,
+      // Cursor.tsx renders nothing for the 'item' event type.
+      cursorVisible: tooltip != null && finalIsActive && axis,
+      activeDataPoints: [for (final p in all) ?p.payload],
       active: finalIsActive,
       coordinate: coordinate,
       payload: payload,
       interactionActive: state.active,
+      label: axis ? polarActiveLabel(m.scene!, activeIndex) : null,
     );
   }
 
@@ -388,6 +491,24 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin {
     // Labels are painted above the sectors.
     if (frame.labelBoxes.any((r) => r.contains(p))) return null;
     final h = _view.value;
+    final scene = m.scene;
+    // RadialBars (bar, 300) paint above Pies (area, 100).
+    for (final bar in (scene?.radialBars ?? const <RadialBarModel>[]).reversed) {
+      if (bar.settings.hide) continue;
+      final sectors = currentRadialBarSectors(frame, bar);
+      for (var i = sectors.length - 1; i >= 0; i--) {
+        final s = sectors[i], b = bar.settings;
+        final option = isActiveRadialBarSector(b, h, i) ? b.activeShape : b.shape;
+        // A custom painter's shape is unknown: the default sector stands in.
+        final path = radialBarPath(b, s, option);
+        if (path == null) continue;
+        final style = option is SectorStyle ? option : null;
+        final stroke = style?.stroke ?? s.stroke;
+        if (path.contains(p) || (stroke != null && strokeContains(path, p, style?.strokeWidth ?? s.strokeWidth ?? 1))) {
+          return (id: bar.id, dataKey: b.dataKey, index: i, tooltipPosition: null);
+        }
+      }
+    }
     for (final pie in m.pies.reversed) {
       if (pie.settings.hide || pie.sectors == null) continue;
       final sectors = currentPieSectors(frame, pie) ?? const <PieSector>[];
@@ -425,12 +546,46 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin {
   _Interaction _itemInteraction(_SectorHit hit) => _Interaction(
       active: true, index: hit.index, coordinate: hit.tooltipPosition, dataKey: hit.dataKey, itemId: hit.id);
 
-  void _mouseLeave() {
-    if (!mounted) return;
+  /// `mouseMoveMiddleware` for the axis event type: the pointer maps to a
+  /// tick index inside the polar view box, else the tooltip hides.
+  void _setAxisHover(Offset p) {
+    final m = _model;
+    final scene = m?.scene;
+    if (m == null || scene == null || !mounted) return;
+    final props = polarActivePropsFromPointer(scene, p);
+    if (props == null) {
+      _mouseLeaveChart();
+      return;
+    }
+    _axisHover = _Interaction(active: true, index: props.activeIndex, coordinate: props.coordinate.offset, polar: props.coordinate);
+    _sync = const _Interaction();
+    _keyboard = _keyboard.inactive();
+    _refreshView();
+    _broadcastSync();
+  }
+
+  /// The pointer entered or moved: the sector under it, or the axis index.
+  void _pointerAt(Offset p) {
+    final m = _model;
+    if (m != null && _isAxisEvent(m)) {
+      _setAxisHover(p);
+    } else {
+      _setItemHover(_sectorAt(p));
+    }
+  }
+
+  /// `mouseLeaveChart`: only the active flags clear.
+  void _mouseLeaveChart() {
     _itemHover = _itemHover.inactive();
+    _axisHover = _axisHover.inactive();
     _hoveredItem = null;
     _refreshView();
     _broadcastSync();
+  }
+
+  void _mouseLeave() {
+    if (!mounted) return;
+    _mouseLeaveChart();
   }
 
   void _broadcastSync() {
@@ -466,7 +621,8 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin {
     _downItem = _sectorAt(e.localPosition);
     if (e.kind == PointerDeviceKind.mouse) {
       _focusFromPointer();
-      _setItemHover(_downItem);
+      final m = _model;
+      if (m == null || !_isAxisEvent(m)) _setItemHover(_downItem);
     }
   }
 
@@ -477,6 +633,24 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin {
     final touch = e.kind != PointerDeviceKind.mouse;
     if (touch && (e.localPosition - down).distance > kTouchSlop) return;
     final item = _sectorAt(e.localPosition);
+    final m = _model;
+    if (m != null && _isAxisEvent(m)) {
+      // mouseClickMiddleware: the pointer's axis index, when inside the view box.
+      if (touch) {
+        _setAxisHover(e.localPosition);
+        _focusFromPointer();
+      }
+      final props = m.scene == null ? null : polarActivePropsFromPointer(m.scene!, e.localPosition);
+      if (props != null) {
+        _axisClick = _Interaction(active: true, index: props.activeIndex, coordinate: props.coordinate.offset, polar: props.coordinate);
+        _sync = const _Interaction();
+        _keyboard = _keyboard.inactive();
+        _refreshView();
+        _broadcastSync();
+      }
+      widget.onClick?.call(_eventState(), e);
+      return;
+    }
     if (touch) {
       // The tap's emulated mouse events reach the sector under the finger.
       _setItemHover(item);
@@ -491,6 +665,19 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin {
       _broadcastSync();
     }
     widget.onClick?.call(_eventState(), e);
+  }
+
+  // -------------------------------------------------------------- legend
+
+  /// The legend payloads of every item (`SetPolarLegendPayload`), sorted by the Legend's `itemSorter`.
+  List<LegendPayload> _legendPayload(PolarModel m, Legend legend) {
+    final scene = m.scene;
+    if (scene == null) return pieLegendPayload(m, legend);
+    return sortLegendPayload([
+      for (final r in scene.radars) radarLegendEntry(r.settings),
+      for (final b in scene.radialBars) ...radialBarLegendPayload(b.settings, m.chartData),
+      ...pieLegendPayload(m, const Legend(itemSorter: null)),
+    ], legend);
   }
 
   // -------------------------------------------------------------- animation
@@ -511,6 +698,48 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin {
     }
     for (final id in _pieAnimators.keys.where((k) => !live.contains(k)).toList()) {
       _pieAnimators.remove(id)!.dispose();
+    }
+    final scene = m.scene;
+    final liveRadars = <String>{}, liveBars = <String>{};
+    for (final r in scene?.radars ?? const <RadarModel>[]) {
+      final radar = r.settings;
+      liveRadars.add(r.id);
+      final hidden = radar.hide || r.points == null;
+      final active = radar.isAnimationActive ?? !reducedMotion;
+      _radarAnimators.putIfAbsent(r.id, () => SeriesAnimator<RadarPoint>(this, matchBy: MatchBy.byIndex)).update(
+          hidden ? null : r.points,
+          active: active,
+          begin: radar.animationBegin,
+          duration: radar.animationDuration,
+          easing: radar.animationEasing,
+          onAnimationStart: radar.onAnimationStart,
+          onAnimationEnd: radar.onAnimationEnd);
+      // Radar's baseLine runs through its own snapshot on the same timeline.
+      final range = r.composed?.isRange ?? false;
+      _radarBaseLineAnimators
+          .putIfAbsent(r.id, () => SeriesAnimator<RadarPoint>(this, matchBy: MatchBy.byIndex))
+          .update(hidden || !range ? null : r.composed!.baseLinePoints,
+              active: active, begin: radar.animationBegin, duration: radar.animationDuration, easing: radar.animationEasing);
+    }
+    for (final b in scene?.radialBars ?? const <RadialBarModel>[]) {
+      final bar = b.settings;
+      liveBars.add(b.id);
+      _radialBarAnimators
+          .putIfAbsent(b.id, () => SeriesAnimator<RadialBarSector>(this, matchBy: MatchBy.append))
+          .update(bar.hide ? null : b.sectors,
+              active: bar.isAnimationActive ?? !reducedMotion,
+              begin: bar.animationBegin,
+              duration: bar.animationDuration,
+              easing: bar.animationEasing,
+              onAnimationStart: bar.onAnimationStart,
+              onAnimationEnd: bar.onAnimationEnd);
+    }
+    for (final id in _radarAnimators.keys.where((k) => !liveRadars.contains(k)).toList()) {
+      _radarAnimators.remove(id)!.dispose();
+      _radarBaseLineAnimators.remove(id)?.dispose();
+    }
+    for (final id in _radialBarAnimators.keys.where((k) => !liveBars.contains(k)).toList()) {
+      _radialBarAnimators.remove(id)!.dispose();
     }
   }
 
@@ -542,14 +771,30 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin {
         data: widget.data,
         children: children,
         margin: widget.margin,
-        legendSize: legendSize);
+        legendSize: legendSize,
+        layout: widget.layout,
+        options: widget.usesPolarScene
+            ? PolarOptions(
+                cx: widget.cx,
+                cy: widget.cy,
+                innerRadius: widget.innerRadius,
+                outerRadius: widget.outerRadius,
+                startAngle: widget.startAngle,
+                endAngle: widget.endAngle)
+            : null,
+        stackOffset: widget.stackOffset,
+        reverseStackOrder: widget.reverseStackOrder,
+        barGap: widget.barGap,
+        barCategoryGap: widget.barCategoryGap,
+        barSize: widget.barSize,
+        maxBarSize: widget.maxBarSize);
 
     // The legend payload does not depend on the offset.
     var m = compute(Size.zero);
     LegendLayout? legendLayout;
     List<LegendPayload> legendPayload = const [];
     if (legend != null) {
-      legendPayload = pieLegendPayload(m, legend);
+      legendPayload = _legendPayload(m, legend);
       if (legend.content == null) {
         legendLayout = computeLegendLayout(
             legend: legend,
@@ -565,8 +810,23 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin {
     _syncAnimators(m, reducedMotion);
     _view.set(_computeView(m), notify: false);
 
-    final frame = _frame = PolarFrame(model: m, textStyle: textStyle, textScaler: scaler, pieAnimators: _pieAnimators);
-    final animations = Listenable.merge([for (final a in _pieAnimators.values) a.controller]);
+    final frame = _frame = PolarFrame(
+        model: m,
+        textStyle: textStyle,
+        textScaler: scaler,
+        pieAnimators: _pieAnimators,
+        radarAnimators: _radarAnimators,
+        radarBaseLineAnimators: _radarBaseLineAnimators,
+        radialBarAnimators: _radialBarAnimators);
+    final animations = Listenable.merge([
+      for (final a in [
+        ..._pieAnimators.values,
+        ..._radarAnimators.values,
+        ..._radarBaseLineAnimators.values,
+        ..._radialBarAnimators.values,
+      ])
+        a.controller,
+    ]);
 
     Widget layer(PolarLayer l, Listenable repaint) => Positioned.fill(
           child: RepaintBoundary(
@@ -606,6 +866,7 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin {
                       viewBox: m.viewBox,
                       active: v.active,
                       payload: v.payload,
+                      label: v.label,
                       coordinate: v.coordinate,
                       activeIndex: v.activeIndex);
                 },
@@ -623,11 +884,11 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin {
       },
       child: MouseRegion(
         onEnter: (e) {
-          _setItemHover(_sectorAt(e.localPosition));
+          _pointerAt(e.localPosition);
           widget.onMouseEnter?.call(_eventState(), e);
         },
         onHover: (e) {
-          _setItemHover(_sectorAt(e.localPosition));
+          _pointerAt(e.localPosition);
           widget.onMouseMove?.call(_eventState(), e);
         },
         onExit: (e) {
@@ -638,13 +899,16 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin {
           behavior: HitTestBehavior.opaque,
           onPointerDown: _onPointerDown,
           onPointerMove: (e) {
-            final hit = _sectorAt(e.localPosition);
+            final m = _model;
             if (e.kind == PointerDeviceKind.mouse) {
-              _setItemHover(hit);
+              _pointerAt(e.localPosition);
               widget.onMouseMove?.call(_eventState(), e);
-            } else if (hit != null) {
+            } else if (m != null && _isAxisEvent(m)) {
+              _setAxisHover(e.localPosition);
+            } else {
               // touchEventsMiddleware: a finger over a sector activates it; elsewhere nothing changes.
-              _setItemHover(hit);
+              final hit = _sectorAt(e.localPosition);
+              if (hit != null) _setItemHover(hit);
             }
           },
           onPointerUp: _onPointerUp,

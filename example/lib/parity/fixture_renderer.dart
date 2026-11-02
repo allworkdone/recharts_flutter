@@ -478,6 +478,61 @@ RechartsElement? _child(Map<String, dynamic> node) {
         ],
       );
     // ---- polar: child element cases ----
+    case 'PolarGrid':
+      return PolarGrid(
+        polarAngles: (p.raw['polarAngles'] as List?)?.map((e) => (e as num).toDouble()).toList(),
+        polarRadius: (p.raw['polarRadius'] as List?)?.map((e) => (e as num).toDouble()).toList(),
+        gridType: p.str('gridType') == 'circle' ? PolarGridType.circle : PolarGridType.polygon,
+        radialLines: p.boolean('radialLines') ?? true,
+        angleAxisId: p.raw['angleAxisId'] ?? 0,
+        radiusAxisId: p.raw['radiusAxisId'] ?? 0,
+        stroke: p.raw.containsKey('stroke') ? p.color('stroke') : const Color(0xFFCCCCCC),
+        strokeWidth: p.dbl('strokeWidth') ?? 1,
+        strokeDasharray: p.dash('strokeDasharray'),
+        fill: p.color('fill'),
+        fillOpacity: p.dbl('fillOpacity'),
+      );
+    case 'PolarAngleAxis':
+      return PolarAngleAxis(
+        angleAxisId: p.raw['angleAxisId'] ?? 0,
+        dataKey: p.raw['dataKey'],
+        type: _axisType(p.str('type')) ?? AxisDomainType.auto,
+        domain: p.raw['domain'],
+        scale: p.str('scale') ?? 'auto',
+        ticks: (p.raw['ticks'] as List?)?.cast<Object>(),
+        tick: p.tick(),
+        tickLine: p.svgOrBool('tickLine') ?? true,
+        tickSize: p.dbl('tickSize') ?? 8,
+        tickCount: p.dbl('tickCount')?.toInt(),
+        axisLine: p.svgOrBool('axisLine') ?? true,
+        axisLineType: p.str('axisLineType') == 'circle' ? PolarAxisLineType.circle : PolarAxisLineType.polygon,
+        orientation: p.str('orientation') == 'inner' ? PolarAngleOrientation.inner : PolarAngleOrientation.outer,
+        reversed: p.boolean('reversed') ?? false,
+        allowDecimals: p.boolean('allowDecimals') ?? false,
+        stroke: p.color('stroke'),
+        strokeWidth: p.dbl('strokeWidth'),
+        fontSize: p.dbl('fontSize'),
+      );
+    case 'PolarRadiusAxis':
+      return PolarRadiusAxis(
+        radiusAxisId: p.raw['radiusAxisId'] ?? 0,
+        dataKey: p.raw['dataKey'],
+        type: _axisType(p.str('type')) ?? AxisDomainType.auto,
+        domain: p.raw['domain'],
+        scale: p.str('scale') ?? 'auto',
+        angle: p.dbl('angle') ?? 0,
+        orientation: _enum(PolarRadiusOrientation.values, p.str('orientation')) ?? PolarRadiusOrientation.right,
+        ticks: (p.raw['ticks'] as List?)?.cast<Object>(),
+        tick: p.tick(),
+        tickCount: p.dbl('tickCount')?.toInt() ?? 5,
+        axisLine: p.svgOrBool('axisLine') ?? true,
+        reversed: p.boolean('reversed') ?? false,
+        allowDecimals: p.boolean('allowDecimals') ?? false,
+        allowDataOverflow: p.boolean('allowDataOverflow') ?? false,
+        label: _label(p.raw['label']),
+        stroke: p.raw.containsKey('stroke') ? p.color('stroke') : const Color(0xFFCCCCCC),
+        fontSize: p.dbl('fontSize'),
+      );
     // ---- end polar ----
     // ---- treemap: child element cases ----
     // ---- end treemap ----

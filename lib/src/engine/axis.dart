@@ -87,7 +87,7 @@ AxisDomainType evaluatedAxisType(ChartLayout layout, CartesianAxisElement axis) 
   return isCategoricalAxis(layout, axis.isX) ? AxisDomainType.category : AxisDomainType.number;
 }
 
-bool _isWellFormedNumberDomain(Object? v) =>
+bool isWellFormedNumberDomain(Object? v) =>
     v is List && v.length == 2 && isWellBehavedNumber(v[0]) && isWellBehavedNumber(v[1]);
 
 double? _makeNumber(Object? val) {
@@ -98,7 +98,7 @@ double? _makeNumber(Object? val) {
   return null;
 }
 
-NumberDomain? _makeDomain(Object? val) {
+NumberDomain? makeDomain(Object? val) {
   if (val is List) {
     final a = val.isNotEmpty ? _makeNumber(val[0]) : null;
     final b = val.length > 1 ? _makeNumber(val[1]) : null;
@@ -134,7 +134,7 @@ NumberDomain? numericalDomainSpecifiedWithoutRequiringData(Object? userDomain, b
       isWellBehavedNumber(providedMin) ? (providedMin as num).toDouble() : null,
       isWellBehavedNumber(providedMax) ? (providedMax as num).toDouble() : null,
     ];
-    if (_isWellFormedNumberDomain(candidate)) return candidate.cast<double>();
+    if (isWellFormedNumberDomain(candidate)) return candidate.cast<double>();
   }
   return null;
 }
@@ -144,7 +144,7 @@ NumberDomain? parseNumericalUserDomain(Object? userDomain, NumberDomain? dataDom
   if (userDomain is Function && userDomain is! num Function(num) && dataDomain != null) {
     try {
       final result = (userDomain as dynamic)(dataDomain, allowDataOverflow);
-      if (_isWellFormedNumberDomain(result)) {
+      if (isWellFormedNumberDomain(result)) {
         final r = [(result[0] as num).toDouble(), (result[1] as num).toDouble()];
         return extendDomain(r, dataDomain, allowDataOverflow);
       }
@@ -182,7 +182,7 @@ NumberDomain? parseNumericalUserDomain(Object? userDomain, NumberDomain? dataDom
       finalMax = dataDomain?[1];
     }
     final candidate = [finalMin, finalMax];
-    if (_isWellFormedNumberDomain(candidate)) {
+    if (isWellFormedNumberDomain(candidate)) {
       final c = [finalMin!, finalMax!];
       return dataDomain == null ? c : extendDomain(c, dataDomain, allowDataOverflow);
     }
@@ -500,12 +500,12 @@ void computeAxisDomain(AxisRuntime axis, ChartContext ctx) {
       final value = getValueByDataKey(entry, s.dataKey ?? item.dataKey);
       final errorDomain = getErrorDomainByDataKey(entry, value, errorBars);
       if (errorDomain.length >= 2) take([errorDomain.reduce(math.min), errorDomain.reduce(math.max)]);
-      take(_makeDomain(value));
+      take(makeDomain(value));
     }
   }
   if (s.dataKey != null && notStacked.isEmpty) {
     for (final entry in axis.displayedData) {
-      take(_makeDomain(getValueByDataKey(entry, s.dataKey)));
+      take(makeDomain(getValueByDataKey(entry, s.dataKey)));
     }
   }
   final dataDomain =
@@ -574,7 +574,7 @@ void computeAxisDomain(AxisRuntime axis, ChartContext ctx) {
   // combineAxisDomainWithNiceTicks
   final d = axis.domain;
   final nt = axis.niceTicks;
-  if (axis.type == AxisDomainType.number && _isWellFormedNumberDomain(d) && nt != null && nt.isNotEmpty) {
+  if (axis.type == AxisDomainType.number && isWellFormedNumberDomain(d) && nt != null && nt.isNotEmpty) {
     axis.domainWithNiceTicks = [
       math.min((d![0] as num).toDouble(), nt.first.toDouble()),
       math.max((d[1] as num).toDouble(), nt.last.toDouble()),
@@ -624,12 +624,12 @@ const implicitZAxis = ZAxis(name: '', unit: '');
 
   for (final item in items) {
     for (final entry in item.data ?? ctx.chartData) {
-      take(_makeDomain(getValueByDataKey(entry, settings.dataKey ?? item.dataKey)));
+      take(makeDomain(getValueByDataKey(entry, settings.dataKey ?? item.dataKey)));
     }
   }
   if (settings.dataKey != null && items.isEmpty) {
     for (final entry in displayedData) {
-      take(_makeDomain(getValueByDataKey(entry, settings.dataKey)));
+      take(makeDomain(getValueByDataKey(entry, settings.dataKey)));
     }
   }
   final dataDomain =
@@ -674,7 +674,7 @@ List<num>? combineNiceTicks(List<Object?>? axisDomain, CartesianAxisElement s, A
   final hasAuto = domainDefinition is List &&
       domainDefinition.length >= 2 &&
       (domainDefinition[0] == 'auto' || domainDefinition[1] == 'auto');
-  final wellFormed = _isWellFormedNumberDomain(axisDomain);
+  final wellFormed = isWellFormedNumberDomain(axisDomain);
   List<num> dom() => [axisDomain![0] as num, axisDomain[1] as num];
   final mode = s.niceTicks;
   if ((mode == NiceTicksAlgorithm.snap125 || mode == NiceTicksAlgorithm.adaptive) && s.tickCount != 0 && wellFormed) {
@@ -731,7 +731,7 @@ double calculatedPadding(AxisRuntime axis, String padding, double rangeWidth, Ob
 RechartsScale? buildScale(String? realScaleType, List<Object?>? domain, List<double>? rangeWithReverse) {
   if (domain == null || rangeWithReverse == null || realScaleType == null) return null;
   var checked = domain;
-  if (realScaleType == 'linear' && !_isWellFormedNumberDomain(domain)) {
+  if (realScaleType == 'linear' && !isWellFormedNumberDomain(domain)) {
     final nums = domain.where(isWellBehavedNumber).map((v) => (v as num).toDouble()).toList();
     if (nums.isEmpty) return null;
     checked = [nums.reduce(math.min), nums.reduce(math.max)];

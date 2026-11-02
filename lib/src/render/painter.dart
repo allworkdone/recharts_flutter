@@ -158,6 +158,19 @@ class ChartFrame {
   }
 }
 
+/// `<Dot>`; [fill] (a Color or Gradient) overrides [DotProps.fill].
+void paintDot(Canvas canvas, DotProps d, List<double>? dash, {Object? fill, double fillOpacity = 1}) {
+  final center = Offset(d.cx, d.cy);
+  final f = fill ?? d.fill;
+  if (f != null) {
+    canvas.drawCircle(center, d.r, fillPaintOf(f, Rect.fromCircle(center: center, radius: d.r), opacity: fillOpacity));
+  }
+  if (d.stroke != null && d.strokeWidth > 0) {
+    final path = Path()..addOval(Rect.fromCircle(center: center, radius: d.r));
+    drawStroke(canvas, path, strokePaint(d.stroke!, d.strokeWidth), dash);
+  }
+}
+
 class CartesianPainter extends CustomPainter {
   CartesianPainter(this.layer, this.frame, {this.hover, super.repaint});
 
@@ -539,18 +552,8 @@ class CartesianPainter extends CustomPainter {
     }
   }
 
-  /// `<Dot>`; [fill] (a Color or Gradient) overrides [DotProps.fill].
-  void _paintDot(Canvas canvas, DotProps d, List<double>? dash, {Object? fill, double fillOpacity = 1}) {
-    final center = Offset(d.cx, d.cy);
-    final f = fill ?? d.fill;
-    if (f != null) {
-      canvas.drawCircle(center, d.r, fillPaintOf(f, Rect.fromCircle(center: center, radius: d.r), opacity: fillOpacity));
-    }
-    if (d.stroke != null && d.strokeWidth > 0) {
-      final path = Path()..addOval(Rect.fromCircle(center: center, radius: d.r));
-      drawStroke(canvas, path, strokePaint(d.stroke!, d.strokeWidth), dash);
-    }
-  }
+  void _paintDot(Canvas canvas, DotProps d, List<double>? dash, {Object? fill, double fillOpacity = 1}) =>
+      paintDot(canvas, d, dash, fill: fill, fillOpacity: fillOpacity);
 
   /// ScatterSymbols: the line, then a symbol per point; the active point
   /// moves to the activeDot layer ([_paintActiveScatterPoints]).

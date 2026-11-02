@@ -12,9 +12,12 @@ import '../animation.dart';
 import '../components.dart';
 import '../core/polar_utils.dart';
 import '../engine/pie.dart';
+import '../engine/polar_items.dart';
+import '../engine/polar_scene.dart';
 import '../polar_components.dart';
 import '../util.dart';
 import 'label.dart';
+import 'polar_scene_painter.dart';
 import 'sector.dart';
 import 'shapes.dart';
 import 'svg_text.dart';
@@ -23,21 +26,47 @@ enum PolarLayer { main, labels }
 
 /// The active tooltip item, as sectors see it.
 class PolarHoverState {
-  const PolarHoverState({this.activeIndex, this.activeDataKey, this.activeItemId});
+  const PolarHoverState({
+    this.activeIndex,
+    this.activeDataKey,
+    this.activeItemId,
+    this.polarCoordinate,
+    this.cursorVisible = false,
+    this.activeDataPoints = const [],
+  });
   final int? activeIndex;
   final Object? activeDataKey;
 
   /// `selectActiveTooltipGraphicalItemId`.
   final String? activeItemId;
+
+  /// The axis tooltip's coordinate with its polar parts; null for the 'item' event type and synced charts.
+  final PolarCoordinate? polarCoordinate;
+
+  /// Whether the Tooltip's cursor shows (axis event type, tooltip active).
+  final bool cursorVisible;
+
+  /// `useActiveTooltipDataPoints`: the payload of every tooltip row.
+  final List<Object?> activeDataPoints;
 }
 
 /// Everything painters need for one build of a polar chart.
 class PolarFrame {
-  PolarFrame({required this.model, required this.textStyle, required this.textScaler, required this.pieAnimators});
+  PolarFrame({
+    required this.model,
+    required this.textStyle,
+    required this.textScaler,
+    required this.pieAnimators,
+    this.radarAnimators = const {},
+    this.radarBaseLineAnimators = const {},
+    this.radialBarAnimators = const {},
+  });
   final PolarModel model;
   final TextStyle textStyle;
   final TextScaler textScaler;
   final Map<String, SeriesAnimator<PieSector>> pieAnimators;
+  final Map<String, SeriesAnimator<RadarPoint>> radarAnimators, radarBaseLineAnimators;
+  final Map<String, SeriesAnimator<RadialBarSector>> radialBarAnimators;
 
   /// Where the labels layer last drew text: SVG text sits above the sectors
   /// and takes the pointer from them.
@@ -94,16 +123,22 @@ class PolarPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    final h = hover?.value;
     switch (layer) {
       case PolarLayer.main:
+        // DefaultZIndexes order: grid, bar background, area, bar, axis, scatter (radar dots), active bar,
+        // cursor line, active dot.
+        paintPolarBelowArea(canvas, frame, h);
         for (final p in m.pies) {
           _paintPie(canvas, p);
         }
+        paintPolarAboveArea(canvas, frame, h);
       case PolarLayer.labels:
         frame.labelBoxes.clear();
         for (final p in m.pies) {
           _paintPieLabels(canvas, p);
         }
+        paintPolarSceneLabels(canvas, frame);
     }
   }
 

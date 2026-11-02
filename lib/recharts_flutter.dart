@@ -15,6 +15,8 @@ export 'src/polar_components.dart';
 export 'src/engine/pie.dart' show PieSector;
 export 'src/widgets/polar_chart.dart' show PolarChart, PieChart;
 // ---- polar: exports ----
+export 'src/engine/polar_axis.dart' show PolarLayout;
+export 'src/polar_axes.dart';
 // ---- end polar ----
 // ---- treemap: exports ----
 // ---- end treemap ----
