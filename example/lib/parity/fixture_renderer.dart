@@ -115,6 +115,29 @@ Widget buildChart(Map<String, dynamic> chart, {double? width, double? height}) {
         accessibilityLayer: p.raw['accessibilityLayer'] != false,
         children: children,
       );
+    case 'RadialBarChart':
+      return RadialBarChart(
+        width: w,
+        height: h,
+        data: _polarData(data),
+        margin: margin,
+        cx: p.raw['cx'] ?? '50%',
+        cy: p.raw['cy'] ?? '50%',
+        innerRadius: p.raw['innerRadius'] ?? 0,
+        outerRadius: p.raw['outerRadius'] ?? '80%',
+        startAngle: p.dbl('startAngle') ?? 0,
+        endAngle: p.dbl('endAngle') ?? 360,
+        layout: p.str('layout') == 'centric' ? PolarLayout.centric : PolarLayout.radial,
+        stackOffset: _enum(StackOffset.values, p.str('stackOffset')) ?? StackOffset.none,
+        reverseStackOrder: p.boolean('reverseStackOrder') ?? false,
+        barCategoryGap: p.raw['barCategoryGap'] ?? '10%',
+        barGap: p.raw['barGap'] ?? 4,
+        barSize: p.raw['barSize'],
+        maxBarSize: p.dbl('maxBarSize'),
+        syncId: p.raw['syncId'],
+        accessibilityLayer: p.raw['accessibilityLayer'] != false,
+        children: children,
+      );
     // ---- end polar ----
     // ---- treemap: chart cases ----
     // ---- end treemap ----
@@ -572,6 +595,37 @@ RechartsElement? _child(Map<String, dynamic> node) {
         animationEasing: p.str('animationEasing') ?? 'ease',
         children: [
           for (final c in (node['children'] as List? ?? const []).cast<Map<String, dynamic>>()) ?_child(c),
+        ],
+      );
+    case 'RadialBar':
+      return RadialBar(
+        dataKey: p.raw['dataKey'] as Object,
+        angleAxisId: p.raw['angleAxisId'] ?? 0,
+        radiusAxisId: p.raw['radiusAxisId'] ?? 0,
+        stackId: p.raw['stackId'],
+        barSize: p.dbl('barSize'),
+        maxBarSize: p.dbl('maxBarSize'),
+        minPointSize: p.dbl('minPointSize') ?? 0,
+        background: _sectorStyle(p.raw['background']) ?? false,
+        cornerRadius: p.raw['cornerRadius'] ?? 0,
+        cornerIsExternal: p.boolean('cornerIsExternal') ?? false,
+        forceCornerRadius: p.boolean('forceCornerRadius') ?? false,
+        label: _labelList(p.raw['label']) ?? false,
+        legendType: _enum(LegendType.values, p.str('legendType')) ?? LegendType.rect,
+        name: p.raw['name'],
+        hide: p.boolean('hide') ?? false,
+        fill: p.raw.containsKey('fill') ? p.color('fill') : const Color(0xFF000000),
+        fillOpacity: p.dbl('fillOpacity'),
+        stroke: p.color('stroke'),
+        strokeWidth: p.dbl('strokeWidth'),
+        activeShape: _sectorStyle(p.raw['activeShape']),
+        isAnimationActive: p.boolean('isAnimationActive'),
+        animationBegin: p.dbl('animationBegin')?.toInt() ?? 0,
+        animationDuration: p.dbl('animationDuration')?.toInt() ?? 1500,
+        animationEasing: p.str('animationEasing') ?? 'ease',
+        children: [
+          for (final c in (node['children'] as List? ?? const []).cast<Map<String, dynamic>>())
+            if (c['type'] == 'Cell') _cell(_Props(c['props'] as Map<String, dynamic>? ?? const {})) else ?_child(c),
         ],
       );
     // ---- end polar ----

@@ -18,6 +18,7 @@ import '../polar_components.dart';
 import '../util.dart';
 import 'label.dart';
 import 'polar_scene_painter.dart';
+import 'radial_label.dart';
 import 'sector.dart';
 import 'shapes.dart';
 import 'svg_text.dart';
@@ -284,11 +285,13 @@ class PolarPainter extends CustomPainter {
 }
 
 /// `<Label viewBox={polar}>`.
-// ponytail: the radial positions draw nothing; their textPath arrives with RadialBar.
 void paintPolarLabel(Canvas canvas, Label label, PolarViewBox viewBox,
     {int? index, required TextStyle baseStyle, required TextScaler scaler, List<Rect>? boxes}) {
   final pos = getAttrsOfPolarLabel(viewBox, label.offset, label.position);
-  if (pos == null) return;
+  if (pos == null) {
+    _paintRadialLabel(canvas, label, viewBox, baseStyle, scaler, index);
+    return;
+  }
   final style = labelTextStyle(label, baseStyle);
   if (label.content != null) {
     final r = viewBox.outerRadius;
@@ -323,6 +326,36 @@ void paintPolarLabel(Canvas canvas, Label label, PolarViewBox viewBox,
   if (label.angle == 0) {
     boxes?.add(svgTextBox(text, pos.x, pos.y, style, scaler, textAnchor: textAnchor, verticalAnchor: pos.verticalAnchor));
   }
+}
+
+/// `renderRadialLabel`: a raw `<text>`, so no `#808080` default fill.
+void _paintRadialLabel(Canvas canvas, Label label, PolarViewBox viewBox, TextStyle baseStyle, TextScaler scaler, int? index) {
+  final path = radialLabelPath(viewBox, label.offset, label.position);
+  var style = baseStyle.copyWith(color: label.fill ?? const Color(0xFF000000));
+  if (label.fontSize != null) style = style.copyWith(fontSize: label.fontSize);
+  if (label.content != null) {
+    final start = polarToCartesian(viewBox.cx, viewBox.cy, path.radius, path.labelAngle);
+    final r = viewBox.outerRadius;
+    label.content!(
+      canvas,
+      LabelProps(
+        x: start.dx,
+        y: start.dy,
+        viewBox: Rect.fromLTWH(viewBox.cx - r, viewBox.cy - r, r * 2, r * 2),
+        value: label.value,
+        position: label.position,
+        offset: label.offset,
+        angle: label.angle,
+        style: style,
+        index: index,
+      ),
+    );
+    return;
+  }
+  if (label.value == null) return;
+  final value = label.formatter == null ? label.value : label.formatter!(label.value);
+  if (value == null) return;
+  paintTextOnArc(canvas, jsString(value), viewBox.cx, viewBox.cy, path, style: style, scaler: scaler);
 }
 
 /// The glyph cells of a one-line `<Text>` (the box SVG hit tests), placed

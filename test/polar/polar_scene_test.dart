@@ -17,6 +17,7 @@ import 'package:recharts_flutter/src/engine/polar_items.dart';
 import 'package:recharts_flutter/src/engine/polar_scene.dart';
 import 'package:recharts_flutter/src/render/polar_painter.dart' show getAttrsOfPolarLabel;
 import 'package:recharts_flutter/src/render/polar_scene_painter.dart';
+import 'package:recharts_flutter/src/render/sector.dart' show sectorPathData;
 import 'package:recharts_flutter/src/util.dart';
 
 // test/_data.ts
@@ -48,6 +49,16 @@ PolarModel radarModel(List<Object?> data, List<RechartsElement> children,
       children: children,
       layout: PolarLayout.centric,
       options: PolarOptions(cx: cx, cy: cy, outerRadius: outerRadius, startAngle: 90, endAngle: -270),
+    );
+
+PolarModel radialBarModel(List<Object?> data, List<RechartsElement> children, {Size size = const Size(500, 500)}) =>
+    computePolarModel(
+      chartName: 'RadialBarChart',
+      size: size,
+      data: data,
+      children: children,
+      layout: PolarLayout.radial,
+      options: const PolarOptions(startAngle: 0, endAngle: 360),
     );
 
 Matcher near(double v) => closeTo(v, 1e-9);
@@ -167,6 +178,50 @@ void main() {
     });
   });
 
+  group('RadialBar with implicit axes (RadialBar.spec, 500x500, PageData, dataKey pv)', () {
+    final m = radialBarModel(pageData, const [RadialBar(dataKey: 'pv', isAnimationActive: false)]);
+    final scene = m.scene!;
+
+    test('radius axis ticks are the categories, with a half band offset', () {
+      final ticks = scene.radiusAxes[0]!.ticks!;
+      expect([for (final t in ticks) t.coordinate], [
+        near(16.333333333333332),
+        near(49),
+        near(81.66666666666666),
+        near(114.33333333333333),
+        near(147),
+        near(179.66666666666666),
+      ]);
+      expect({for (final t in ticks) t.offset}, {16.333333333333332});
+      expect([for (final t in ticks) t.value], [0, 1, 2, 3, 4, 5]);
+      expect(scene.radiusAxes[0]!.scale!.bandwidth, 32.666666666666664);
+    });
+
+    test('sectors and their backgrounds', () {
+      final sectors = scene.radialBars.single.sectors;
+      const expected = [
+        (3.266666666666666, 29.266666666666666, 88.16326530612244),
+        (35.93333333333333, 61.93333333333333, 167.76734693877552),
+        (68.6, 94.6, 51.35510204081632),
+        (101.26666666666667, 127.26666666666667, 360.0),
+        (133.93333333333334, 159.93333333333334, 143.5591836734694),
+        (166.6, 192.6, 176.32653061224488),
+      ];
+      expect(sectors.length, 6);
+      for (final (i, s) in sectors.indexed) {
+        expect(s.innerRadius, near(expected[i].$1));
+        expect(s.outerRadius, near(expected[i].$2));
+        expect(s.endAngle, near(expected[i].$3));
+        expect([s.cx, s.cy, s.startAngle], [250, 250, 0]);
+        expect(s.value, pageData[i]['pv']);
+        final bg = s.background!;
+        expect([bg.cx, bg.cy, bg.startAngle, bg.endAngle], [250, 250, 0, 360]);
+        expect(bg.innerRadius, near(expected[i].$1));
+        expect(bg.outerRadius, near(expected[i].$2));
+      }
+    });
+  });
+
   group('axis tooltip (Tooltip.payload.spec: 600x600, PageData, hover at 200,200)', () {
     test('RadarChart: the pointer maps to the nearest spoke; the label is the tick value', () {
       final children = <RechartsElement>[
@@ -191,6 +246,65 @@ void main() {
       final m = radarModel(pageData, [const Radar(dataKey: 'uv')], size: const Size(600, 600));
       expect(polarActivePropsFromPointer(m.scene!, const Offset(5, 5)), isNull);
       expect(polarActivePropsFromPointer(m.scene!, const Offset(300, 300)), isNull);
+    });
+
+    test('RadialBarChart: the pointer radius picks the category; the label is its index', () {
+      final m = radialBarModel(pageData, const [
+        RadialBar(dataKey: 'uv'),
+        RadialBar(dataKey: 'pv', name: 'My custom name'),
+        RadialBar(dataKey: 'amt'),
+      ], size: const Size(600, 600));
+      final props = polarActivePropsFromPointer(m.scene!, const Offset(200, 200))!;
+      expect(props.activeIndex, 3);
+      expect(polarActiveLabel(m.scene!, 3), 3);
+      final payload = polarTooltipPayload(m.scene!, pageData, 3);
+      expect([for (final e in payload) '${e.name} : ${e.value}'], ['uv : 200', 'My custom name : 9800', 'amt : 2400']);
+    });
+  });
+
+  group('RadialBar sector paths (RadialBar.animation.spec: 400x400, pageDataWithFillColor.slice(0, 2), dataKey uv)', () {
+    const data = [
+      {'name': '18-24', 'uv': 31.47, 'pv': 2400, 'amt': 1400},
+      {'name': '25-29', 'uv': 26.69, 'pv': 4567, 'amt': 720},
+    ];
+    final model = radialBarModel(data, const [RadialBar(dataKey: 'uv')], size: const Size(400, 400));
+    final bar = model.scene!.radialBars.single;
+
+    List<String?> paths(List<RadialBarSector> sectors) =>
+        [for (final s in sectors) sectorPathData(radialBarGeometry(bar.settings, s))];
+
+    test('without animation', () {
+      expect(paths(bar.sectors), [
+        'M 269.8,200 A 69.8,69.8,0, 1,0, 269.8,200.0012 L 207.8,200.0001 A 7.8,7.8,0, 1,1, 207.8,200 Z',
+        'M 347.8,200 A 147.8,147.8,0, 1,0, 285.4481,320.5963 L 249.6038,270.0079 A 85.8,85.8,0, 1,1, 285.8,200 Z',
+      ]);
+    });
+
+    test('entrance sweep: new sectors grow from their start angle', () {
+      final items = matchAnimationItems<RadialBarSector>(null, bar.sectors, MatchBy.append);
+      final ease = createEasingFunction('ease')!;
+      const expected = [
+        [
+          'M 269.8,200 A 69.8,69.8,0, 0,0, 131.2126,188.154 L 192.3132,198.6762 A 7.8,7.8,0, 0,1, 207.8,200 Z',
+          'M 347.8,200 A 147.8,147.8,0, 0,0, 79.8649,113.9048 L 130.2598,150.0205 A 85.8,85.8,0, 0,1, 285.8,200 Z',
+        ],
+        [
+          'M 269.8,200 A 69.8,69.8,0, 1,0, 204.1953,269.6738 L 200.4688,207.7859 A 7.8,7.8,0, 1,1, 207.8,200 Z',
+          'M 347.8,200 A 147.8,147.8,0, 1,0, 108.8263,316.3279 L 147.0723,267.53 A 85.8,85.8,0, 1,1, 285.8,200 Z',
+        ],
+        [
+          'M 269.8,200 A 69.8,69.8,0, 1,0, 259.0019,237.2936 L 206.5933,204.1675 A 7.8,7.8,0, 1,1, 207.8,200 Z',
+          'M 347.8,200 A 147.8,147.8,0, 1,0, 220.3881,346.387 L 211.8356,284.9798 A 85.8,85.8,0, 1,1, 285.8,200 Z',
+        ],
+        [
+          'M 269.8,200 A 69.8,69.8,0, 1,0, 269.2789,208.5131 L 207.7418,200.9513 A 7.8,7.8,0, 1,1, 207.8,200 Z',
+          'M 347.8,200 A 147.8,147.8,0, 1,0, 272.5059,328.7934 L 242.0907,274.7664 A 85.8,85.8,0, 1,1, 285.8,200 Z',
+        ],
+      ];
+      for (final (i, progress) in [0.28, 0.46, 0.64, 0.82].indexed) {
+        expect(paths(interpolateRadialBarSectors(items, ease(round4(progress)))), expected[i], reason: 'progress $progress');
+      }
+      expect(paths(interpolateRadialBarSectors(items, 1)), paths(bar.sectors));
     });
   });
 }

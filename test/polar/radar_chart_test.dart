@@ -1,5 +1,5 @@
-// RadarChart tooltip and keyboard through the widget, following
-// component/Tooltip/Tooltip.payload.spec.tsx (polar cases).
+// RadarChart and RadialBarChart tooltips and keyboard through the widgets,
+// following component/Tooltip/Tooltip.payload.spec.tsx (polar cases).
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -33,6 +33,19 @@ void main() {
     await mouse.removePointer();
   });
 
+  testWidgets('RadialBarChart: the axis tooltip is labelled by the category index', (tester) async {
+    final probe = Probe();
+    await tester.pumpWidget(host(RadialBarChart(width: 600, height: 600, data: pageData, children: [
+      const RadialBar(dataKey: 'uv', isAnimationActive: false),
+      const RadialBar(dataKey: 'pv', name: 'My custom name', isAnimationActive: false),
+      Tooltip(isAnimationActive: false, content: probe.build),
+    ])));
+    final mouse = await mouseAt(tester, const Offset(200, 200));
+    expect(probe.props!.label, 3);
+    expect(probe.rows, ['uv : 200', 'My custom name : 9800']);
+    await mouse.removePointer();
+  });
+
   testWidgets('RadarChart ignores shared: false and keeps the axis tooltip', (tester) async {
     final probe = Probe();
     await tester.pumpWidget(host(RadarChart(width: 600, height: 600, data: pageData, children: [
@@ -41,6 +54,21 @@ void main() {
     ])));
     final mouse = await mouseAt(tester, const Offset(200, 200));
     expect(probe.rows, ['uv : 189']);
+    await mouse.removePointer();
+  });
+
+  testWidgets('a RadialBarChart tooltip with shared: false follows the hovered sector', (tester) async {
+    final probe = Probe();
+    await tester.pumpWidget(host(RadialBarChart(width: 600, height: 600, data: pageData, children: [
+      const RadialBar(dataKey: 'uv', isAnimationActive: false),
+      Tooltip(isAnimationActive: false, shared: false, content: probe.build),
+    ])));
+    // Page A's sector runs from 0 to uv 400/400 * 360 at the first ring: radius ~16 around (300, 300).
+    final mouse = await mouseAt(tester, const Offset(300 + 15, 300 - 1));
+    expect(probe.props!.active, isTrue);
+    expect(probe.props!.activeIndex, 0);
+    // RadialBar sectors carry no tooltipPosition, so the box has no coordinate to sit at.
+    expect(probe.props!.coordinate, isNull);
     await mouse.removePointer();
   });
 

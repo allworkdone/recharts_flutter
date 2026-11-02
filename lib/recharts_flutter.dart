@@ -18,6 +18,7 @@ export 'src/widgets/polar_chart.dart' show PolarChart, PieChart;
 export 'src/engine/polar_axis.dart' show PolarLayout;
 export 'src/polar_axes.dart';
 export 'src/widgets/radar_chart.dart' show RadarChart;
+export 'src/widgets/radial_bar_chart.dart' show RadialBarChart;
 // ---- end polar ----
 // ---- treemap: exports ----
 // ---- end treemap ----
