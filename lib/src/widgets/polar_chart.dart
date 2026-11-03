@@ -214,6 +214,8 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
   Size? _customLegendSize;
   Offset? _downPosition;
   Object? _registeredSyncId;
+  int _dataStart = 0;
+  int? _dataEnd;
 
   @override
   void initState() {
@@ -297,17 +299,27 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
   /// The tooltip entries in registration order: one per Pie, Radar and RadialBar.
   List<({String id, List<TooltipPayloadEntry> Function(int index) entries})> _payloadSources(PolarModel m) {
     final scene = m.scene;
+    // Children pair with models by position: equal `const` elements are one object.
+    var pies = 0, radars = 0, bars = 0;
     return [
       for (final c in widget.children)
         if (c is Pie)
-          for (final p in m.pies.where((p) => identical(p.settings, c) && !p.settings.hide && p.sectors != null))
-            (id: p.id, entries: (int i) => pieTooltipPayload(m, [p], i))
+          ...() {
+            final p = m.pies[pies++];
+            return p.settings.hide || p.sectors == null
+                ? const <({String id, List<TooltipPayloadEntry> Function(int index) entries})>[]
+                : [(id: p.id, entries: (int i) => pieTooltipPayload(m, [p], i))];
+          }()
         else if (c is Radar && scene != null)
-          for (final r in scene.radars.where((r) => identical(r.settings, c)))
-            (id: r.id, entries: (int i) => polarTooltipPayload(scene, m.chartData, i, ids: {r.id}, axis: false))
+          ...() {
+            final r = scene.radars[radars++];
+            return [(id: r.id, entries: (int i) => polarTooltipPayload(scene, m.chartData, i, ids: {r.id}, axis: false))];
+          }()
         else if (c is RadialBar && scene != null)
-          for (final b in scene.radialBars.where((b) => identical(b.settings, c)))
-            (id: b.id, entries: (int i) => polarTooltipPayload(scene, m.chartData, i, ids: {b.id}, axis: false)),
+          ...() {
+            final b = scene.radialBars[bars++];
+            return [(id: b.id, entries: (int i) => polarTooltipPayload(scene, m.chartData, i, ids: {b.id}, axis: false))];
+          }(),
     ];
   }
 
@@ -331,7 +343,9 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
   /// `combineCoordinateForDefaultIndex`.
   Offset? _coordinateForIndex(PolarModel m, int i) {
     final scene = m.scene;
-    if (scene != null && _isAxisEvent(m)) {
+    final firstId = _payloadSources(m).firstOrNull?.id;
+    final firstIsPie = m.pies.any((p) => p.id == firstId);
+    if (scene != null && (_isAxisEvent(m) || !firstIsPie)) {
       // The first item's `getPosition` is a noop for Radar and RadialBar; the tick decides.
       final ticks = scene.tooltipTicks;
       if (i < 0 || i >= ticks.length) return null;
@@ -545,13 +559,14 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
 
   /// `mouseMoveMiddleware` for the axis event type: the pointer maps to a
   /// tick index inside the polar view box, else the tooltip hides.
-  void _setAxisHover(Offset p) {
+  void _setAxisHover(Offset p, {bool leaveWhenOutside = true}) {
     final m = _model;
     final scene = m?.scene;
     if (m == null || scene == null || !mounted) return;
     final props = polarActivePropsFromPointer(scene, p);
     if (props == null) {
-      _mouseLeaveChart();
+      // touchEventsMiddleware never dispatches a leave; only the mouse path does.
+      if (leaveWhenOutside) _mouseLeaveChart();
       return;
     }
     _axisHover = _Interaction(active: true, index: props.activeIndex, coordinate: props.coordinate.offset, polar: props.coordinate);
@@ -591,15 +606,24 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
     if (id == null || m == null || m.tooltipSettings == null) return;
     final v = _view.value;
     for (final other in syncPeers(id, this)) {
-      other.receiveTooltipSync(v.active, v.activeIndex, v.coordinate, v.activeDataKey, m.viewBox);
+      other.receiveTooltipSync(v.active, v.activeIndex, v.coordinate, v.activeDataKey, m.viewBox, v.polarCoordinate);
     }
   }
 
+  /// useChartSynchronisation: a Brush elsewhere in the group moves this chart's data slice. Only RadialBar
+  /// sectors and the tooltip data follow it; Radar points, the axes and the legend ignore it.
   @override
-  void receiveBrushSync(({int startIndex, int endIndex}) range) {}
+  void receiveBrushSync(({int startIndex, int endIndex}) range) {
+    if (range.startIndex == _dataStart && range.endIndex == _dataEnd) return;
+    setState(() {
+      _dataStart = range.startIndex;
+      _dataEnd = range.endIndex;
+    });
+  }
 
   @override
-  void receiveTooltipSync(bool active, int? index, Offset? coordinate, Object? dataKey, Rect sourceViewBox) {
+  void receiveTooltipSync(
+      bool active, int? index, Offset? coordinate, Object? dataKey, Rect sourceViewBox, PolarCoordinate? polar) {
     final m = _model;
     if (m == null) return;
     if (!active) {
@@ -612,7 +636,7 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
               vb.left + (sourceViewBox.width != 0 ? (coordinate.dx - sourceViewBox.left) / sourceViewBox.width : 0) * vb.width,
               vb.top + (sourceViewBox.height != 0 ? (coordinate.dy - sourceViewBox.top) / sourceViewBox.height : 0) * vb.height,
             );
-      _sync = _Interaction(active: true, index: index, coordinate: scaled, dataKey: dataKey);
+      _sync = _Interaction(active: true, index: index, coordinate: scaled, dataKey: dataKey, polar: polar);
     }
     _refreshView();
   }
@@ -674,10 +698,16 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
   List<LegendPayload> _legendPayload(PolarModel m, Legend legend) {
     final scene = m.scene;
     if (scene == null) return pieLegendPayload(m, legend);
+    // Each item appends its payload in child render order.
+    var radars = 0, bars = 0, pies = 0;
     return sortLegendPayload([
-      for (final r in scene.radars) radarLegendEntry(r.settings),
-      for (final b in scene.radialBars) ...radialBarLegendPayload(b.settings, m.chartData),
-      ...pieLegendPayload(m, const Legend(itemSorter: null)),
+      for (final c in widget.children)
+        if (c is Radar)
+          radarLegendEntry(scene.radars[radars++].settings)
+        else if (c is RadialBar)
+          ...radialBarLegendPayload(scene.radialBars[bars++].settings, m.chartData)
+        else if (c is Pie)
+          ...pieLegendEntries(m.pies[pies++]),
     ], legend);
   }
 
@@ -788,7 +818,9 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
         barGap: widget.barGap,
         barCategoryGap: widget.barCategoryGap,
         barSize: widget.barSize,
-        maxBarSize: widget.maxBarSize);
+        maxBarSize: widget.maxBarSize,
+        dataStartIndex: _dataStart,
+        dataEndIndex: _dataEnd);
 
     // The legend payload does not depend on the offset.
     var m = compute(Size.zero);
@@ -905,7 +937,7 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
               _pointerAt(e.localPosition);
               widget.onMouseMove?.call(_eventState(), e);
             } else if (m != null && _isAxisEvent(m)) {
-              _setAxisHover(e.localPosition);
+              _setAxisHover(e.localPosition, leaveWhenOutside: false);
             } else {
               // touchEventsMiddleware: a finger over a sector activates it; elsewhere nothing changes.
               final hit = _sectorAt(e.localPosition);

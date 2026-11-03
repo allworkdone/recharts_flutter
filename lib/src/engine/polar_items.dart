@@ -293,6 +293,8 @@ class RadialBarContext {
     required this.rootBarSize,
     required this.rootMaxBarSize,
     required this.tooltipAxis,
+    this.dataStartIndex = 0,
+    this.dataEndIndex = 0,
   });
   final PolarLayout layout;
   final List<PolarItem> items;
@@ -307,6 +309,9 @@ class RadialBarContext {
 
   /// `selectTooltipAxis`.
   final PolarAxisRuntime tooltipAxis;
+
+  /// `chartDataSlice`: sectors cover `chartData.slice(dataStartIndex, dataEndIndex + 1)`.
+  final int dataStartIndex, dataEndIndex;
 }
 
 /// `selectRadialBarSectors` for [item].
@@ -376,11 +381,14 @@ List<RadialBarSector> computeRadialBarSectors(PolarItem item, RadialBarContext c
   final vb = ctx.viewBox;
   final cells = bar.cells;
   final sectors = <RadialBarSector>[];
-  for (var index = 0; index < ctx.chartData.length; index++) {
-    final entry = ctx.chartData[index];
+  final displayedData = ctx.chartData.sublist(
+      math.min(ctx.dataStartIndex, ctx.chartData.length), math.min(ctx.dataEndIndex + 1, ctx.chartData.length));
+  for (var index = 0; index < displayedData.length; index++) {
+    final entry = displayedData[index];
     List<Object?> value;
     if (stackedData != null) {
-      value = index < stackedData.length ? truncateByDomain(stackedData[index], stackedDomain!) : [null, null];
+      final i = ctx.dataStartIndex + index;
+      value = i < stackedData.length ? truncateByDomain(stackedData[i], stackedDomain!) : [null, null];
     } else {
       final v = getValueByDataKey(entry, bar.dataKey);
       value = v is List ? v : [baseValue, v];

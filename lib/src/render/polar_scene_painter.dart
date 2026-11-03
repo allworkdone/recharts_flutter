@@ -28,6 +28,8 @@ import 'sector.dart';
 import 'shapes.dart';
 import 'svg_text.dart';
 
+/// SVG paints an undefined `fill` black.
+const _svgBlack = Color(0xFF000000);
 const _eps = 1e-5;
 final _cos45 = math.cos(degreeToRadian(45));
 
@@ -447,7 +449,7 @@ List<RadarPoint> _paintRadarPolygon(Canvas canvas, PolarFrame frame, RadarModel 
         RadarShapeProps(
             points: [for (final p in points) Offset(p.x, p.y)],
             baseLinePoints: [for (final p in baseLine ?? const <RadarPoint>[]) Offset(p.x, p.y)],
-            fill: radar.fill,
+            fill: radar.fill ?? _svgBlack,
             stroke: radar.stroke));
     return points;
   }
@@ -461,7 +463,7 @@ List<RadarPoint> _paintRadarPolygon(Canvas canvas, PolarFrame frame, RadarModel 
   }
 
   void fillPath(Path path, bool closed) {
-    if (closed && radar.fill != null) canvas.drawPath(path, fillPaint(radar.fill!, opacity: radar.fillOpacity ?? 1));
+    if (closed) canvas.drawPath(path, fillPaint(radar.fill ?? _svgBlack, opacity: radar.fillOpacity ?? 1));
   }
 
   final outer = _segments(_offsets(points), radar.connectNulls);
@@ -496,7 +498,7 @@ void _paintRadarDots(Canvas canvas, RadarModel r, List<RadarPoint> points) {
       value: p.value,
       payload: p.payload,
       dataKey: radar.dataKey,
-      fill: style?.fill ?? radar.fill,
+      fill: style?.fill ?? radar.fill ?? _svgBlack,
       stroke: style?.stroke ?? radar.stroke,
       strokeWidth: style?.strokeWidth ?? radar.strokeWidth ?? 1,
     );
@@ -504,7 +506,7 @@ void _paintRadarDots(Canvas canvas, RadarModel r, List<RadarPoint> points) {
       dot(canvas, props);
     } else {
       paintDot(canvas, props, style?.strokeDasharray ?? radar.strokeDasharray,
-          fill: style?.fill ?? radar.fill, fillOpacity: style?.fillOpacity ?? radar.fillOpacity ?? 1);
+          fill: style?.fill ?? radar.fill ?? _svgBlack, fillOpacity: style?.fillOpacity ?? radar.fillOpacity ?? 1);
     }
   }
 }
@@ -605,8 +607,8 @@ void _paintRadialBar(Canvas canvas, PolarFrame frame, RadialBarModel m, PolarHov
     final style = option is SectorStyle ? option : null;
     final path = radialBarPath(bar, s, style);
     if (path == null) continue;
-    final fill = style?.fill ?? s.fill;
-    if (fill != null) canvas.drawPath(path, fillPaint(fill, opacity: style?.fillOpacity ?? s.fillOpacity ?? 1));
+    final fill = style?.fill ?? s.fill ?? _svgBlack;
+    canvas.drawPath(path, fillPaint(fill, opacity: style?.fillOpacity ?? s.fillOpacity ?? 1));
     final stroke = style?.stroke ?? s.stroke;
     final width = style?.strokeWidth ?? s.strokeWidth ?? 1;
     if (stroke != null && width > 0) {

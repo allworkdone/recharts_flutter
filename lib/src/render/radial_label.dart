@@ -44,11 +44,13 @@ double _deltaAngle(double startAngle, double endAngle) =>
 }
 
 /// Draws [text] along the arc of [path] around ([cx], [cy]).
-void paintTextOnArc(Canvas canvas, String text, double cx, double cy,
+/// Returns the glyph cells' bounds (the boxes SVG hit tests).
+List<Rect> paintTextOnArc(Canvas canvas, String text, double cx, double cy,
     ({double radius, double labelAngle, bool direction}) path,
     {required TextStyle style, required TextScaler scaler}) {
   final r = path.radius;
-  if (!(r > 0) || text.isEmpty) return;
+  final boxes = <Rect>[];
+  if (!(r > 0) || text.isEmpty) return boxes;
   final pathLength = 2 * math.pi * r * 359 / 360;
   final sign = path.direction ? 1.0 : -1.0;
   final units = text.runes.map(String.fromCharCode).toList();
@@ -76,5 +78,15 @@ void paintTextOnArc(Canvas canvas, String text, double cx, double cy,
     canvas.rotate(heading);
     tp.paint(canvas, Offset(-tp.width / 2, centralShift - ascent));
     canvas.restore();
+    final cos = math.cos(heading), sin = math.sin(heading);
+    final top = centralShift - ascent;
+    final corners = [
+      for (final (x, y) in [(-tp.width / 2, top), (tp.width / 2, top), (tp.width / 2, top + tp.height), (-tp.width / 2, top + tp.height)])
+        Offset(p.dx + x * cos - y * sin, p.dy + x * sin + y * cos),
+    ];
+    boxes.add(Rect.fromPoints(
+        Offset(corners.map((c) => c.dx).reduce(math.min), corners.map((c) => c.dy).reduce(math.min)),
+        Offset(corners.map((c) => c.dx).reduce(math.max), corners.map((c) => c.dy).reduce(math.max))));
   }
+  return boxes;
 }

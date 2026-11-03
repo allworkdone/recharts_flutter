@@ -584,7 +584,7 @@ RechartsElement? _child(Map<String, dynamic> node) {
         activeDot: p.svgOrBool('activeDot') ?? true,
         label: _labelList(p.raw['label']) ?? false,
         connectNulls: p.boolean('connectNulls') ?? false,
-        fill: p.raw.containsKey('fill') ? p.color('fill') : const Color(0xFF000000),
+        fill: _polarFill(p),
         fillOpacity: p.dbl('fillOpacity'),
         stroke: p.color('stroke'),
         strokeWidth: p.dbl('strokeWidth'),
@@ -614,7 +614,7 @@ RechartsElement? _child(Map<String, dynamic> node) {
         legendType: _enum(LegendType.values, p.str('legendType')) ?? LegendType.rect,
         name: p.raw['name'],
         hide: p.boolean('hide') ?? false,
-        fill: p.raw.containsKey('fill') ? p.color('fill') : const Color(0xFF000000),
+        fill: _polarFill(p),
         fillOpacity: p.dbl('fillOpacity'),
         stroke: p.color('stroke'),
         strokeWidth: p.dbl('strokeWidth'),
@@ -872,6 +872,9 @@ Color? parseCssColor(String input) {
 }
 
 // ---- polar: helpers ----
+
+/// Radar and RadialBar `fill`: absent stays null (SVG black), `'none'` is transparent.
+Color? _polarFill(_Props p) => p.raw['fill'] == 'none' ? const Color(0x00000000) : p.color('fill');
 
 /// Data entries as the polar charts read them: `fill` and `stroke` strings become colors.
 List<Object?> _polarData(List<Object?> data) => [

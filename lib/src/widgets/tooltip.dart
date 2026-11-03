@@ -228,6 +228,7 @@ class RenderTooltipBoundingBox extends RenderShiftedBox {
   /// The translate the box is heading to, for tests and the parity harness.
   Offset? get targetTranslate => _to;
   Offset get currentTranslate => _current;
+  bool get isVisible => _visible;
 
   @override
   void performLayout() {
@@ -235,7 +236,7 @@ class RenderTooltipBoundingBox extends RenderShiftedBox {
     final c = child;
     if (c == null) return;
     c.layout(const BoxConstraints(), parentUsesSize: true);
-    final target = getTooltipTranslate(
+    var target = getTooltipTranslate(
       allowEscapeViewBox: _config.allowEscapeViewBox,
       coordinate: _config.coordinate,
       offset: _config.offset,
@@ -244,6 +245,9 @@ class RenderTooltipBoundingBox extends RenderShiftedBox {
       tooltipBox: c.size,
       viewBox: _config.viewBox,
     );
+    // Without a coordinate translate.ts gives TOOLTIP_HIDDEN, but TooltipBoundingBox spreads `visibility`
+    // after it: an active tooltip with a payload shows at the wrapper's (0, 0), no offset.
+    if (target == null && _config.coordinate == null && c.size.width > 0 && c.size.height > 0) target = Offset.zero;
     _visible = target != null && _config.active && _config.hasPayload;
     if (target == null || target == _to) return;
     _to = target;

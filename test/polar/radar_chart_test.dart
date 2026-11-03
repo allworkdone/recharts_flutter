@@ -7,7 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:recharts_flutter/recharts_flutter.dart';
 
-import '../widgets/chart_widget_test.dart' show host;
+import '../widgets/chart_widget_test.dart' show capture, host, pixel, tooltipBox;
 import '../widgets/tooltip_item_test.dart' show Probe, mouseAt;
 import 'polar_scene_test.dart' show pageData;
 
@@ -71,6 +71,9 @@ void main() {
     expect(probe.props!.activeIndex, 0);
     // RadialBar sectors carry no tooltipPosition, so the box has no coordinate to sit at.
     expect(probe.props!.coordinate, isNull);
+    // translate.ts hides the transform but the box stays visible at the wrapper's (0, 0).
+    expect(tooltipBox(tester).currentTranslate, Offset.zero);
+    expect(tooltipBox(tester).isVisible, isTrue);
     await mouse.removePointer();
   });
 
@@ -131,6 +134,54 @@ void main() {
     expect(lineProbe.props!.active, isTrue);
     expect(lineProbe.props!.activeIndex, 0);
     expect(lineProbe.props!.label, 'a');
+    await mouse.removePointer();
+  });
+
+  testWidgets('a Radar without fill or stroke has no tooltip color; its active dot is a hollow ring', (tester) async {
+    final probe = Probe();
+    await tester.pumpWidget(host(RadarChart(width: 600, height: 600, data: pageData, children: [
+      const Radar(dataKey: 'uv', isAnimationActive: false),
+      Tooltip(isAnimationActive: false, content: probe.build),
+    ])));
+    final mouse = await mouseAt(tester, const Offset(200, 200));
+    expect(probe.props!.payload.single.color, isNull);
+    expect(probe.props!.payload.single.fill, isNull);
+    await mouse.removePointer();
+  });
+
+  testWidgets('equal const children are separate items', (tester) async {
+    final probe = Probe();
+    await tester.pumpWidget(host(RadialBarChart(width: 600, height: 600, data: pageData, children: [
+      const RadialBar(dataKey: 'uv', isAnimationActive: false),
+      const RadialBar(dataKey: 'uv', isAnimationActive: false),
+      Tooltip(isAnimationActive: false, shared: false, content: probe.build),
+    ])));
+    // Both bars share a band; the later one is on top.
+    final mouse = await mouseAt(tester, const Offset(300 + 15, 300 - 1));
+    expect(probe.rows.length, 1);
+    await mouse.removePointer();
+  });
+
+  testWidgets('a polar chart synced from another polar chart draws the cursor', (tester) async {
+    const clear = Color(0x00000000);
+    Widget radar(Object? syncId) => RadarChart(width: 300, height: 300, data: pageData, syncId: 's', children: [
+          const Radar(dataKey: 'uv', fill: clear, isAnimationActive: false),
+          const PolarAngleAxis(dataKey: 'name'),
+          Tooltip(isAnimationActive: false),
+        ]);
+    await tester.pumpWidget(host(Row(mainAxisSize: MainAxisSize.min, children: [
+      SizedBox(width: 300, height: 300, child: radar(1)),
+      SizedBox(width: 300, height: 300, child: RadarChart(width: 300, height: 300, data: pageData, syncId: 's', children: [
+        const Radar(dataKey: 'uv', fill: clear, isAnimationActive: false),
+        Tooltip(isAnimationActive: false),
+      ])),
+    ])));
+    final mouse = await mouseAt(tester, const Offset(150, 100));
+    await tester.pump();
+    // The second chart's spoke for index 0 runs straight up from its center (450, 150).
+    final image = await capture(tester);
+    final c = await pixel(tester, image, const Offset(449.5, 100));
+    expect(c.a, greaterThan(0.1));
     await mouse.removePointer();
   });
 }

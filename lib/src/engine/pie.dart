@@ -141,6 +141,8 @@ class PolarModel {
     required this.pies,
     required this.tooltipSettings,
     this.scene,
+    this.dataStartIndex = 0,
+    this.endIndexOverride,
   });
   final Size size;
   final String chartName;
@@ -156,13 +158,16 @@ class PolarModel {
   Rect get viewBox => offset.plotArea;
 
   /// `chartDataSlice` indexes: the whole chart data.
-  int get dataEndIndex => chartData.isEmpty ? 0 : chartData.length - 1;
+  final int dataStartIndex;
+  /// The Brush end index when it was set; else the last datum.
+  final int? endIndexOverride;
+  int get dataEndIndex => endIndexOverride ?? (chartData.isEmpty ? 0 : chartData.length - 1);
 
   /// `selectTooltipDisplayedData` (combineDisplayedData): every item's own
   /// data, concatenated, else the chart data.
   late final List<Object?> tooltipDisplayedData = () {
     final itemsData = [for (final p in pies) ...?p.settings.data];
-    return itemsData.isNotEmpty ? itemsData : jsSlice(chartData, 0, dataEndIndex + 1);
+    return itemsData.isNotEmpty ? itemsData : jsSlice(chartData, dataStartIndex, dataEndIndex + 1);
   }();
 }
 
@@ -190,6 +195,8 @@ PolarModel computePolarModel({
   Object barCategoryGap = '10%',
   Object? barSize,
   double? maxBarSize,
+  int dataStartIndex = 0,
+  int? dataEndIndex,
 }) {
   final legend = children.whereType<Legend>().firstOrNull;
   final off = appendOffsetOfLegend(
@@ -208,6 +215,8 @@ PolarModel computePolarModel({
     chartData: data,
     offset: offset,
     tooltipSettings: children.whereType<Tooltip>().firstOrNull,
+    dataStartIndex: dataStartIndex,
+    endIndexOverride: dataEndIndex,
     scene: options == null
         ? null
         : computePolarScene(
@@ -223,7 +232,9 @@ PolarModel computePolarModel({
             barGap: barGap,
             barCategoryGap: barCategoryGap,
             barSize: barSize,
-            maxBarSize: maxBarSize),
+            maxBarSize: maxBarSize,
+            dataStartIndex: dataStartIndex,
+            dataEndIndex: dataEndIndex),
     pies: [
       for (final (id, pie) in collectPies(children))
         () {
@@ -395,9 +406,13 @@ List<PieSector> interpolatePieSectors(List<AnimationItem<PieSector>>? items, dou
 }
 
 /// `selectPieLegend` for every Pie, sorted by the Legend's `itemSorter`.
-List<LegendPayload> pieLegendPayload(PolarModel m, Legend legend) {
+List<LegendPayload> pieLegendPayload(PolarModel m, Legend legend) =>
+    sortLegendPayload([for (final p in m.pies) ...pieLegendEntries(p)], legend);
+
+/// The legend rows one Pie registers (`selectPieLegend`).
+List<LegendPayload> pieLegendEntries(PieModel p) {
   final payload = <LegendPayload>[];
-  for (final p in m.pies) {
+  {
     final pie = p.settings, cells = pie.cells;
     for (final (i, entry) in (p.displayedData ?? const <Object?>[]).indexed) {
       final name = getValueByDataKey(entry, pie.nameKey, pie.name);
@@ -411,7 +426,7 @@ List<LegendPayload> pieLegendPayload(PolarModel m, Legend legend) {
       ));
     }
   }
-  return sortLegendPayload(payload, legend);
+  return payload;
 }
 
 /// The Legend's `itemSorter` applied to [payload].
@@ -433,7 +448,7 @@ List<TooltipPayloadEntry> pieTooltipPayload(PolarModel m, Iterable<PieModel> pie
   if (activeIndex == null) return const [];
   final out = <TooltipPayloadEntry>[];
   for (final p in pies) {
-    final sectors = getSliced(p.sectors ?? const <PieSector>[], 0, m.dataEndIndex);
+    final sectors = getSliced(p.sectors ?? const <PieSector>[], m.dataStartIndex, m.dataEndIndex);
     if (activeIndex < 0 || activeIndex >= sectors.length) continue;
     final e = sectors[activeIndex].tooltipPayload;
     final fill = activeShapeFill(p.settings);

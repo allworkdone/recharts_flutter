@@ -33,6 +33,7 @@ import '../core/js_math.dart' show jsRound;
 import '../engine/axis.dart' show GraphicalItem;
 import '../engine/funnel.dart';
 import '../engine/model.dart';
+import '../engine/polar_scene.dart' show PolarCoordinate;
 import '../render/label.dart';
 import '../render/painter.dart';
 import '../render/svg_text.dart';
@@ -861,12 +862,13 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
     if (id == null || m == null || m.tooltipSettings == null) return;
     final v = _view.value;
     for (final other in syncPeers(id, this)) {
-      other.receiveTooltipSync(v.active, v.activeIndex, v.coordinate, v.activeDataKey, m.viewBox);
+      other.receiveTooltipSync(v.active, v.activeIndex, v.coordinate, v.activeDataKey, m.viewBox, null);
     }
   }
 
   @override
-  void receiveTooltipSync(bool active, int? index, Offset? coordinate, Object? dataKey, Rect sourceViewBox) {
+  void receiveTooltipSync(
+      bool active, int? index, Offset? coordinate, Object? dataKey, Rect sourceViewBox, PolarCoordinate? polar) {
     final m = _model;
     if (m == null) return;
     if (!active) {

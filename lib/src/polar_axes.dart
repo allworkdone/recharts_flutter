@@ -189,8 +189,9 @@ class RadarShapeProps {
 
 typedef RadarShapePainter = void Function(Canvas canvas, RadarShapeProps props);
 
-/// src/polar/Radar.tsx. Like SVG, an undefined `fill` paints black and an
-/// undefined `stroke` paints nothing.
+/// src/polar/Radar.tsx. Like SVG, an undefined `fill` (null) paints black
+/// (pass a transparent color for `none`) and an undefined `stroke` paints
+/// nothing; the legend, tooltip row and active dot see the raw null.
 class Radar extends RechartsElement {
   const Radar({
     required this.dataKey,
@@ -204,7 +205,7 @@ class Radar extends RechartsElement {
     this.activeDot = true,
     this.label = false,
     this.connectNulls = false,
-    this.fill = const Color(0xFF000000),
+    this.fill,
     this.fillOpacity,
     this.stroke,
     this.strokeWidth,
@@ -278,7 +279,7 @@ class RadialBar extends RechartsElement {
     this.hide = false,
     this.tooltipType,
     this.formatter,
-    this.fill = const Color(0xFF000000),
+    this.fill,
     this.fillOpacity,
     this.stroke,
     this.strokeWidth,
@@ -300,7 +301,8 @@ class RadialBar extends RechartsElement {
   /// String or int; bars sharing it stack.
   final Object? stackId;
 
-  /// A number (percent sizes are not supported in polar charts).
+  /// A number. Recharts' polar bar generator has no axis size, so a percent
+  /// `barSize` resolves to zero thickness there as well.
   final num? barSize;
   final double? maxBarSize;
   final double minPointSize;

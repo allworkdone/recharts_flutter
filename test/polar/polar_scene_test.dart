@@ -307,4 +307,28 @@ void main() {
       expect(paths(interpolateRadialBarSectors(items, 1)), paths(bar.sectors));
     });
   });
+
+  group('Brush range synced from another chart', () {
+    test('RadialBar sectors and the tooltip data follow it; Radar points and axes ignore it', () {
+      final children = <RechartsElement>[
+        const RadialBar(dataKey: 'pv'),
+        const Radar(dataKey: 'pv'),
+      ];
+      final m = computePolarModel(
+        chartName: 'RadialBarChart',
+        size: const Size(500, 500),
+        data: pageData,
+        children: children,
+        layout: PolarLayout.radial,
+        options: const PolarOptions(startAngle: 0, endAngle: 360),
+        dataStartIndex: 1,
+        dataEndIndex: 3,
+      );
+      final scene = m.scene!;
+      expect(scene.radialBars.single.sectors.length, 3);
+      expect(scene.radialBars.single.sectors.first.value, 4567);
+      expect(scene.radars.single.points!.length, 6);
+      expect(scene.radiusAxes[0]!.ticks!.length, 6);
+    });
+  });
 }

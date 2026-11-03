@@ -6,13 +6,19 @@
 
 import 'dart:ui';
 
+import '../engine/polar_scene.dart' show PolarCoordinate;
+
 /// A chart taking part in `syncId`.
 abstract interface class TooltipSyncPeer {
   bool get mounted;
 
   /// The tooltip state of another chart: [coordinate] is in that chart's
   /// [sourceViewBox] and is mapped onto this one's.
-  void receiveTooltipSync(bool active, int? index, Offset? coordinate, Object? dataKey, Rect sourceViewBox);
+  ///
+  /// [polar] is a polar chart's coordinate with its polar parts; only x and y are rescaled, so a polar
+  /// receiver draws its cursor from it. Cartesian charts ignore it.
+  void receiveTooltipSync(
+      bool active, int? index, Offset? coordinate, Object? dataKey, Rect sourceViewBox, PolarCoordinate? polar);
 
   /// The Brush range of another chart; charts without a Brush ignore it.
   void receiveBrushSync(({int startIndex, int endIndex}) range);

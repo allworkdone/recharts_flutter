@@ -44,6 +44,8 @@ class PolarScene {
     required this.grids,
     required this.angleAxisElements,
     required this.radiusAxisElements,
+    this.dataStartIndex = 0,
+    this.dataEndIndex = 0,
   });
   final PolarLayout layout;
   final PolarOptions options;
@@ -59,6 +61,9 @@ class PolarScene {
   final List<PolarAngleAxis> angleAxisElements;
   final List<PolarRadiusAxis> radiusAxisElements;
 
+  /// The Brush range (`chartDataSlice`); only RadialBar sectors and the tooltip data follow it.
+  final int dataStartIndex, dataEndIndex;
+
   PolarViewBox get viewBox => geometry.viewBox;
 
   late final List<TickItem> tooltipTicks = polarTooltipTicks(tooltipAxis, layout) ?? const [];
@@ -68,15 +73,6 @@ class PolarScene {
 
   /// The axis tooltip needs a tooltip axis with a scale.
   bool get hasTooltipScale => tooltipAxis.scale != null;
-}
-
-/// Stable ids: explicit `id`, else position among the chart's elements of a kind.
-List<(String, T)> _withIds<T extends RechartsElement>(List<RechartsElement> children, String prefix, String? Function(T) id) {
-  var i = 0;
-  return [
-    for (final c in children)
-      if (c is T) (id(c) ?? '$prefix-${i++}', c),
-  ];
 }
 
 PolarScene computePolarScene({
@@ -93,15 +89,21 @@ PolarScene computePolarScene({
   Object barCategoryGap = '10%',
   Object? barSize,
   double? maxBarSize,
+  int dataStartIndex = 0,
+  int? dataEndIndex,
 }) {
+  final end = dataEndIndex ?? (data.isEmpty ? 0 : data.length - 1);
   final geometry = polarGeometry(options, size, offset);
+  // Registration order is child order; ids are the explicit `id`, else the position among the
+  // chart's elements of a kind. Children pair with models by position: equal `const` elements are one object.
+  var radarCount = 0, barCount = 0;
   final items = [
-    for (final (id, r) in _withIds<Radar>(children, 'recharts-radar', (r) => r.id)) PolarItem.radar(id, r),
-    for (final (id, b) in _withIds<RadialBar>(children, 'recharts-radial-bar', (b) => b.id)) PolarItem.radialBar(id, b),
+    for (final c in children)
+      if (c is Radar)
+        PolarItem.radar(c.id ?? 'recharts-radar-${radarCount++}', c)
+      else if (c is RadialBar)
+        PolarItem.radialBar(c.id ?? 'recharts-radial-bar-${barCount++}', c),
   ];
-  // Registration order is child order.
-  final order = {for (final (i, c) in children.indexed) c: i};
-  items.sort((a, b) => order[a.radar ?? a.radialBar]!.compareTo(order[b.radar ?? b.radialBar]!));
 
   final angleElements = children.whereType<PolarAngleAxis>().toList();
   final radiusElements = children.whereType<PolarRadiusAxis>().toList();
@@ -180,6 +182,8 @@ PolarScene computePolarScene({
     radiusAxes: radiusAxes,
     stackOffset: stackOffset,
     reverseStackOrder: reverseStackOrder,
+    dataStartIndex: dataStartIndex,
+    dataEndIndex: end,
     barGap: barGap,
     barCategoryGap: barCategoryGap,
     rootBarSize: barSize,
@@ -204,6 +208,8 @@ PolarScene computePolarScene({
     grids: grids,
     angleAxisElements: angleElements,
     radiusAxisElements: radiusElements,
+    dataStartIndex: dataStartIndex,
+    dataEndIndex: end,
   );
 }
 
@@ -297,6 +303,7 @@ Object? polarActiveLabel(PolarScene s, int? activeIndex) {
 /// `combineActiveTooltipIndex` for a polar chart.
 int? combinePolarActiveIndex(PolarScene s, List<Object?> chartData, int? desiredIndex) {
   if (desiredIndex == null) return null;
+  chartData = getSliced(chartData, s.dataStartIndex, s.dataEndIndex);
   final upperLimit = chartData.isNotEmpty ? chartData.length - 1 : 1 << 30;
   final clamped = math.max(0, math.min(desiredIndex, upperLimit));
   if (clamped >= chartData.length) return clamped;
@@ -321,6 +328,7 @@ List<TooltipPayloadEntry> polarTooltipPayload(PolarScene s, List<Object?> chartD
   if (activeIndex == null) return const [];
   final axisDataKey = axis ? s.tooltipAxis.settings.dataKey : null;
   final activeLabel = polarActiveLabel(s, activeIndex);
+  chartData = getSliced(chartData, s.dataStartIndex, s.dataEndIndex);
   Object? at(List<Object?> l) => activeIndex >= 0 && activeIndex < l.length ? l[activeIndex] : null;
   final out = <TooltipPayloadEntry>[];
   for (final item in s.items) {
@@ -346,7 +354,8 @@ List<TooltipPayloadEntry> polarTooltipPayload(PolarScene s, List<Object?> chartD
       ));
     } else {
       final b = item.radialBar!;
-      final sectors = s.radialBars.firstWhere((m) => m.id == item.id).sectors;
+      // `dataDefinedOnItem` is the sectors, which are already sliced; getSliced slices them again.
+      final sectors = getSliced(s.radialBars.firstWhere((m) => m.id == item.id).sectors, s.dataStartIndex, s.dataEndIndex);
       final sector = activeIndex >= 0 && activeIndex < sectors.length ? sectors[activeIndex] : null;
       Object? payload = sector?.asPayload;
       // `dataDefinedOnItem` is the sectors, searched by index (tooltipAxis dataKey ignored for objects)
