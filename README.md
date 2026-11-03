@@ -1,8 +1,17 @@
 # recharts_flutter
 
-Recharts 3.10.1 ported to Flutter: `LineChart`, `BarChart`, `AreaChart` and
-`ComposedChart` with Recharts' own layout, tick, animation and interaction logic, drawn with
-`CustomPainter` and no chart dependencies.
+Recharts 3.10.1 ported to Flutter, with Recharts' own layout, tick, animation and
+interaction logic, drawn with `CustomPainter` and no chart dependencies.
+
+| Family | Charts | Components |
+|---|---|---|
+| Cartesian | `LineChart`, `BarChart`, `AreaChart`, `ComposedChart`, `ScatterChart`, `FunnelChart` | `XAxis`, `YAxis`, `ZAxis`, `CartesianGrid`, `Line`, `Bar`, `Area`, `Scatter`, `Funnel`, `ErrorBar`, `ReferenceLine`, `ReferenceArea`, `ReferenceDot`, `Brush` |
+| Polar | `PieChart`, `RadarChart`, `RadialBarChart` | `Pie`, `Radar`, `RadialBar`, `PolarGrid`, `PolarAngleAxis`, `PolarRadiusAxis` |
+| Hierarchy and flow | `Treemap`, `Sankey`, `SunburstChart` | |
+| Shared | `ResponsiveContainer` | `Tooltip`, `Legend`, `Label`, `LabelList`, `Cell` |
+
+Charts with the same `syncId` share their tooltip (and Brush range), across cartesian
+and polar charts alike.
 
 Children are configuration objects named exactly like Recharts components and
 props, with Recharts' defaults:
@@ -48,3 +57,9 @@ presentation attributes (for example the `#666` tick fill) are applied on top.
 
 The example app renders the parity fixtures in `example/assets/parity/fixtures`
 (`?fixture=<name>` on the web build renders one fixture alone for pixel diffs).
+`tool/parity/run.sh [filter] [--anim]` renders every fixture with real Recharts in Chrome
+and with the Flutter web build, then writes a pixel-diff report to
+`tool/parity/out/report.html`.
+
+Ported code keeps the license notices of Recharts, d3 and decimal.js-light; see
+`THIRD_PARTY_NOTICES.md`.
