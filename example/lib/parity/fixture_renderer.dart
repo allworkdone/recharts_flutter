@@ -18,7 +18,8 @@ Widget buildChart(Map<String, dynamic> chart, {double? width, double? height}) {
   final nodes = (chart['children'] as List? ?? const []).cast<Map<String, dynamic>>();
   _gradients.addAll(_linearGradients(nodes));
   final children = [for (final c in nodes) ?_child(c)];
-  final data = (p.raw['data'] is List ? p.raw['data'] as List : const []).cast<Object?>();
+  final raw = p.raw['data'];
+  final data = (raw is Map ? const [] : (raw as List? ?? const [])).cast<Object?>();
   final layout = p.str('layout') == 'vertical' ? ChartLayout.vertical : ChartLayout.horizontal;
   final margin = p.margin('margin') ?? const Margin.all(5);
   final w = p.dbl('width') ?? width, h = p.dbl('height') ?? height;
