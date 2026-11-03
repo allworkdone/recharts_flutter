@@ -775,15 +775,15 @@ List<TickItem> _tooltipTicks(AxisRuntime axis) {
 // ---------------------------------------------------------------------------
 // Bars
 
-class _BarCategory {
-  _BarCategory(this.stackId, this.dataKeys, this.barSize);
+class BarCategory {
+  BarCategory(this.stackId, this.dataKeys, this.barSize);
   final String? stackId;
   final List<Object?> dataKeys;
   final double? barSize;
 }
 
-class _BarPosition {
-  _BarPosition(this.stackId, this.dataKeys, this.offset, this.size);
+class BarPosition {
+  BarPosition(this.stackId, this.dataKeys, this.offset, this.size);
   final String? stackId;
   final List<Object?> dataKeys;
   final double offset, size;
@@ -792,7 +792,7 @@ class _BarPosition {
 bool _isArrayIndex(String k) => RegExp(r'^(0|[1-9][0-9]*)$').hasMatch(k) && int.parse(k) < 4294967295;
 
 /// `combineBarSizeList`.
-List<_BarCategory> _barSizeList(List<GraphicalItem> allBars, Object? globalSize, double totalSize) {
+List<BarCategory> barSizeList(List<GraphicalItem> allBars, Object? globalSize, double? totalSize) {
   double? barSizeOf(Object? self) {
     final s = self ?? globalSize;
     return s == null ? null : getPercentValue(s, totalSize, 0);
@@ -808,19 +808,19 @@ List<_BarCategory> _barSizeList(List<GraphicalItem> allBars, Object? globalSize,
   final ordered = [...intKeys, ...keys.where((k) => !_isArrayIndex(k))];
   return [
     for (final k in ordered)
-      _BarCategory(k, [for (final b in groups[k]!) b.dataKey], barSizeOf((groups[k]!.first.element as Bar).barSize)),
+      BarCategory(k, [for (final b in groups[k]!) b.dataKey], barSizeOf((groups[k]!.first.element as Bar).barSize)),
     for (final b in allBars.where((b) => b.stackId == null))
-      _BarCategory(null, [b.dataKey], barSizeOf((b.element as Bar).barSize)),
+      BarCategory(null, [b.dataKey], barSizeOf((b.element as Bar).barSize)),
   ];
 }
 
 /// `getBarPositions` (combineAllBarPositions.ts).
-List<_BarPosition>? _getBarPositions(
-    Object barGap, Object barCategoryGap, double bandSize, List<_BarCategory> sizeList, double? maxBarSize) {
+List<BarPosition>? getBarPositions(
+    Object barGap, Object barCategoryGap, double bandSize, List<BarCategory> sizeList, double? maxBarSize) {
   final len = sizeList.length;
   if (len < 1) return null;
   var realBarGap = getPercentValue(barGap, bandSize, 0, true);
-  final result = <_BarPosition>[];
+  final result = <BarPosition>[];
   if (isWellBehavedNumber(sizeList[0].barSize)) {
     var useFull = false;
     var fullBarSize = bandSize / len;
@@ -838,7 +838,7 @@ List<_BarPosition>? _getBarPositions(
     final offset = jsRound((bandSize - sum) / 2);
     var prevOffset = offset - realBarGap, prevSize = 0.0;
     for (final entry in sizeList) {
-      final pos = _BarPosition(
+      final pos = BarPosition(
           entry.stackId, entry.dataKeys, prevOffset + prevSize + realBarGap, useFull ? fullBarSize : (entry.barSize ?? 0));
       result.add(pos);
       prevOffset = pos.offset;
@@ -852,7 +852,7 @@ List<_BarPosition>? _getBarPositions(
     final size = isWellBehavedNumber(maxBarSize) ? math.min(originalSize, maxBarSize!) : originalSize;
     for (var i = 0; i < len; i++) {
       final entry = sizeList[i];
-      result.add(_BarPosition(entry.stackId, entry.dataKeys,
+      result.add(BarPosition(entry.stackId, entry.dataKeys,
           offset + (len * (originalSize - size)) / 2 + (size + realBarGap) * i, size));
     }
   }
@@ -883,7 +883,7 @@ List<BarRect>? _barRectangles(GraphicalItem item, List<GraphicalItem> items, Axi
       .where((i) => !i.hide && i.isBar)
       .toList();
   final totalSize = horizontal ? offset.width : offset.height;
-  final sizeList = _barSizeList(allBars, rootBarSize, totalSize);
+  final sizeList = barSizeList(allBars, rootBarSize, totalSize);
 
   final maxBarSize = bar.maxBarSize ?? rootMaxBarSize;
   final barBandSize = getBandSizeOfAxis(cateAxis.scale, cateAxis.itemTicks, true) ?? maxBarSize ?? 0;
@@ -892,9 +892,9 @@ List<BarRect>? _barRectangles(GraphicalItem item, List<GraphicalItem> items, Axi
 
   // combineAllBarPositions
   var positions =
-      _getBarPositions(barGap, barCategoryGap, barBandSize != bandSize ? barBandSize : bandSize, sizeList, maxBarSize);
+      getBarPositions(barGap, barCategoryGap, barBandSize != bandSize ? barBandSize : bandSize, sizeList, maxBarSize);
   if (barBandSize != bandSize && positions != null) {
-    positions = [for (final p in positions) _BarPosition(p.stackId, p.dataKeys, p.offset - barBandSize / 2, p.size)];
+    positions = [for (final p in positions) BarPosition(p.stackId, p.dataKeys, p.offset - barBandSize / 2, p.size)];
   }
   final pos = positions?.where((p) => p.stackId == item.stackId && p.dataKeys.contains(item.dataKey)).firstOrNull;
   if (pos == null) return null;
@@ -937,7 +937,7 @@ List<BarRect>? _barRectangles(GraphicalItem item, List<GraphicalItem> items, Axi
       // stackedData spans the whole chart data; the slice starts at dataStartIndex.
       final i = index + dataStartIndex;
       if (i < 0 || i >= stackedData.length) continue;
-      value = _truncateByDomain(stackedData[i], dom);
+      value = truncateByDomain(stackedData[i], dom);
     } else {
       final v = getValueByDataKey(entry, bar.dataKey);
       value = v is List ? v : [baseValue, v];
@@ -993,7 +993,7 @@ List<BarRect>? _barRectangles(GraphicalItem item, List<GraphicalItem> items, Axi
 }
 
 /// `truncateByDomain`.
-List<Object?> _truncateByDomain(List<double> value, List<Object?> domain) {
+List<Object?> truncateByDomain(List<double> value, List<Object?> domain) {
   if (domain.length != 2 || !isNumber(domain[0]) || !isNumber(domain[1])) return value;
   final a = (domain[0] as num).toDouble(), b = (domain[1] as num).toDouble();
   final minValue = math.min(a, b), maxValue = math.max(a, b);

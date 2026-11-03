@@ -1,0 +1,109 @@
+{
+ "name": "radar-dots-labels",
+ "description": "Radar with dots and labels.",
+ "width": 500,
+ "height": 500,
+ "chart": {
+  "type": "RadarChart",
+  "props": {
+   "data": [
+    {
+     "subject": "Math",
+     "A": 120,
+     "B": 110,
+     "fullMark": 150
+    },
+    {
+     "subject": "Chinese",
+     "A": 98,
+     "B": 130,
+     "fullMark": 150
+    },
+    {
+     "subject": "English",
+     "A": 86,
+     "B": 130,
+     "fullMark": 150
+    },
+    {
+     "subject": "Geography",
+     "A": 99,
+     "B": 100,
+     "fullMark": 150
+    },
+    {
+     "subject": "Physics",
+     "A": 85,
+     "B": 90,
+     "fullMark": 150
+    },
+    {
+     "subject": "History",
+     "A": 65,
+     "B": 85,
+     "fullMark": 150
+    }
+   ],
+   "outerRadius": "80%",
+   "margin": {
+    "top": 20,
+    "left": 20,
+    "right": 20,
+    "bottom": 20
+   }
+  },
+  "children": [
+   {
+    "type": "PolarGrid",
+    "props": {}
+   },
+   {
+    "type": "PolarAngleAxis",
+    "props": {
+     "dataKey": "subject"
+    }
+   },
+   {
+    "type": "PolarRadiusAxis",
+    "props": {
+     "angle": 90,
+     "domain": [
+      0,
+      150
+     ]
+    }
+   },
+   {
+    "type": "Radar",
+    "props": {
+     "name": "Mike",
+     "dataKey": "A",
+     "stroke": "#8884d8",
+     "fill": "#8884d8",
+     "fillOpacity": 0.4,
+     "dot": true,
+     "label": true,
+     "isAnimationActive": false
+    }
+   },
+   {
+    "type": "Tooltip",
+    "props": {}
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-left",
+   "type": "hover",
+   "x": 150,
+   "y": 230
+  },
+  {
+   "id": "hover-right",
+   "type": "hover",
+   "x": 430,
+   "y": 270
+  }
+ ]
+}

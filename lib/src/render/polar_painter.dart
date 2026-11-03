@@ -12,9 +12,13 @@ import '../animation.dart';
 import '../components.dart';
 import '../core/polar_utils.dart';
 import '../engine/pie.dart';
+import '../engine/polar_items.dart';
+import '../engine/polar_scene.dart';
 import '../polar_components.dart';
 import '../util.dart';
 import 'label.dart';
+import 'polar_scene_painter.dart';
+import 'radial_label.dart';
 import 'sector.dart';
 import 'shapes.dart';
 import 'svg_text.dart';
@@ -23,21 +27,47 @@ enum PolarLayer { main, labels }
 
 /// The active tooltip item, as sectors see it.
 class PolarHoverState {
-  const PolarHoverState({this.activeIndex, this.activeDataKey, this.activeItemId});
+  const PolarHoverState({
+    this.activeIndex,
+    this.activeDataKey,
+    this.activeItemId,
+    this.polarCoordinate,
+    this.cursorVisible = false,
+    this.activeDataPoints = const [],
+  });
   final int? activeIndex;
   final Object? activeDataKey;
 
   /// `selectActiveTooltipGraphicalItemId`.
   final String? activeItemId;
+
+  /// The axis tooltip's coordinate with its polar parts; null for the 'item' event type and synced charts.
+  final PolarCoordinate? polarCoordinate;
+
+  /// Whether the Tooltip's cursor shows (axis event type, tooltip active).
+  final bool cursorVisible;
+
+  /// `useActiveTooltipDataPoints`: the payload of every tooltip row.
+  final List<Object?> activeDataPoints;
 }
 
 /// Everything painters need for one build of a polar chart.
 class PolarFrame {
-  PolarFrame({required this.model, required this.textStyle, required this.textScaler, required this.pieAnimators});
+  PolarFrame({
+    required this.model,
+    required this.textStyle,
+    required this.textScaler,
+    required this.pieAnimators,
+    this.radarAnimators = const {},
+    this.radarBaseLineAnimators = const {},
+    this.radialBarAnimators = const {},
+  });
   final PolarModel model;
   final TextStyle textStyle;
   final TextScaler textScaler;
   final Map<String, SeriesAnimator<PieSector>> pieAnimators;
+  final Map<String, SeriesAnimator<RadarPoint>> radarAnimators, radarBaseLineAnimators;
+  final Map<String, SeriesAnimator<RadialBarSector>> radialBarAnimators;
 
   /// Where the labels layer last drew text: SVG text sits above the sectors
   /// and takes the pointer from them.
@@ -94,16 +124,22 @@ class PolarPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    final h = hover?.value;
     switch (layer) {
       case PolarLayer.main:
+        // DefaultZIndexes order: grid, bar background, area, bar, axis, scatter (radar dots), active bar,
+        // cursor line, active dot.
+        paintPolarBelowArea(canvas, frame, h);
         for (final p in m.pies) {
           _paintPie(canvas, p);
         }
+        paintPolarAboveArea(canvas, frame, h);
       case PolarLayer.labels:
         frame.labelBoxes.clear();
         for (final p in m.pies) {
           _paintPieLabels(canvas, p);
         }
+        paintPolarSceneLabels(canvas, frame);
     }
   }
 
@@ -249,11 +285,13 @@ class PolarPainter extends CustomPainter {
 }
 
 /// `<Label viewBox={polar}>`.
-// ponytail: the radial positions draw nothing; their textPath arrives with RadialBar.
 void paintPolarLabel(Canvas canvas, Label label, PolarViewBox viewBox,
     {int? index, required TextStyle baseStyle, required TextScaler scaler, List<Rect>? boxes}) {
   final pos = getAttrsOfPolarLabel(viewBox, label.offset, label.position);
-  if (pos == null) return;
+  if (pos == null) {
+    _paintRadialLabel(canvas, label, viewBox, baseStyle, scaler, index, boxes);
+    return;
+  }
   final style = labelTextStyle(label, baseStyle);
   if (label.content != null) {
     final r = viewBox.outerRadius;
@@ -288,6 +326,37 @@ void paintPolarLabel(Canvas canvas, Label label, PolarViewBox viewBox,
   if (label.angle == 0) {
     boxes?.add(svgTextBox(text, pos.x, pos.y, style, scaler, textAnchor: textAnchor, verticalAnchor: pos.verticalAnchor));
   }
+}
+
+/// `renderRadialLabel`: a raw `<text>`, so no `#808080` default fill.
+void _paintRadialLabel(Canvas canvas, Label label, PolarViewBox viewBox, TextStyle baseStyle, TextScaler scaler, int? index,
+    List<Rect>? boxes) {
+  final path = radialLabelPath(viewBox, label.offset, label.position);
+  var style = baseStyle.copyWith(color: label.fill ?? const Color(0xFF000000));
+  if (label.fontSize != null) style = style.copyWith(fontSize: label.fontSize);
+  if (label.content != null) {
+    final r = viewBox.outerRadius;
+    label.content!(
+      canvas,
+      LabelProps(
+        x: double.nan,
+        y: double.nan,
+        viewBox: Rect.fromLTWH(viewBox.cx - r, viewBox.cy - r, r * 2, r * 2),
+        polarViewBox: viewBox,
+        value: label.value,
+        position: label.position,
+        offset: label.offset,
+        angle: label.angle,
+        style: style,
+        index: index,
+      ),
+    );
+    return;
+  }
+  if (label.value == null) return;
+  final value = label.formatter == null ? label.value : label.formatter!(label.value);
+  if (value == null) return;
+  boxes?.addAll(paintTextOnArc(canvas, jsString(value), viewBox.cx, viewBox.cy, path, style: style, scaler: scaler));
 }
 
 /// The glyph cells of a one-line `<Text>` (the box SVG hit tests), placed

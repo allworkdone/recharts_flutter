@@ -18,6 +18,7 @@
 import 'package:flutter/widgets.dart';
 
 import 'core/nice_ticks.dart';
+import 'core/polar_utils.dart' show PolarViewBox;
 import 'core/curve.dart';
 import 'core/scale.dart';
 import 'core/symbols.dart';
@@ -209,11 +210,16 @@ class LabelProps {
     required this.angle,
     required this.style,
     this.index,
+    this.polarViewBox,
   });
 
-  /// The position computed for [position], before anchoring.
+  /// The position computed for [position], before anchoring (NaN for the radial
+  /// positions, which Label.tsx computes no position for).
   final double x, y;
   final Rect viewBox;
+
+  /// The polar view box of a polar label (the radial positions hand it over as is).
+  final PolarViewBox? polarViewBox;
   final Object? value;
   final LabelPosition position;
   final double offset, angle;
