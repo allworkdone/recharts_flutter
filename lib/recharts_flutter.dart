@@ -17,6 +17,7 @@ export 'src/widgets/polar_chart.dart' show PolarChart, PieChart;
 // ---- polar: exports ----
 // ---- end polar ----
 // ---- treemap: exports ----
+export 'src/widgets/treemap_chart.dart';
 // ---- end treemap ----
 // ---- sankey: exports ----
 export 'src/sankey.dart'
