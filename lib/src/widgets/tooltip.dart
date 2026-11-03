@@ -312,7 +312,7 @@ Widget tooltipLayer(
   required List<TooltipPayloadEntry> payload,
   Object? label,
   Offset? coordinate,
-  int? activeIndex,
+  Object? activeIndex,
 }) {
   final content = tooltip.content != null
       ? tooltip.content!(TooltipContentProps(

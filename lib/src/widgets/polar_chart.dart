@@ -286,7 +286,7 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
     if (mouse.index != null) {
       if (tooltip?.active == true) return mouse.activate();
     } else if (tooltip?.defaultIndex != null) {
-      return _Interaction(active: true, index: tooltip!.defaultIndex);
+      return _Interaction(active: true, index: tooltip!.defaultIndexAsInt);
     }
     return _Interaction(coordinate: mouse.coordinate, polar: mouse.polar);
   }
@@ -368,7 +368,8 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
     final finalIsActive = tooltip?.active ?? (state.active && activeIndex != null);
     final axis = _isAxisEvent(m);
     var coordinate = state.coordinate;
-    if (coordinate == null && tooltip?.defaultIndex != null) coordinate = _coordinateForIndex(m, tooltip!.defaultIndex!);
+    final defaultIndex = tooltip?.defaultIndexAsInt;
+    if (coordinate == null && defaultIndex != null) coordinate = _coordinateForIndex(m, defaultIndex);
     final all = axis
         ? polarTooltipPayload(m.scene!, m.chartData, activeIndex)
         : _itemPayload(m, activeIndex);

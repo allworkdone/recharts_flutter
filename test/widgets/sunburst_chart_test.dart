@@ -78,6 +78,28 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets("defaultIndex is a tooltip-index String; the coordinate is positions['[0]'], so the box sits at (0,0)", (tester) async {
+    Future<Probe> show(Object index) async {
+      final probe = Probe();
+      await tester.pumpWidget(host(SunburstChart(
+          width: 500,
+          height: 500,
+          data: exampleSunburstData(),
+          children: [Tooltip(isAnimationActive: false, defaultIndex: index, content: probe.build)])));
+      return probe;
+    }
+
+    var probe = await show('[0]');
+    expect(probe.rows, ['Child1 : 30']);
+    expect(probe.props!.activeIndex, '[0]');
+    expect(probe.props!.coordinate, isNull);
+    probe = await show('[0]children[0]');
+    expect(probe.rows, ['third child : 10']);
+    // String(0) is '0': no such node, so nothing to show.
+    probe = await show(0);
+    expect(probe.visible, isFalse);
+  });
+
   testWidgets('fires callbacks upon hover and click events', (tester) async {
     final entered = <Map<String, Object?>>[], left = <Map<String, Object?>>[], clicked = <Map<String, Object?>>[];
     await tester.pumpWidget(host(SunburstChart(

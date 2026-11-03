@@ -555,7 +555,8 @@ class _TreemapState extends State<Treemap> with TickerProviderStateMixin {
                     viewBox: Offset.zero & size,
                     active: active,
                     payload: active ? _payload(tooltip, state) : const [],
-                    coordinate: state.coordinate);
+                    coordinate: state.coordinate,
+                    activeIndex: state.index);
               }(),
             ),
           ),

@@ -276,7 +276,7 @@ RechartsElement? _child(Map<String, dynamic> node) {
       return Tooltip(
         active: p.boolean('active'),
         cursor: p.svgOrBool('cursor') ?? true,
-        defaultIndex: p.dbl('defaultIndex')?.toInt(),
+        defaultIndex: p.raw['defaultIndex'],
         offset: p.dbl('offset') ?? 10,
         separator: p.str('separator') ?? ' : ',
         isAnimationActive: p.boolean('isAnimationActive'),

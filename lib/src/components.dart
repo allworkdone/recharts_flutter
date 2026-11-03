@@ -585,7 +585,7 @@ abstract class CartesianSeries extends RechartsElement {
   final Object? dataKey;
   final Object xAxisId;
   final Object yAxisId;
-  final Object? name;
+  final String? name;
   final String? unit;
   final bool hide;
   final LegendType legendType;
@@ -895,7 +895,7 @@ class Funnel extends RechartsElement {
   final Object dataKey;
   final List<Object?>? data;
   final Object nameKey;
-  final Object? name;
+  final String? name;
   final bool hide;
   final Color fill;
   final double? fillOpacity;
@@ -1035,7 +1035,8 @@ class TooltipContentProps {
   final List<TooltipPayloadEntry> payload;
   final Object? label;
   final Offset? coordinate;
-  final int? activeIndex;
+  /// An int for cartesian and polar charts; a String for Sankey ('node-1'), Sunburst ('[0]children[1]') and Treemap.
+  final Object? activeIndex;
 }
 
 /// Box style of the default tooltip (`contentStyle` in CSS terms).
@@ -1090,7 +1091,12 @@ class Tooltip extends RechartsElement {
 
   /// `true`/`false` or an [SvgStyle].
   final Object cursor;
-  final int? defaultIndex;
+  /// An int or a String, as Recharts accepts: the tooltip index is compared as
+  /// `String(defaultIndex)` and parsed back to a number by cartesian and polar charts.
+  final Object? defaultIndex;
+
+  /// `String(defaultIndex)` parsed back to a number, null when it is not numeric.
+  int? get defaultIndexAsInt => defaultIndex == null ? null : num.tryParse(defaultIndex.toString())?.toInt();
   final bool filterNull;
   final TooltipFormatter? formatter;
   final bool includeHidden;

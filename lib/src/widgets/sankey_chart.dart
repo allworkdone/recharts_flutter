@@ -13,6 +13,7 @@ import 'package:flutter/services.dart' show KeyDownEvent, LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
 
 import '../components.dart';
+import '../util.dart' show jsString;
 import '../render/sector.dart' show strokeContains;
 import '../render/shapes.dart';
 import '../sankey.dart';
@@ -118,8 +119,11 @@ class _Interaction {
 }
 
 class _View {
-  const _View({this.active = false, this.coordinate, this.payload = const []});
+  const _View({this.active = false, this.coordinate, this.payload = const [], this.activeIndex});
   final bool active;
+
+  /// 'node-N' / 'link-N' (Recharts' tooltip index), '0' for the keyboard.
+  final Object? activeIndex;
   final Offset? coordinate;
   final List<TooltipPayloadEntry> payload;
 }
@@ -236,15 +240,19 @@ class _SankeyState extends State<Sankey> with TickerProviderStateMixin {
     if (m == null) return const _View();
     final mouse = tooltip?.trigger == TooltipTrigger.click ? _click : _hover;
     // combineTooltipInteractionState: active mouse, active keyboard, then the sticky `active` prop.
+    String? defaultKey;
     final state = mouse.active
         ? mouse
         : _keyboard.active
             ? _keyboard
             : (mouse.hit != null && tooltip?.active == true)
             ? _Interaction(active: true, hit: mouse.hit, coordinate: mouse.coordinate)
+            : (mouse.hit == null && tooltip?.defaultIndex != null)
+            // defaultIndex activates with no coordinate: the box sits at (0,0).
+            ? _Interaction(active: true, hit: _parseHit(defaultKey = jsString(tooltip!.defaultIndex), m))
             : _Interaction(coordinate: mouse.coordinate);
     // The keyboard's index '0' is non-null, so it activates without an item.
-    final isActive = tooltip?.active ?? (state.active && (state.hit != null || identical(state, _keyboard)));
+    final isActive = tooltip?.active ?? (state.active && (state.hit != null || defaultKey != null || identical(state, _keyboard)));
     var payload = const <TooltipPayloadEntry>[];
     final hit = state.hit;
     if (isActive && (hit != null || identical(state, _keyboard))) {
@@ -264,7 +272,24 @@ class _SankeyState extends State<Sankey> with TickerProviderStateMixin {
         payload = [entry];
       }
     }
-    return _View(active: isActive, coordinate: state.coordinate, payload: payload);
+    final hitIndex = hit == null ? null : '${hit.type.name}-${hit.index}';
+    return _View(
+        active: isActive,
+        coordinate: state.coordinate,
+        payload: payload,
+        activeIndex: hitIndex ?? defaultKey ?? (identical(state, _keyboard) ? '0' : null));
+  }
+
+  /// `sankeyPayloadSearcher`: 'node-N' / 'link-N' finds `nodes[N]` / `links[N]`; anything else finds nothing.
+  static _Hit? _parseHit(String key, _Model m) {
+    final parts = key.split('-');
+    final index = parts.length > 1 ? int.tryParse(parts[1]) : null;
+    if (index == null || index < 0) return null;
+    return switch (parts[0]) {
+      'node' when index < m.nodes.length => (type: SankeyElementType.node, index: index),
+      'link' when index < m.links.length => (type: SankeyElementType.link, index: index),
+      _ => null,
+    };
   }
 
   void _refreshView() => _view.set(_computeView());
@@ -440,7 +465,8 @@ class _SankeyState extends State<Sankey> with TickerProviderStateMixin {
                       viewBox: m.viewBox,
                       active: v.active,
                       payload: v.payload,
-                      coordinate: v.coordinate);
+                      coordinate: v.coordinate,
+                      activeIndex: v.activeIndex);
                 },
               ),
             ),

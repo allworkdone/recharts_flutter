@@ -13,7 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:recharts_flutter/recharts_flutter.dart';
 import 'package:recharts_flutter/src/sankey.dart';
 
-import '../widgets/chart_widget_test.dart' show host;
+import '../widgets/chart_widget_test.dart' show host, tooltipBox;
 import '../widgets/tooltip_item_test.dart' show Probe, mouseAt;
 
 final exampleSankeyData =
@@ -262,6 +262,26 @@ void main() {
       await tester.pump();
       expect(probe.rows, ['Agricultural waste - Bio-conversion : 124.729']);
       expect(probe.props!.coordinate, const Offset(80, 142.14339872499383));
+    });
+
+    testWidgets('defaultIndex accepts node-N and link-N; a numeric index activates with no payload at (0,0)', (tester) async {
+      Future<Probe> show(Object index) async {
+        final probe = Probe();
+        await tester.pumpWidget(chart(probe, tooltip: Tooltip(isAnimationActive: false, content: probe.build, defaultIndex: index)));
+        return probe;
+      }
+
+      var probe = await show('node-0');
+      expect(probe.rows, ['Agricultural waste : 124.729']);
+      expect(probe.props!.activeIndex, 'node-0');
+      expect(probe.props!.coordinate, isNull);
+      expect(tooltipBox(tester).targetTranslate, Offset.zero);
+      probe = await show('link-0');
+      expect(probe.rows, ['Agricultural waste - Bio-conversion : 124.729']);
+      probe = await show(0);
+      expect(probe.props!.active, isTrue);
+      expect(probe.props!.payload, isEmpty);
+      expect(probe.props!.activeIndex, '0');
     });
 
     testWidgets('events fire with the props and type; click is not hover', (tester) async {

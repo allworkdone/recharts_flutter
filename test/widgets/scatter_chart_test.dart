@@ -39,6 +39,18 @@ void main() {
       expect(probe.visible, isFalse);
     });
 
+    testWidgets("defaultIndex '1' (a String, as Recharts stores it) is the same as 1", (tester) async {
+      final probe = Probe();
+      await tester.pumpWidget(host(ScatterChart(width: 100, height: 100, data: pageData, children: [
+        const Scatter(isAnimationActive: false, id: 'my-scatter'),
+        const XAxis(dataKey: 'uv'),
+        const YAxis(dataKey: 'pv'),
+        Tooltip(isAnimationActive: false, defaultIndex: '1', content: probe.build),
+      ])));
+      expect(probe.rows, ['uv : 300', 'pv : 4567']);
+      expect(probe.props!.activeIndex, 1);
+    });
+
     testWidgets('defaultIndex=1 shows the second point before interaction', (tester) async {
       final probe = Probe();
       await tester.pumpWidget(chart(probe, defaultIndex: 1));

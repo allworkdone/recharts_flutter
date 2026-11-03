@@ -511,7 +511,7 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
     if (mouse.index != null) {
       if (tooltip?.active == true) return mouse.activate();
     } else if (tooltip?.defaultIndex != null) {
-      return _Interaction(active: true, index: tooltip!.defaultIndex);
+      return _Interaction(active: true, index: tooltip!.defaultIndexAsInt);
     }
     return _Interaction(coordinate: mouse.coordinate);
   }
@@ -547,7 +547,8 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
     final isActive = state.active && activeIndex != null;
     final finalIsActive = tooltip?.active ?? isActive;
     var coordinate = state.coordinate;
-    if (coordinate == null && tooltip?.defaultIndex != null) coordinate = _coordinateForIndex(m, tooltip!.defaultIndex!);
+    final defaultIndex = tooltip?.defaultIndexAsInt;
+    if (coordinate == null && defaultIndex != null) coordinate = _coordinateForIndex(m, defaultIndex);
     final payload = m.chartName == 'FunnelChart'
         ? _funnelPayload(m, activeIndex)
         : tooltipPayloadOf(m, activeIndex, items: item ? _itemPayloadConfigurations(m) : null, itemEventType: item);

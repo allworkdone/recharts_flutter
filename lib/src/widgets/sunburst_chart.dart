@@ -144,8 +144,9 @@ class _Interaction {
 }
 
 class _View {
-  const _View({this.active = false, this.coordinate, this.payload = const []});
+  const _View({this.active = false, this.coordinate, this.payload = const [], this.activeIndex});
   final bool active;
+  final Object? activeIndex;
   final Offset? coordinate;
   final List<TooltipPayloadEntry> payload;
 }
@@ -200,8 +201,9 @@ class _SunburstChartState extends State<SunburstChart> with TickerProviderStateM
       if (mouse.index != null) {
         if (tooltip?.active == true) state = _Interaction(active: true, index: mouse.index, coordinate: mouse.coordinate, dataKey: mouse.dataKey);
       } else if (tooltip?.defaultIndex != null) {
-        final i = '[${tooltip!.defaultIndex}]';
-        state = _Interaction(active: true, index: i, coordinate: layout.positions[jsString(layout.byIndex[i]?['name'])]);
+        // Recharts: String(defaultIndex), and positions (keyed by node name) are looked up by that same string.
+        final i = jsString(tooltip!.defaultIndex);
+        state = _Interaction(active: true, index: i, coordinate: layout.positions[i]);
       }
     }
     final node = state.index == null ? null : layout.byIndex[state.index];
@@ -224,7 +226,7 @@ class _SunburstChartState extends State<SunburstChart> with TickerProviderStateM
       ];
       if (tooltip?.filterNull ?? true) payload = [for (final e in payload) if (e.value != null) e];
     }
-    return _View(active: active, coordinate: state.coordinate, payload: payload);
+    return _View(active: active, coordinate: state.coordinate, payload: payload, activeIndex: state.index);
   }
 
   void _refresh() => _view.set(_computeView());
@@ -361,7 +363,8 @@ class _SunburstChartState extends State<SunburstChart> with TickerProviderStateM
                       viewBox: Offset.zero & size,
                       active: v.active,
                       payload: v.payload,
-                      coordinate: v.coordinate);
+                      coordinate: v.coordinate,
+                      activeIndex: v.activeIndex);
                 },
               ),
             ),

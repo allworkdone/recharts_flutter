@@ -36,7 +36,7 @@ Offset at(double angle, double r) => Offset(200, 200) + Offset.fromDirection(-an
 void main() {
   group('Tooltip integration', () {
     // 400x400: center (200, 200), outerRadius 80% of 195; five equal sectors.
-    Widget chart(Probe probe, {Object? activeShape, Object? inactiveShape, int? defaultIndex}) => host(PieChart(
+    Widget chart(Probe probe, {Object? activeShape, Object? inactiveShape, Object? defaultIndex}) => host(PieChart(
           width: 400,
           height: 400,
           children: [
@@ -104,6 +104,13 @@ void main() {
       await tester.pump();
       expect(await pixel(tester, await capture(tester), at(36, 165)), const Color(0x00000000));
       await mouse.removePointer();
+    });
+
+    testWidgets("defaultIndex '1' as a String shows the second sector", (tester) async {
+      final probe = Probe();
+      await tester.pumpWidget(chart(probe, defaultIndex: '1'));
+      expect(probe.rows, ['B : 250']);
+      expect(probe.props!.activeIndex, 1);
     });
 
     testWidgets('defaultIndex shows the first Pie; focus and arrows move between sectors', (tester) async {
