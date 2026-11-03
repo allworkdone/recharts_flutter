@@ -210,8 +210,12 @@ class _SunburstChartState extends State<SunburstChart> with TickerProviderStateM
         state = _Interaction(active: true, index: i, coordinate: layout.positions[i]);
       }
     }
-    final node = state.index == null ? null : layout.byIndex[state.index];
-    final active = tooltip?.active ?? (state.active && node != null);
+    // payloadSearcher: lodash `get(data.children, index)`, so '0', '[0]' and '1.children[0]' all resolve.
+    final rootChildren = widget.data['children'];
+    final node0 = state.index == null ? null : lodashGet(rootChildren, state.index!);
+    final node = node0 is Map ? node0.cast<String, Object?>() : null;
+    // selectIsTooltipActive: an index is enough, the payload may be empty.
+    final active = tooltip?.active ?? (state.active && state.index != null);
     var payload = const <TooltipPayloadEntry>[];
     if (active && node != null) {
       final w = widget;

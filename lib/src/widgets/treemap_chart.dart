@@ -547,7 +547,11 @@ class _TreemapState extends State<Treemap> with TickerProviderStateMixin {
           Positioned.fill(
             child: IgnorePointer(
               child: () {
-                final state = tooltip.trigger == TooltipTrigger.click ? _click : _hover;
+                var state = tooltip.trigger == TooltipTrigger.click ? _click : _hover;
+                // defaultIndex: String(defaultIndex), no coordinate (getPosition is a noop): the box sits at (0,0).
+                if (!state.active && state.index == null && tooltip.defaultIndex != null) {
+                  state = _Interaction(active: true, index: jsString(tooltip.defaultIndex));
+                }
                 final hasIndex = state.index != null;
                 final active = tooltip.active ?? (state.active && hasIndex);
                 return tooltipLayer(tooltip,

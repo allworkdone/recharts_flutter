@@ -284,7 +284,8 @@ class _SankeyState extends State<Sankey> with TickerProviderStateMixin {
   static _Hit? _parseHit(String key, _Model m) {
     final parts = key.split('-');
     final index = parts.length > 1 ? int.tryParse(parts[1]) : null;
-    if (index == null || index < 0) return null;
+    // lodash `nodes[N]` only finds a canonical index: 'node-01', 'node-+1', 'node- 1' find nothing.
+    if (index == null || index < 0 || parts[1] != '$index') return null;
     return switch (parts[0]) {
       'node' when index < m.nodes.length => (type: SankeyElementType.node, index: index),
       'link' when index < m.links.length => (type: SankeyElementType.link, index: index),

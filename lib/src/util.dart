@@ -184,3 +184,39 @@ List<T> jsSlice<T>(List<T> a, int start, [int? end]) {
 /// `getSliced` (src/util/getSliced.ts): `[0, 0]` means "everything".
 List<T> getSliced<T>(List<T> arr, int startIndex, int endIndex) =>
     startIndex + endIndex != 0 ? jsSlice(arr, startIndex, endIndex + 1) : arr;
+
+/// The index a `defaultIndex` activates, as `parseInt` reads it in the payload
+/// lookup: null when [desired] is not finite (Recharts keeps the string and
+/// finds nothing).
+int? defaultPayloadIndex(double? desired) =>
+    desired == null || !desired.isFinite ? null : desired.clamp(-1e9, 1e9).truncate();
+
+/// `combineActiveTooltipIndex` clamps without flooring: true when the clamped
+/// [desired] index of a [length]-row chart is not a whole number, so ticks,
+/// labels, cursor and active shapes (which need an exact index) find nothing.
+bool defaultIndexIsFractional(double? desired, int length) {
+  if (desired == null || !desired.isFinite) return false;
+  final c = math.max(0.0, math.min(desired, length > 0 ? length - 1.0 : double.infinity));
+  return c != c.truncateToDouble();
+}
+
+/// lodash `get(data, path)` for the paths Recharts' tooltip searchers use:
+/// keys split on `.`, `[` and `]` ('1.children[0]', '[0]children[1]', 'children[0]');
+/// lists are indexed by canonical integer keys, maps by string key.
+Object? lodashGet(Object? data, String path) {
+  final keys = [for (final k in path.split(RegExp(r'[.\[\]]'))) if (k.isNotEmpty) k.replaceAll(RegExp('^["\']|["\']\$'), '')];
+  if (keys.isEmpty) return null;
+  Object? cur = data;
+  for (final k in keys) {
+    if (cur is List) {
+      final i = int.tryParse(k);
+      cur = i != null && '$i' == k && i >= 0 && i < cur.length ? cur[i] : null;
+    } else if (cur is Map) {
+      cur = cur[k];
+    } else {
+      return null;
+    }
+    if (cur == null) return null;
+  }
+  return cur;
+}

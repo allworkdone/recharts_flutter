@@ -16,6 +16,7 @@ import 'package:flutter/widgets.dart';
 
 import '../animation.dart';
 import '../components.dart';
+import '../util.dart' show defaultIndexIsFractional, defaultPayloadIndex;
 import '../engine/pie.dart';
 import '../engine/polar_axis.dart';
 import '../engine/polar_items.dart';
@@ -136,8 +137,11 @@ class PieChart extends PolarChart {
 
 /// `TooltipInteractionState`.
 class _Interaction {
-  const _Interaction({this.active = false, this.index, this.coordinate, this.dataKey, this.itemId, this.polar});
+  const _Interaction({this.active = false, this.index, this.coordinate, this.dataKey, this.itemId, this.polar, this.desired});
   final bool active;
+
+  /// `Number(defaultIndex)` when the state comes from `Tooltip.defaultIndex`.
+  final double? desired;
   final int? index;
   final Offset? coordinate;
   final Object? dataKey;
@@ -286,7 +290,8 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
     if (mouse.index != null) {
       if (tooltip?.active == true) return mouse.activate();
     } else if (tooltip?.defaultIndex != null) {
-      return _Interaction(active: true, index: tooltip!.defaultIndexAsInt);
+      final desired = tooltip!.defaultIndexNumber;
+      return _Interaction(active: true, index: defaultPayloadIndex(desired), desired: desired);
     }
     return _Interaction(coordinate: mouse.coordinate, polar: mouse.polar);
   }
@@ -368,8 +373,12 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
     final finalIsActive = tooltip?.active ?? (state.active && activeIndex != null);
     final axis = _isAxisEvent(m);
     var coordinate = state.coordinate;
-    final defaultIndex = tooltip?.defaultIndexAsInt;
-    if (coordinate == null && defaultIndex != null) coordinate = _coordinateForIndex(m, defaultIndex);
+    final desired = state.desired ?? tooltip?.defaultIndexNumber;
+    final fractional = state.desired != null &&
+        defaultIndexIsFractional(state.desired, m.scene != null ? m.chartData.length : m.tooltipDisplayedData.length);
+    if (coordinate == null && desired != null && desired.isFinite && desired == desired.truncateToDouble()) {
+      coordinate = _coordinateForIndex(m, desired.toInt());
+    }
     final all = axis
         ? polarTooltipPayload(m.scene!, m.chartData, activeIndex)
         : _itemPayload(m, activeIndex);
@@ -381,18 +390,18 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
       ];
     }
     return _PolarView(
-      activeIndex: activeIndex,
+      activeIndex: fractional ? null : activeIndex,
       activeDataKey: state.dataKey,
       activeItemId: state.itemId,
       polarCoordinate: axis ? state.polar : null,
       // Cursor.tsx renders nothing for the 'item' event type.
-      cursorVisible: tooltip != null && finalIsActive && axis,
+      cursorVisible: tooltip != null && finalIsActive && axis && !fractional,
       activeDataPoints: [for (final p in all) ?p.payload],
       active: finalIsActive,
       coordinate: coordinate,
       payload: payload,
       interactionActive: state.active,
-      label: axis ? polarActiveLabel(m.scene!, activeIndex) : null,
+      label: axis && !fractional ? polarActiveLabel(m.scene!, activeIndex) : null,
     );
   }
 

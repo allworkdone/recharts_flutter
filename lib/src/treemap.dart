@@ -48,14 +48,8 @@ String addToTreemapNodeIndex(int indexInChildrenArr, [String activeTooltipIndexS
 
 /// `treemapPayloadSearcher`: lodash `get(data, 'children[0]children[1]')`.
 TreemapNode? treemapPayloadSearcher(Object? data, String? activeIndex) {
-  if (data == null || activeIndex == null || activeIndex.isEmpty) return null;
-  Object? cur = data;
-  for (final m in RegExp(r'children\[(\d+)\]').allMatches(activeIndex)) {
-    final children = cur is Map ? cur['children'] : null;
-    final i = int.parse(m[1]!);
-    if (children is! List || i >= children.length) return null;
-    cur = children[i];
-  }
+  if (data == null || activeIndex == null) return null;
+  final cur = lodashGet(data, activeIndex);
   return cur is TreemapNode ? cur : cur is Map ? cur.cast<String, Object?>() : null;
 }
 

@@ -22,6 +22,7 @@ import 'core/polar_utils.dart' show PolarViewBox;
 import 'core/curve.dart';
 import 'core/scale.dart';
 import 'core/symbols.dart';
+import 'util.dart' show jsNumber, jsString;
 import 'widgets/cartesian_chart.dart' show CategoricalChart;
 import 'css_color.dart';
 
@@ -1112,8 +1113,8 @@ class Tooltip extends RechartsElement {
   /// `String(defaultIndex)` and parsed back to a number by cartesian and polar charts.
   final Object? defaultIndex;
 
-  /// `String(defaultIndex)` parsed back to a number, null when it is not numeric.
-  int? get defaultIndexAsInt => defaultIndex == null ? null : num.tryParse(defaultIndex.toString())?.toInt();
+  /// `Number(String(defaultIndex))` (`''` is 0, `'NaN'` is NaN); null without a defaultIndex.
+  double? get defaultIndexNumber => defaultIndex == null ? null : jsNumber(jsString(defaultIndex));
   final bool filterNull;
   final TooltipFormatter? formatter;
   final bool includeHidden;

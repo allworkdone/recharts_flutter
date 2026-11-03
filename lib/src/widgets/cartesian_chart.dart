@@ -28,6 +28,7 @@ import 'package:flutter/widgets.dart';
 
 import '../animation.dart';
 import '../components.dart';
+import '../util.dart' show defaultIndexIsFractional, defaultPayloadIndex;
 import '../core/curve.dart';
 import '../core/js_math.dart' show jsRound;
 import '../engine/axis.dart' show GraphicalItem;
@@ -283,8 +284,11 @@ class ComposedChart extends CategoricalChart {
 
 /// `TooltipInteractionState`.
 class _Interaction {
-  const _Interaction({this.active = false, this.index, this.coordinate, this.dataKey, this.itemId});
+  const _Interaction({this.active = false, this.index, this.coordinate, this.dataKey, this.itemId, this.desired});
   final bool active;
+
+  /// `Number(defaultIndex)` when the state comes from `Tooltip.defaultIndex`.
+  final double? desired;
   final int? index;
   final Offset? coordinate;
   final Object? dataKey;
@@ -511,7 +515,8 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
     if (mouse.index != null) {
       if (tooltip?.active == true) return mouse.activate();
     } else if (tooltip?.defaultIndex != null) {
-      return _Interaction(active: true, index: tooltip!.defaultIndexAsInt);
+      final desired = tooltip!.defaultIndexNumber;
+      return _Interaction(active: true, index: defaultPayloadIndex(desired), desired: desired);
     }
     return _Interaction(coordinate: mouse.coordinate);
   }
@@ -547,8 +552,12 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
     final isActive = state.active && activeIndex != null;
     final finalIsActive = tooltip?.active ?? isActive;
     var coordinate = state.coordinate;
-    final defaultIndex = tooltip?.defaultIndexAsInt;
-    if (coordinate == null && defaultIndex != null) coordinate = _coordinateForIndex(m, defaultIndex);
+    final desired = state.desired ?? tooltip?.defaultIndexNumber;
+    final fractional = state.desired != null && defaultIndexIsFractional(state.desired, tooltipDisplayedData(m).length);
+    // The coordinate is `tooltipTicks[Number(defaultIndex)]`: a whole, in-range number only.
+    if (coordinate == null && desired != null && desired.isFinite && desired == desired.truncateToDouble()) {
+      coordinate = _coordinateForIndex(m, desired.toInt());
+    }
     final payload = m.chartName == 'FunnelChart'
         ? _funnelPayload(m, activeIndex)
         : tooltipPayloadOf(m, activeIndex, items: item ? _itemPayloadConfigurations(m) : null, itemEventType: item);
@@ -561,14 +570,14 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
     }
     return _TooltipView(
       // Cursor.tsx renders nothing for the 'item' event type outside ScatterChart.
-      cursorVisible: tooltip != null && finalIsActive && (!item || m.chartName == 'ScatterChart'),
+      cursorVisible: tooltip != null && finalIsActive && !fractional && (!item || m.chartName == 'ScatterChart'),
       coordinate: coordinate,
       activeDataPoints: {for (final p in payload) ?p.payload}.toList(),
-      activeIndex: activeIndex,
+      activeIndex: fractional ? null : activeIndex,
       activeDataKey: state.dataKey,
-      activeBarLayer: nextActiveBarLayer(m, _view.value.activeBarLayer, activeIndex, state.dataKey),
+      activeBarLayer: nextActiveBarLayer(m, _view.value.activeBarLayer, fractional ? null : activeIndex, state.dataKey),
       active: finalIsActive,
-      label: activeLabelOf(m, activeIndex),
+      label: fractional ? null : activeLabelOf(m, activeIndex),
       payload: finalPayload,
       interactionActive: state.active,
       itemEventType: item,
@@ -581,9 +590,13 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
     _view.set(_computeView(m));
   }
 
-  /// `combineCoordinateForDefaultIndex`: the first item's `getPosition` (only
-  /// Scatter has one: the point's tooltip position), else the tooltip tick.
+  /// `combineCoordinateForDefaultIndex`: the first item's `getPosition` (Scatter
+  /// and Funnel have one: the item's tooltip position), else the tooltip tick.
   Offset? _coordinateForIndex(CartesianModel m, int i) {
+    if (m.funnels.isNotEmpty) {
+      final p = m.funnels.first.trapezoids.elementAtOrNull(i)?.tooltipPosition;
+      if (p != null) return p;
+    }
     final first = m.items.firstOrNull;
     if (first != null && first.isScatter) {
       final p = scatterPointsOf(m, first)?.elementAtOrNull(i);

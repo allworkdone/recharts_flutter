@@ -78,7 +78,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets("defaultIndex is a tooltip-index String; the coordinate is positions['[0]'], so the box sits at (0,0)", (tester) async {
+  testWidgets("defaultIndex is a lodash path into data.children; the coordinate is positions[String(index)], so the box sits at (0,0)", (tester) async {
     Future<Probe> show(Object index) async {
       final probe = Probe();
       await tester.pumpWidget(host(SunburstChart(
@@ -95,9 +95,15 @@ void main() {
     expect(probe.props!.coordinate, isNull);
     probe = await show('[0]children[0]');
     expect(probe.rows, ['third child : 10']);
-    // String(0) is '0': no such node, so nothing to show.
+    // payloadSearcher is lodash get(data.children, index): '0' is the first child.
     probe = await show(0);
-    expect(probe.visible, isFalse);
+    expect(probe.rows, ['Child1 : 30']);
+    expect(probe.props!.coordinate, isNull);
+    probe = await show('1.children[0]');
+    expect(probe.rows, ['another child : 10']);
+    probe = await show(7);
+    expect(probe.props!.active, isTrue);
+    expect(probe.props!.payload, isEmpty);
   });
 
   testWidgets('fires callbacks upon hover and click events', (tester) async {

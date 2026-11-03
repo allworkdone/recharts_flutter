@@ -278,6 +278,10 @@ void main() {
       expect(tooltipBox(tester).targetTranslate, Offset.zero);
       probe = await show('link-0');
       expect(probe.rows, ['Agricultural waste - Bio-conversion : 124.729']);
+      for (final bad in ['node-01', 'node-+1', 'node- 1', 'node-0x1', 'node-9999', 'nodes-0']) {
+        probe = await show(bad);
+        expect(probe.props!.payload, isEmpty, reason: bad);
+      }
       probe = await show(0);
       expect(probe.props!.active, isTrue);
       expect(probe.props!.payload, isEmpty);
