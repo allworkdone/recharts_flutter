@@ -7,7 +7,6 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:recharts_flutter/recharts_flutter.dart';
 import 'package:recharts_flutter/src/css_color.dart';
-import 'package:recharts_flutter/src/engine/model.dart';
 import 'package:recharts_flutter/src/engine/pie.dart';
 import 'package:recharts_flutter/src/sunburst.dart';
 
