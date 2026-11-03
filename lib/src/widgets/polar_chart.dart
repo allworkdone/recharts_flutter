@@ -204,6 +204,10 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
   _Interaction _keyboard = const _Interaction();
   _SectorHit? _hoveredItem;
   _SectorHit? _downItem;
+
+  /// The sector and Radar under the pointer for the user's enter / leave handlers.
+  _SectorHit? _eventItem;
+  String? _eventRadar;
   final FocusNode _focusNode = FocusNode(debugLabel: 'recharts polar chart');
 
   /// What has DOM focus inside the chart: the svg (-1) or the group of the
@@ -586,6 +590,80 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
     }
   }
 
+  RadialBar? _radialBarOf(String id) =>
+      _model?.scene?.radialBars.where((b) => b.id == id).firstOrNull?.settings;
+
+  String? _radarAt(Offset p) {
+    final m = _model, frame = _frame;
+    if (m?.scene == null || frame == null) return null;
+    for (final r in m!.scene!.radars.reversed) {
+      if (r.settings.hide || r.points == null) continue;
+      final path = radarPolygonPath(frame, r);
+      final stroke = r.settings.stroke;
+      if (path != null &&
+          ((r.settings.fill?.a != 0 && path.contains(p)) ||
+              (stroke != null && strokeContains(path, p, r.settings.strokeWidth ?? 1)))) {
+        return r.id;
+      }
+    }
+    return null;
+  }
+
+  RadarEventProps _radarEventProps(String id) {
+    final r = _model!.scene!.radars.firstWhere((r) => r.id == id);
+    return RadarEventProps(
+        radar: r.settings,
+        points: r.points ?? const [],
+        baseLinePoints: r.composed?.baseLinePoints ?? const [],
+        isRange: r.composed?.isRange ?? false);
+  }
+
+  /// The user's onMouseEnter / onMouseLeave of RadialBar sectors and the Radar polygon,
+  /// fired when what is under the pointer changes.
+  void _dispatchEnterLeave(Offset? p, PointerEvent e) {
+    final item = p == null ? null : _sectorAt(p);
+    if (item != _eventItem) {
+      final prev = _eventItem;
+      _eventItem = item;
+      if (prev != null) {
+        final bar = _radialBarOf(prev.id);
+        final sector = _model?.scene?.radialBars.where((b) => b.id == prev.id).firstOrNull?.sectors;
+        if (bar != null && sector != null && prev.index < sector.length) {
+          bar.onMouseLeave?.call(sector[prev.index], prev.index, e);
+        }
+      }
+      if (item != null) {
+        final bar = _radialBarOf(item.id);
+        final sectors = _model?.scene?.radialBars.where((b) => b.id == item.id).firstOrNull?.sectors;
+        if (bar != null && sectors != null && item.index < sectors.length) {
+          bar.onMouseEnter?.call(sectors[item.index], item.index, e);
+        }
+      }
+    }
+    final radar = p == null ? null : _radarAt(p);
+    if (radar != _eventRadar) {
+      final prev = _eventRadar;
+      _eventRadar = radar;
+      if (prev != null) {
+        _model?.scene?.radars.where((r) => r.id == prev).firstOrNull?.settings.onMouseLeave?.call(_radarEventProps(prev), e);
+      }
+      if (radar != null) {
+        _model?.scene?.radars.where((r) => r.id == radar).firstOrNull?.settings.onMouseEnter?.call(_radarEventProps(radar), e);
+      }
+    }
+  }
+
+  /// A click's sector and Radar handlers.
+  void _dispatchClick(Offset p, PointerEvent e, _SectorHit? item) {
+    if (item != null) {
+      final bars = _model?.scene?.radialBars.where((b) => b.id == item.id);
+      final bar = bars?.firstOrNull;
+      if (bar != null && item.index < bar.sectors.length) bar.settings.onClick?.call(bar.sectors[item.index], item.index, e);
+    }
+    final radar = _radarAt(p);
+    if (radar != null) _model?.scene?.radars.where((r) => r.id == radar).firstOrNull?.settings.onClick?.call(e);
+  }
+
   /// `mouseLeaveChart`: only the active flags clear.
   void _mouseLeaveChart() {
     _itemHover = _itemHover.inactive();
@@ -659,6 +737,8 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
     if (touch && (e.localPosition - down).distance > kTouchSlop) return;
     final item = _sectorAt(e.localPosition);
     final m = _model;
+    if (touch) _dispatchEnterLeave(e.localPosition, e);
+    if (item != null ? (touch || item == _downItem) : true) _dispatchClick(e.localPosition, e, item);
     if (m != null && _isAxisEvent(m)) {
       // mouseClickMiddleware: the pointer's axis index, when inside the view box.
       if (touch) {
@@ -918,13 +998,16 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
       child: MouseRegion(
         onEnter: (e) {
           _pointerAt(e.localPosition);
+          _dispatchEnterLeave(e.localPosition, e);
           widget.onMouseEnter?.call(_eventState(), e);
         },
         onHover: (e) {
           _pointerAt(e.localPosition);
+          _dispatchEnterLeave(e.localPosition, e);
           widget.onMouseMove?.call(_eventState(), e);
         },
         onExit: (e) {
+          _dispatchEnterLeave(null, e);
           _mouseLeave();
           widget.onMouseLeave?.call(_eventState(), e);
         },
@@ -935,6 +1018,7 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
             final m = _model;
             if (e.kind == PointerDeviceKind.mouse) {
               _pointerAt(e.localPosition);
+              _dispatchEnterLeave(e.localPosition, e);
               widget.onMouseMove?.call(_eventState(), e);
             } else if (m != null && _isAxisEvent(m)) {
               _setAxisHover(e.localPosition, leaveWhenOutside: false);

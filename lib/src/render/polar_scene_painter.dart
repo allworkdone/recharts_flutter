@@ -134,14 +134,39 @@ Path _polygonPath(double radius, double cx, double cy, List<double> polarAngles)
   return path..close();
 }
 
-void _paintGrid(Canvas canvas, PolarScene scene, PolarGrid g) {
+/// What PolarGrid renders: the angles and radii it draws at, and its radial lines.
+typedef PolarGridGeometry = ({List<double> angles, List<double> radii, List<(Offset, Offset)> lines});
+
+/// `PolarGrid`: angles and radii from the props or the axes' ticks (`selectPolarGridAngles`,
+/// `selectPolarGridRadii`); null when it renders nothing.
+PolarGridGeometry? polarGridGeometry(PolarScene scene, PolarGrid g) {
   final angleTicks = scene.angleAxes[g.angleAxisId]?.ticks;
   final radiusTicks = scene.radiusAxes[g.radiusAxisId]?.ticks;
   final polarAngles = g.polarAngles ?? (angleTicks == null ? null : [for (final t in angleTicks) t.coordinate]);
   final polarRadius = g.polarRadius ?? (radiusTicks == null ? null : [for (final t in radiusTicks) t.coordinate]);
-  if (polarAngles == null || polarRadius == null) return;
+  if (polarAngles == null || polarRadius == null) return null;
   final vb = scene.viewBox;
-  if (vb.outerRadius <= 0) return;
+  if (vb.outerRadius <= 0) return null;
+  return (
+    angles: polarAngles,
+    radii: polarRadius,
+    lines: g.radialLines
+        ? [
+            for (final angle in polarAngles)
+              (
+                polarToCartesian(vb.cx, vb.cy, vb.innerRadius, angle),
+                polarToCartesian(vb.cx, vb.cy, vb.outerRadius, angle)
+              ),
+          ]
+        : const [],
+  );
+}
+
+void _paintGrid(Canvas canvas, PolarScene scene, PolarGrid g) {
+  final geometry = polarGridGeometry(scene, g);
+  if (geometry == null) return;
+  final polarAngles = geometry.angles, polarRadius = geometry.radii;
+  final vb = scene.viewBox;
   final stroke = g.stroke;
   Paint? strokeOf() => stroke == null || g.strokeWidth <= 0
       ? null
@@ -166,14 +191,10 @@ void _paintGrid(Canvas canvas, PolarScene scene, PolarGrid g) {
       stroked(ring(radius));
     }
   }
-  if (g.radialLines && polarAngles.isNotEmpty) {
-    for (final angle in polarAngles) {
-      final a = polarToCartesian(vb.cx, vb.cy, vb.innerRadius, angle);
-      final b = polarToCartesian(vb.cx, vb.cy, vb.outerRadius, angle);
-      stroked(Path()
-        ..moveTo(a.dx, a.dy)
-        ..lineTo(b.dx, b.dy));
-    }
+  for (final (a, b) in geometry.lines) {
+    stroked(Path()
+      ..moveTo(a.dx, a.dy)
+      ..lineTo(b.dx, b.dy));
   }
 }
 
@@ -430,6 +451,13 @@ Path _rangePath(List<List<Offset>> outer, List<List<Offset>> base) {
   }
   if (base.length == 1) path.close();
   return path;
+}
+
+/// The Radar polygon as pointer events see it (its fill region), over the points shown this frame.
+Path? radarPolygonPath(PolarFrame frame, RadarModel r) {
+  final points = frame.radarAnimators[r.id]?.peek(interpolateRadarPoints) ?? r.points;
+  if (points == null || points.isEmpty) return null;
+  return _segmentsPath(_segments(_offsets(points), r.settings.connectNulls));
 }
 
 List<Offset?> _offsets(List<RadarPoint> points) => [for (final p in points) Offset(p.x, p.y)];

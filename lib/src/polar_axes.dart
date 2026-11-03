@@ -10,6 +10,7 @@ import 'package:flutter/widgets.dart';
 
 import 'components.dart';
 import 'core/nice_ticks.dart';
+import 'engine/polar_items.dart' show RadarPoint, RadialBarSector;
 import 'polar_components.dart';
 
 /// `gridType` of [PolarGrid].
@@ -189,6 +190,20 @@ class RadarShapeProps {
 
 typedef RadarShapePainter = void Function(Canvas canvas, RadarShapeProps props);
 
+/// What a [Radar] handler receives (`InternalRadarProps`): the item and its points.
+class RadarEventProps {
+  const RadarEventProps({required this.radar, required this.points, required this.baseLinePoints, required this.isRange});
+  final Radar radar;
+  final List<RadarPoint> points, baseLinePoints;
+  final bool isRange;
+}
+
+/// `onMouseEnter` / `onMouseLeave` of the Radar polygon.
+typedef RadarEventHandler = void Function(RadarEventProps props, PointerEvent event);
+
+/// `onMouseEnter`, `onMouseLeave` and `onClick` of a RadialBar sector.
+typedef RadialBarEventHandler = void Function(RadialBarSector data, int index, PointerEvent event);
+
 /// src/polar/Radar.tsx. Like SVG, an undefined `fill` (null) paints black
 /// (pass a transparent color for `none`) and an undefined `stroke` paints
 /// nothing; the legend, tooltip row and active dot see the raw null.
@@ -212,6 +227,9 @@ class Radar extends RechartsElement {
     this.strokeOpacity,
     this.strokeDasharray,
     this.shape,
+    this.onClick,
+    this.onMouseEnter,
+    this.onMouseLeave,
     this.isAnimationActive,
     this.animationBegin = 0,
     this.animationDuration = 1500,
@@ -227,6 +245,10 @@ class Radar extends RechartsElement {
   final bool hide;
   final LegendType legendType;
   final String? tooltipType;
+
+  /// Polygon events: a click on its fill or stroke, and the pointer entering or leaving it.
+  final void Function(PointerEvent event)? onClick;
+  final RadarEventHandler? onMouseEnter, onMouseLeave;
 
   /// `true`/`false`, an [SvgStyle], or a [DotPainter].
   final Object dot;
@@ -286,6 +308,9 @@ class RadialBar extends RechartsElement {
     this.strokeOpacity,
     this.activeShape,
     this.shape,
+    this.onClick,
+    this.onMouseEnter,
+    this.onMouseLeave,
     this.isAnimationActive,
     this.animationBegin = 0,
     this.animationDuration = 1500,
@@ -334,6 +359,9 @@ class RadialBar extends RechartsElement {
 
   /// Draws every sector instead of the default Sector.
   final RadialBarShapePainter? shape;
+
+  /// Sector events, fired for the sector under the pointer.
+  final RadialBarEventHandler? onClick, onMouseEnter, onMouseLeave;
   final bool? isAnimationActive;
   final int animationBegin;
   final int animationDuration;
@@ -351,7 +379,7 @@ class RadialBar extends RechartsElement {
 /// Props handed to a custom [RadialBar] sector painter.
 class RadialBarShapeProps {
   const RadialBarShapeProps({required this.sector, required this.index, required this.isActive});
-  final Object sector;
+  final RadialBarSector sector;
   final int index;
   final bool isActive;
 }
