@@ -17,6 +17,7 @@ import 'axis.dart';
 import 'get_ticks.dart';
 import 'model.dart' show BarPosition, barSizeList, getBarPositions, truncateByDomain;
 import 'polar_axis.dart';
+import '../css_color.dart';
 
 // ---------------------------------------------------------------------------
 // Radar
@@ -442,7 +443,7 @@ List<RadialBarSector> computeRadialBarSectors(PolarItem item, RadialBarContext c
         'strokeWidth': ?cell.strokeWidth,
       },
     };
-    Color? color(String k, Color? fallback) => switch (props[k]) { final Color c => c, _ => fallback };
+    Color? color(String k, Color? fallback) => cssColorOf(props[k]) ?? fallback;
     double? number(String k, double? fallback) => switch (props[k]) { final num n => n.toDouble(), _ => fallback };
     sectors.add(RadialBarSector(
       cx: vb.cx,

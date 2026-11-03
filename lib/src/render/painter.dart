@@ -31,6 +31,7 @@ import '../util.dart';
 import 'label.dart';
 import 'shapes.dart';
 import 'svg_text.dart';
+import '../css_color.dart';
 
 /// The trapezoids to draw now (the animation's step, else the target ones).
 List<FunnelTrapezoid>? currentTrapezoids(ChartFrame frame, FunnelModel f, {bool record = false}) {
@@ -874,7 +875,7 @@ Path? scatterSymbolPath(Scatter scatter, ScatterPoint p, {bool active = false}) 
 void paintScatterPoint(Canvas canvas, Scatter scatter, ScatterPoint p, int index, {bool active = false}) {
   final (_, style, painter) = _scatterOption(scatter, active);
   final dataFill = p.payload is Map ? (p.payload as Map)['fill'] : null;
-  final fill = style?.fill ?? p.cell?.fill ?? (dataFill is Color ? dataFill : null) ?? scatter.fill;
+  final fill = style?.fill ?? p.cell?.fill ?? cssColorOf(dataFill) ?? scatter.fill;
   final stroke = style?.stroke ?? p.cell?.stroke ?? scatter.stroke;
   final strokeWidth = style?.strokeWidth ?? p.cell?.strokeWidth ?? scatter.strokeWidth;
   if (painter != null) {

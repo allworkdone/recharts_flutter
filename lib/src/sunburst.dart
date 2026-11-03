@@ -7,6 +7,7 @@ import 'dart:ui';
 import 'core/polar_utils.dart';
 import 'core/scale.dart';
 import 'util.dart';
+import 'css_color.dart';
 
 /// One sector `drawArcs` pushes.
 class SunburstSector {
@@ -91,7 +92,7 @@ SunburstLayout computeSunburst({
       byIndex[tooltipIndex] = d;
       final arcLength = rScale.map(_num(d[dataKey])) ?? double.nan;
       final start = currentAngle;
-      final fillColor = (d['fill'] as Color?) ?? childColor ?? fill;
+      final fillColor = cssColorOf(d['fill']) ?? childColor ?? fill;
       final text = polarToCartesian(0, 0, innerR + radius / 2, -(start + arcLength - arcLength / 2));
       currentAngle += arcLength;
       sectors.add(SunburstSector(

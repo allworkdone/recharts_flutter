@@ -18,6 +18,7 @@ import '../treemap.dart';
 import '../util.dart';
 import 'responsive_container.dart';
 import 'tooltip.dart';
+import '../css_color.dart';
 
 export '../treemap.dart' show TreemapNode, treemapColorPanel, addToTreemapNodeIndex, treemapPayloadSearcher, computeNode, squarify;
 
@@ -729,10 +730,9 @@ class _TreemapPainter extends CustomPainter {
     final x = item.x, y = item.y, width = item.width, height = item.height;
     final colors = widget.colorPanel ?? _defaultColors;
     final nodeFill = node['fill'], nodeStroke = node['stroke'];
-    final fill = nodeFill is Color
-        ? nodeFill
-        : widget.fill ?? (item.depth < 2 ? colors[(node['index'] as int) % colors.length] : const Color(0x00FFFFFF));
-    final stroke = nodeStroke is Color ? nodeStroke : widget.stroke ?? const Color(0xFFFFFFFF);
+    final fill = cssColorOf(nodeFill) ??
+        widget.fill ?? (item.depth < 2 ? colors[(node['index'] as int) % colors.length] : const Color(0x00FFFFFF));
+    final stroke = cssColorOf(nodeStroke) ?? widget.stroke ?? const Color(0xFFFFFFFF);
     // The svg's own fill and stroke, which the arrow and the text inherit.
     final inheritedFill = widget.fill;
     final inheritedStroke = widget.stroke;

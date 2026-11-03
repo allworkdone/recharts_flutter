@@ -879,40 +879,6 @@ class _Props {
   }
 }
 
-// ponytail: the common CSS named colors only; add more when a fixture needs them.
-const _named = <String, int>{
-  'black': 0xFF000000, 'white': 0xFFFFFFFF, 'red': 0xFFFF0000, 'green': 0xFF008000, 'blue': 0xFF0000FF,
-  'yellow': 0xFFFFFF00, 'orange': 0xFFFFA500, 'purple': 0xFF800080, 'gray': 0xFF808080, 'grey': 0xFF808080,
-  'pink': 0xFFFFC0CB, 'brown': 0xFFA52A2A, 'cyan': 0xFF00FFFF, 'magenta': 0xFFFF00FF, 'lime': 0xFF00FF00,
-  'navy': 0xFF000080, 'teal': 0xFF008080, 'maroon': 0xFF800000, 'olive': 0xFF808000, 'silver': 0xFFC0C0C0,
-  'gold': 0xFFFFD700, 'coral': 0xFFFF7F50, 'tomato': 0xFFFF6347, 'steelblue': 0xFF4682B4,
-  'lightgray': 0xFFD3D3D3, 'lightgrey': 0xFFD3D3D3, 'darkgray': 0xFFA9A9A9, 'darkgrey': 0xFFA9A9A9,
-  'transparent': 0x00000000,
-};
-
-Color? parseCssColor(String input) {
-  final s = input.trim().toLowerCase();
-  if (s == 'none') return null;
-  if (_named.containsKey(s)) return Color(_named[s]!);
-  if (s.startsWith('#')) {
-    var hex = s.substring(1);
-    if (hex.length == 3 || hex.length == 4) hex = hex.split('').map((c) => '$c$c').join();
-    if (hex.length == 6) return Color(0xFF000000 | int.parse(hex, radix: 16));
-    if (hex.length == 8) {
-      final v = int.parse(hex, radix: 16);
-      return Color(((v & 0xFF) << 24) | (v >> 8));
-    }
-  }
-  final m = RegExp(r'^rgba?\(([^)]*)\)$').firstMatch(s);
-  if (m != null) {
-    final parts = m[1]!.split(RegExp(r'[,\s/]+')).where((e) => e.isNotEmpty).toList();
-    int ch(String v) => v.endsWith('%') ? (double.parse(v.substring(0, v.length - 1)) * 2.55).round() : double.parse(v).round();
-    final a = parts.length > 3 ? double.parse(parts[3]) : 1.0;
-    return Color.fromARGB((a * 255).round(), ch(parts[0]), ch(parts[1]), ch(parts[2]));
-  }
-  return null;
-}
-
 /// A Sunburst data node with its `fill` strings turned into colors.
 Map<String, Object?> _sunburstNode(Map<String, dynamic> n) => {
       for (final e in n.entries)

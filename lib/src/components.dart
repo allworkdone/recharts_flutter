@@ -23,6 +23,7 @@ import 'core/curve.dart';
 import 'core/scale.dart';
 import 'core/symbols.dart';
 import 'widgets/cartesian_chart.dart' show CategoricalChart;
+import 'css_color.dart';
 
 /// Base class of everything that goes into a chart's `children`.
 abstract class RechartsElement {
@@ -54,6 +55,18 @@ class SvgStyle {
     this.r,
     this.radius,
   });
+  /// Like the default constructor, with `fill` and `stroke` as CSS color strings or [Color]s.
+  SvgStyle.css({
+    Object? fill,
+    this.fillOpacity,
+    Object? stroke,
+    this.strokeWidth,
+    this.strokeOpacity,
+    this.strokeDasharray,
+    this.r,
+    this.radius,
+  })  : fill = cssColorOf(fill),
+        stroke = cssColorOf(stroke);
   final Color? fill;
   final double? fillOpacity;
   final Color? stroke;
@@ -828,6 +841,10 @@ class Area extends CartesianSeries {
 /// Per-entry overrides inside a [Bar] or [Scatter].
 class Cell extends RechartsElement {
   const Cell({this.fill, this.fillOpacity, this.stroke, this.strokeWidth});
+  /// Like the default constructor, with `fill` and `stroke` as CSS color strings or [Color]s.
+  Cell.css({Object? fill, this.fillOpacity, Object? stroke, this.strokeWidth})
+      : fill = cssColorOf(fill),
+        stroke = cssColorOf(stroke);
   final Color? fill;
   final double? fillOpacity;
   final Color? stroke;

@@ -18,6 +18,7 @@ import 'get_ticks.dart';
 import 'model.dart' show calculateActiveTickIndex;
 import 'polar_axis.dart';
 import 'polar_items.dart';
+import '../css_color.dart';
 
 /// `PolarCoordinate`: a tooltip coordinate with its polar parts.
 class PolarCoordinate {
@@ -398,7 +399,7 @@ List<LegendPayload> radialBarLegendPayload(RadialBar b, List<Object?> chartData)
         LegendPayload(
           value: switch (entry is Map ? entry['name'] : null) { null => null, final v => jsString(v) },
           type: b.legendType,
-          color: switch (entry is Map ? entry['fill'] : null) { final Color c => c, _ => null },
+          color: cssColorOf(entry is Map ? entry['fill'] : null),
           dataKey: null,
         ),
     ];

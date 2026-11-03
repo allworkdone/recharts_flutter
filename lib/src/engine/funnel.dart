@@ -10,6 +10,7 @@ import '../animation.dart';
 import '../components.dart';
 import '../util.dart';
 import 'model.dart';
+import '../css_color.dart';
 
 /// `FunnelTrapezoidItem`.
 class FunnelTrapezoid {
@@ -140,7 +141,7 @@ List<FunnelTrapezoid> computeFunnelTrapezoids(Funnel f, List<Object?> chartData,
     if (c != null) return c;
     final e = displayed[i];
     final v = e is Map ? e[key] : null;
-    return v is Color ? v : fallback;
+    return cssColorOf(v) ?? fallback;
   }
 
   double? numberOf(String key, int i, double? Function(Cell c) fromCell, double? fallback) {
