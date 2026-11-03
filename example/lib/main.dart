@@ -1,11 +1,10 @@
 import 'dart:convert';
-import 'dart:js_interop';
-import 'dart:js_interop_unsafe';
 
 import 'package:flutter/material.dart' hide Tooltip;
 import 'package:flutter/services.dart';
 
 import 'parity/fixture_renderer.dart';
+import 'parity/parity_hooks.dart' if (dart.library.js_interop) 'parity/parity_hooks_web.dart';
 
 const _fixtureDir = 'assets/parity/fixtures/';
 
@@ -40,13 +39,11 @@ class _ParityAppState extends State<ParityApp> {
     super.initState();
     // Ready after the frame that shows the loaded fixture (in anim mode, the
     // empty frame before __parityStart mounts the chart).
-    _fixture.then((_) => WidgetsBinding.instance.addPostFrameCallback((_) {
-          globalContext.setProperty('__parityReady'.toJS, true.toJS);
-        }));
+    _fixture.then((_) => WidgetsBinding.instance.addPostFrameCallback((_) => signalParityReady()));
     if (!_deferred) return;
-    globalContext.setProperty('__parityStart'.toJS, (() {
+    exposeParityStart(() {
       if (mounted) setState(() => _mounted = true);
-    }).toJS);
+    });
   }
 
   @override
