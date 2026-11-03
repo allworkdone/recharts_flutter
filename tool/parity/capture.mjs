@@ -130,21 +130,24 @@ async function captureFixture(fx) {
         if (ms + lag > t) { await page.clock.runFor(ms + lag - t); t = ms + lag; }
         // Treemap's slide-in is a CSS transition on the compositor's real clock, and the browser may skip it
         // when React commits both states in one frame: replay each node's transform as a paused Web Animation
-        // at the fake time of the last 16 ms frame (the transition starts one frame after t=0, like the JS animations).
+        // at the fake time of the last 16 ms frame. The transition starts after the handle's PENDING frame and
+        // animationBegin (CSSTransitionAnimate / AnimationHandle), i.e. max(16, begin rounded up to a frame) later.
         if (side === 'web') {
-          await page.evaluate((e) => {
+          const begin = Math.max(16, Math.ceil((fx.chart.props?.animationBegin ?? 0) / 16) * 16);
+          await page.evaluate(([e]) => {
+            const toMs = (v) => (v.endsWith('ms') ? parseFloat(v) : parseFloat(v) * 1000);
             document.querySelectorAll('g.recharts-layer[style*="transition: transform"]').forEach((g) => {
               const r = g.querySelector('path.recharts-rectangle');
-              const m = /transition: transform (\d+)ms ([^\s;]+)/.exec(g.getAttribute('style'));
-              if (!r || !m) return;
+              const cs = getComputedStyle(g);
+              if (!r) return;
               g.getAnimations().forEach((a) => a.cancel());
               const from = -(+r.getAttribute('x')) - +r.getAttribute('width');
               const a = g.animate([{ transform: `translate(${from}px, 0px)` }, { transform: 'translate(0px, 0px)' }],
-                { duration: +m[1], easing: m[2], fill: 'both' });
+                { duration: toMs(cs.transitionDuration), easing: cs.transitionTimingFunction, fill: 'both' });
               a.pause();
               a.currentTime = e;
             });
-          }, Math.max(0, Math.floor(ms / 16) * 16 - 16));
+          }, [Math.max(0, Math.floor((ms + lag) / 16) * 16 - begin)]);
         }
         frames[side][ms] = await shot(page, fx);
       }

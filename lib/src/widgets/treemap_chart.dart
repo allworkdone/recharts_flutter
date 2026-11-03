@@ -7,7 +7,7 @@
 
 import 'dart:math' as math;
 
-import 'package:flutter/gestures.dart' show PointerDeviceKind;
+import 'package:flutter/gestures.dart' show PointerDeviceKind, kTouchSlop;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
@@ -109,7 +109,8 @@ class Treemap extends StatefulWidget {
   /// null is `'auto'`: on unless the platform asks for reduced motion.
   final bool? isAnimationActive;
 
-  /// Accepted for parity; Rectangle's update animation is never active here.
+  /// Accepted for parity. Recharts hands `!isUpdateAnimationActive` to Rectangle, so an explicit `false`
+  /// turns on Rectangle's stroke-dasharray draw-in; that is not ported (the default 'auto' is a no-op).
   final bool? isUpdateAnimationActive;
   final int animationBegin;
   final int animationDuration;
@@ -121,10 +122,15 @@ class Treemap extends StatefulWidget {
 
 /// One rendered node (`renderNode`).
 class _Item {
-  _Item(this.node, this.root) : key = '${node['x']}-${node['y']}-${node['name']}';
+  _Item(this.node, this.root, String parentKey) : key = '$parentKey/${node['x']}-${node['y']}-${node['name']}';
   final TreemapNode node;
   final TreemapNode root;
+
+  /// React's `key` path: a changed ancestor key remounts the whole subtree.
   final String key;
+
+  /// The `from` of the node's CSSTransitionAnimate: a change restarts it.
+  String get mountKey => '$key|${-x - width}';
   bool get isLeaf => (node['children'] as List?)?.isNotEmpty != true;
   double get x => (node['x'] as num).toDouble();
   double get y => (node['y'] as num).toDouble();
@@ -137,7 +143,8 @@ class _Item {
 class _Mount {
   _Mount(TickerProvider vsync, this.keys, {required int begin, required int duration, required Object easing})
       : controller = AnimationController(vsync: vsync) {
-    easingFn = createEasingFunction(easing is String && easing == 'spring' ? 'ease' : easing) ?? createEasingFunction('ease')!;
+    // extractCssEasing: 'spring' and non-string easings fall back to 'ease'.
+    easingFn = createEasingFunction(easing is String && easing != 'spring' ? easing : 'ease') ?? createEasingFunction('ease')!;
     final int total = math.max<int>(0, begin) + math.max<int>(0, duration);
     beginFraction = total == 0 ? 0 : math.max(0, begin) / total;
     controller.duration = Duration(milliseconds: total == 0 ? 1 : total);
@@ -168,6 +175,8 @@ class _Mount {
   }
 }
 
+int _nextId = 0;
+
 class _Interaction {
   const _Interaction({this.active = false, this.index, this.coordinate});
   final bool active;
@@ -192,9 +201,14 @@ class _TreemapState extends State<Treemap> with TickerProviderStateMixin {
   _Interaction _hover = const _Interaction();
   _Interaction _click = const _Interaction();
   String? _hoveredKey;
-  _Item? _downItem;
+  _Part? _hoveredPart;
+  _Hit? _downHit;
+  int? _downBox;
+  Offset? _downPosition;
   Offset? _pointer;
+  PointerEvent? _lastEvent;
   bool _pointerInside = false;
+  final String _id = 'recharts-treemap-${_nextId++}';
   double _width = 0, _height = 0;
   List<_Box> _boxes = const [];
   TextStyle _baseStyle = const TextStyle();
@@ -259,8 +273,6 @@ class _TreemapState extends State<Treemap> with TickerProviderStateMixin {
     }
   }
 
-  TreemapNode _withRoot(TreemapNode node, TreemapNode root) => {...node, 'root': root};
-
   /// `handleClick`.
   void _handleClick(TreemapNode node) {
     if (widget.type == TreemapType.nest && node['children'] != null) {
@@ -288,45 +300,40 @@ class _TreemapState extends State<Treemap> with TickerProviderStateMixin {
     _rehover();
   }
 
-  /// Chrome re-hit-tests under a still pointer after the DOM changed and fires
-  /// mouseenter on the new node. The tooltip keeps its coordinate when the
-  /// index is unchanged (observed against Recharts 3.10.1; the reason is not
-  /// in the Treemap source).
+  /// After a drill every node remounts and Chrome fires boundary events for the
+  /// element now under the still pointer; the old element is gone, so nothing leaves.
   void _rehover() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final p = _pointer;
+      final p = _pointer, e = _lastEvent;
       if (!mounted || !_pointerInside || p == null) return;
-      final item = _itemAt(p);
       _hoveredKey = null;
-      if (item == null) return;
-      final index = item.node['tooltipIndex'] as String;
-      final keep = _hover.active && _hover.index == index;
-      _hoveredKey = item.key;
-      setState(() => _hover = _Interaction(active: true, index: index, coordinate: keep ? _hover.coordinate : _center(item)));
+      _hoveredPart = null;
+      _updateHover(_hitAt(p), e);
     });
   }
 
   // -------------------------------------------------------------- items
 
   /// `renderNode`: nodes in paint order.
-  void _collect(TreemapNode root, TreemapNode node, List<_Item> out) {
+  void _collect(TreemapNode root, TreemapNode node, String parentKey, List<_Item> out) {
     final current = _currentRoot;
     final isCurrentRootChild = ((current?['children'] as List?) ?? const []).any((c) {
       final item = c as TreemapNode;
       return item['depth'] == node['depth'] && item['name'] == node['name'];
     });
     if (!isCurrentRootChild && root['depth'] != 0 && widget.type == TreemapType.nest) return;
-    out.add(_Item(node, root));
+    final item = _Item(node, root, parentKey);
+    out.add(item);
     for (final child in (node['children'] as List?) ?? const []) {
-      _collect(node, child as TreemapNode, out);
+      _collect(node, child as TreemapNode, item.key, out);
     }
   }
 
-  /// `CSSTransitionAnimate` per node: nodes whose key is new start a slide-in.
+  /// `CSSTransitionAnimate` per node: nodes whose key or `from` is new start a slide-in.
   void _syncMounts(List<_Item> items, bool reducedMotion) {
-    final keys = {for (final i in items) i.key};
+    final keys = {for (final i in items) i.mountKey};
     _mountOf.removeWhere((k, _) => !keys.contains(k));
-    final fresh = {for (final i in items) if (!_mountOf.containsKey(i.key)) i.key};
+    final fresh = {for (final i in items) if (!_mountOf.containsKey(i.mountKey)) i.mountKey};
     final active = widget.isAnimationActive ?? !reducedMotion;
     if (fresh.isNotEmpty && active) {
       final mount = _Mount(this, fresh,
@@ -344,7 +351,8 @@ class _TreemapState extends State<Treemap> with TickerProviderStateMixin {
       }
       mount.controller.addStatusListener((s) {
         if (s == AnimationStatus.completed && mounted) {
-          for (var i = 0; i < fresh.length; i++) {
+          // Only nodes still mounted report their end.
+          for (var i = fresh.where((k) => _mountOf[k] == mount).length; i > 0; i--) {
             widget.onAnimationEnd?.call();
           }
         }
@@ -358,20 +366,28 @@ class _TreemapState extends State<Treemap> with TickerProviderStateMixin {
   }
 
   double _dx(_Item item) {
-    final m = _mountOf[item.key];
+    final m = _mountOf[item.mountKey];
     if (m == null) return 0;
     return (-item.x - item.width) * (1 - m.progress);
   }
 
   // -------------------------------------------------------------- hit testing
 
-  /// The topmost node whose rect (with its 1px stroke) is under [p].
-  _Item? _itemAt(Offset p) {
+  /// The topmost painted part under [p]: per node (paint order, last on top) the
+  /// label, the arrow, then the rect with its 1px stroke. Only the rect carries
+  /// the tooltip's `data-recharts-item-index` and handlers.
+  _Hit? _hitAt(Offset p) {
     if (p.dy < 0 || p.dy >= _renderHeight(_height, widget.type) || p.dx < 0 || p.dx >= _width) return null;
     for (final item in _items.reversed) {
+      final q = p - Offset(_dx(item), 0);
+      if (widget.content == null) {
+        final label = _labelRect(widget, _baseStyle, _scaler, item);
+        if (label != null && label.contains(q)) return _Hit(item, _Part.label);
+        final arrow = _arrowPath(widget, item);
+        if (arrow != null && arrow.contains(q)) return _Hit(item, _Part.arrow);
+      }
       if (item.width == 0 || item.height == 0) continue;
-      final dx = _dx(item);
-      if (Rect.fromLTWH(item.x + dx, item.y, item.width, item.height).inflate(0.5).contains(p)) return item;
+      if (Rect.fromLTWH(item.x, item.y, item.width, item.height).inflate(0.5).contains(q)) return _Hit(item, _Part.rect);
     }
     return null;
   }
@@ -385,49 +401,85 @@ class _TreemapState extends State<Treemap> with TickerProviderStateMixin {
 
   Offset _center(_Item item) => Offset(item.x + item.width / 2, item.y + item.height / 2);
 
-  /// Layer mouseenter / mouseleave and `setActiveMouseOverItemIndex`.
-  void _setHover(_Item? item, [PointerEvent? event]) {
-    if (!mounted || item?.key == _hoveredKey) return;
-    final previous = _items.where((i) => i.key == _hoveredKey).firstOrNull;
-    _hoveredKey = item?.key;
-    bool fires(_Item i) => i.isLeaf || widget.type == TreemapType.nest;
-    if (previous != null && fires(previous) && event != null) widget.onMouseLeave?.call(_withRoot(previous.node, previous.root), event);
-    if (item != null) {
-      if (fires(item) && event != null) widget.onMouseEnter?.call(_withRoot(item.node, item.root), event);
-      setState(() => _hover = _Interaction(active: true, index: item.node['tooltipIndex'] as String, coordinate: _center(item)));
+  bool _fires(_Item i) => i.isLeaf || widget.type == TreemapType.nest;
+
+  /// `{...svgPropertiesNoEvents(props), ...node, root}`: what handlers receive.
+  TreemapNode _eventProps(_Item item) => {
+        'id': _id,
+        if (widget.fill != null) 'fill': widget.fill,
+        if (widget.stroke != null) 'stroke': widget.stroke,
+        ...item.node,
+        'root': item.root,
+      };
+
+  /// What `content` receives: the same plus the animation flags of TreemapItem.
+  TreemapNode _contentProps(_Item item) => {
+        ..._eventProps(item),
+        'isAnimationActive': widget.isAnimationActive ?? 'auto',
+        'isUpdateAnimationActive': widget.isUpdateAnimationActive == false,
+      };
+
+  /// `setActiveMouseOverItemIndex`, dispatched by the rect's onMouseEnter.
+  void _dispatchHover(_Item item) {
+    if (!mounted) return;
+    setState(() => _hover = _Interaction(active: true, index: item.node['tooltipIndex'] as String, coordinate: _center(item)));
+  }
+
+  /// mouseenter / mouseleave of the Layers (user callbacks) and of the rect (tooltip).
+  void _updateHover(_Hit? hit, PointerEvent? event) {
+    if (!mounted) return;
+    final prevKey = _hoveredKey, prevPart = _hoveredPart;
+    _hoveredKey = hit?.item.key;
+    _hoveredPart = hit?.part;
+    if (prevKey != _hoveredKey) {
+      final prev = prevKey == null ? null : _items.where((i) => i.key == prevKey).firstOrNull;
+      if (prev != null && _fires(prev) && event != null) widget.onMouseLeave?.call(_eventProps(prev), event);
+      if (hit != null && _fires(hit.item) && event != null) widget.onMouseEnter?.call(_eventProps(hit.item), event);
     }
+    if (hit != null && hit.part == _Part.rect && (prevKey != _hoveredKey || prevPart != _Part.rect)) _dispatchHover(hit.item);
   }
 
   void _mouseLeave(PointerEvent e) {
     _pointerInside = false;
     final previous = _items.where((i) => i.key == _hoveredKey).firstOrNull;
     _hoveredKey = null;
-    if (previous != null && (previous.isLeaf || widget.type == TreemapType.nest)) {
-      widget.onMouseLeave?.call(_withRoot(previous.node, previous.root), e);
-    }
+    _hoveredPart = null;
+    if (previous != null && _fires(previous)) widget.onMouseLeave?.call(_eventProps(previous), e);
     setState(() => _hover = _Interaction(index: _hover.index, coordinate: _hover.coordinate));
   }
 
   void _onPointerDown(PointerDownEvent e) {
     _pointer = e.localPosition;
+    _downPosition = e.localPosition;
     _pointerInside = true;
-    _downItem = _itemAt(e.localPosition);
-    if (e.kind != PointerDeviceKind.mouse) _setHover(_downItem, e);
+    _downHit = _hitAt(e.localPosition);
+    _downBox = _boxAt(e.localPosition);
   }
 
   void _onPointerUp(PointerUpEvent e) {
-    final boxIndex = _boxAt(e.localPosition);
-    if (boxIndex != null && boxIndex == _boxAt(_pointer ?? e.localPosition)) {
-      _handleNestIndex(_nestIndex[boxIndex], boxIndex);
+    final p = e.localPosition;
+    final touch = e.kind != PointerDeviceKind.mouse;
+    // A touch that moved from one node to another is no tap.
+    if (touch && _downPosition != null && (p - _downPosition!).distance > kTouchSlop) return;
+    final box = _boxAt(p);
+    if (box != null && box == _downBox) {
+      _handleNestIndex(_nestIndex[box], box);
       return;
     }
-    final item = _itemAt(e.localPosition);
-    if (item == null || (e.kind == PointerDeviceKind.mouse && item.key != _downItem?.key)) return;
-    // ContentItemWithEvents: the rect's click, then the Layer's.
-    setState(() => _click = _Interaction(active: true, index: item.node['tooltipIndex'] as String, coordinate: _center(item)));
-    final node = _withRoot(item.node, item.root);
+    final hit = _hitAt(p);
+    // A tap's emulated mouse events enter the node under the finger first.
+    if (touch) _updateHover(hit, e);
+    final down = _downHit;
+    // A click targets the common ancestor of the mousedown and mouseup targets.
+    if (hit == null || down == null || down.item.key != hit.item.key) return;
+    final item = hit.item;
+    // ContentItemWithEvents: the rect's click (when it is the target), then the Layer's.
+    if (hit.part == _Part.rect && down.part == _Part.rect) {
+      setState(() => _click = _Interaction(active: true, index: item.node['tooltipIndex'] as String, coordinate: _center(item)));
+    }
+    final node = _eventProps(item);
     if (widget.type == TreemapType.nest && item.depth > 0) _handleClick(node);
-    if (item.isLeaf || widget.type == TreemapType.nest) widget.onClick?.call(node);
+    if (_fires(item)) widget.onClick?.call(node);
   }
 
   // -------------------------------------------------------------- tooltip
@@ -469,7 +521,7 @@ class _TreemapState extends State<Treemap> with TickerProviderStateMixin {
     final reducedMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     _deriveState(size);
     final items = <_Item>[];
-    if (_formatRoot != null) _collect(_formatRoot!, _formatRoot!, items);
+    if (_formatRoot != null) _collect(_formatRoot!, _formatRoot!, '', items);
     _items = items;
     _syncMounts(items, reducedMotion);
     _boxes = widget.type == TreemapType.nest ? _layoutBreadcrumb(size) : const [];
@@ -483,6 +535,7 @@ class _TreemapState extends State<Treemap> with TickerProviderStateMixin {
       baseStyle: _baseStyle,
       scaler: _scaler,
       boxes: _boxes,
+      contentProps: _contentProps,
       repaint: Listenable.merge([for (final m in _mounts) m.controller]),
     );
     final stack = Stack(
@@ -513,12 +566,14 @@ class _TreemapState extends State<Treemap> with TickerProviderStateMixin {
       child: MouseRegion(
         onEnter: (e) {
           _pointer = e.localPosition;
+          _lastEvent = e;
           _pointerInside = true;
-          _setHover(_itemAt(e.localPosition), e);
+          _updateHover(_hitAt(e.localPosition), e);
         },
         onHover: (e) {
           _pointer = e.localPosition;
-          _setHover(_itemAt(e.localPosition), e);
+          _lastEvent = e;
+          _updateHover(_hitAt(e.localPosition), e);
         },
         onExit: _mouseLeave,
         child: Listener(
@@ -527,9 +582,9 @@ class _TreemapState extends State<Treemap> with TickerProviderStateMixin {
           onPointerMove: (e) {
             _pointer = e.localPosition;
             if (e.kind != PointerDeviceKind.mouse) {
-              // handleTouchMove: a finger over a node activates it.
-              final hit = _itemAt(e.localPosition);
-              if (hit != null) _setHover(hit, e);
+              // handleTouchMove: only the tooltip follows a finger over a rect; no callbacks.
+              final hit = _hitAt(e.localPosition);
+              if (hit != null && hit.part == _Part.rect) _dispatchHover(hit.item);
             }
           },
           onPointerUp: _onPointerUp,
@@ -577,10 +632,55 @@ class _Box {
 final Map<Color, Paint> _strokePaints = {};
 Paint _strokePaint(Color c) => _strokePaints.putIfAbsent(c, () => Paint()
   ..style = PaintingStyle.stroke
-  ..strokeWidth = 0.9 // ponytail: empirical; matches Chrome's 1px svg stroke raster better than 1.0
-  ..strokeJoin = StrokeJoin.miter
-  ..strokeMiterLimit = 4
+  ..strokeWidth = 1
   ..color = c);
+
+enum _Part { rect, label, arrow }
+
+class _Hit {
+  const _Hit(this.item, this.part);
+  final _Item item;
+  final _Part part;
+}
+
+TextStyle _labelStyle(TextStyle base, {Color? color, Paint? foreground}) => TextStyle(
+      fontFamily: base.fontFamily,
+      fontFamilyFallback: base.fontFamilyFallback,
+      fontWeight: base.fontWeight,
+      fontStyle: base.fontStyle,
+      fontSize: 14,
+      color: color,
+      foreground: foreground,
+    );
+
+/// ContentItem's name: shown only when it fits, measured at the page font size
+/// but drawn at 14.
+({String name, double x, double y})? _labelPlacement(Treemap w, TextStyle base, TextScaler scaler, _Item item) {
+  final name = jsString(item.node['name']);
+  final size = measureText(name, base, scaler);
+  if (item.width > 20 && item.height > 20 && size.width < item.width && size.height < item.height) {
+    return (name: name, x: item.x + 8, y: item.y + item.height / 2 + 7);
+  }
+  return null;
+}
+
+/// The text's glyph cell: advance wide, ascent above the baseline to descent below.
+Rect? _labelRect(Treemap w, TextStyle base, TextScaler scaler, _Item item) {
+  final label = _labelPlacement(w, base, scaler, item);
+  if (label == null) return null;
+  final tp = textPainterFor(label.name, _labelStyle(base, color: const Color(0xFF000000)), scaler);
+  return Rect.fromLTWH(label.x, label.y - tp.computeDistanceToActualBaseline(TextBaseline.alphabetic), tp.width, tp.height);
+}
+
+Path? _arrowPath(Treemap w, _Item item) {
+  if (!(item.width > 10 && item.height > 10 && item.node['children'] != null && w.type == TreemapType.nest && item.depth > 0)) return null;
+  final x = item.x, y = item.y, height = item.height;
+  return Path()
+    ..moveTo(x + 2, y + height / 2)
+    ..lineTo(x + 6, y + height / 2 + 3)
+    ..lineTo(x + 2, y + height / 2 + 6)
+    ..close();
+}
 
 class _TreemapPainter extends CustomPainter {
   _TreemapPainter({
@@ -591,6 +691,7 @@ class _TreemapPainter extends CustomPainter {
     required this.baseStyle,
     required this.scaler,
     required this.boxes,
+    required this.contentProps,
     required Listenable repaint,
   }) : super(repaint: repaint);
 
@@ -601,6 +702,7 @@ class _TreemapPainter extends CustomPainter {
   final TextStyle baseStyle;
   final TextScaler scaler;
   final List<_Box> boxes;
+  final TreemapNode Function(_Item) contentProps;
 
   @override
   void paint(Canvas canvas, Size _) {
@@ -610,7 +712,7 @@ class _TreemapPainter extends CustomPainter {
       canvas.save();
       canvas.translate(dx(item), 0);
       if (widget.content != null) {
-        widget.content!(canvas, item.node);
+        widget.content!(canvas, contentProps(item));
       } else {
         _paintContent(canvas, item);
       }
@@ -640,44 +742,21 @@ class _TreemapPainter extends CustomPainter {
       canvas.drawRect(rect, _strokePaint(stroke));
     }
 
-    if (width > 10 && height > 10 && node['children'] != null && widget.type == TreemapType.nest && item.depth > 0) {
-      final path = Path()
-        ..moveTo(x + 2, y + height / 2)
-        ..lineTo(x + 6, y + height / 2 + 3)
-        ..lineTo(x + 2, y + height / 2 + 6)
-        ..close();
-      canvas.drawPath(path, Paint()..color = inheritedFill ?? const Color(0xFF000000));
-      if (inheritedStroke != null) canvas.drawPath(path, _strokePaint(inheritedStroke));
+    final arrow = _arrowPath(widget, item);
+    if (arrow != null) {
+      canvas.drawPath(arrow, Paint()..color = inheritedFill ?? const Color(0xFF000000));
+      if (inheritedStroke != null) canvas.drawPath(arrow, _strokePaint(inheritedStroke));
     }
 
-    final name = jsString(node['name']);
-    final nameSize = measureText(name, baseStyle, scaler);
-    if (width > 20 && height > 20 && nameSize.width < width && nameSize.height < height) {
-      _paintLabel(canvas, name, x + 8, y + height / 2 + 7, inheritedFill ?? const Color(0xFF000000), inheritedStroke);
-    }
-  }
-
-  /// `<text x y fontSize={14}>`: the baseline sits at [y]; stroke goes over the fill.
-  void _paintLabel(Canvas canvas, String text, double x, double y, Color fill, Color? stroke) {
-    TextStyle style({Color? color, Paint? foreground}) => TextStyle(
-          fontFamily: baseStyle.fontFamily,
-          fontFamilyFallback: baseStyle.fontFamilyFallback,
-          fontWeight: baseStyle.fontWeight,
-          fontStyle: baseStyle.fontStyle,
-          fontSize: 14,
-          color: color,
-          foreground: foreground,
-        );
-    void draw(TextStyle s) {
-      final tp = textPainterFor(text, s, scaler);
-      tp.paint(canvas, Offset(x, y - tp.computeDistanceToActualBaseline(TextBaseline.alphabetic)));
-    }
-
-    // Chrome's glyph contrast is heavier than Skia's; a second pass darkens the antialiased edges alike.
-    draw(style(color: fill));
-    if (stroke == null) draw(style(color: fill));
-    if (stroke != null) {
-      draw(style(foreground: _strokePaint(stroke)));
+    final label = _labelPlacement(widget, baseStyle, scaler, item);
+    if (label != null) {
+      // `<text x y fontSize={14}>`: fill, then the inherited stroke over it.
+      paintSvgText(canvas, label.name, label.x, label.y,
+          style: _labelStyle(baseStyle, color: inheritedFill ?? const Color(0xFF000000)), scaler: scaler);
+      if (inheritedStroke != null) {
+        paintSvgText(canvas, label.name, label.x, label.y,
+            style: _labelStyle(baseStyle, foreground: _strokePaint(inheritedStroke)), scaler: scaler);
+      }
     }
   }
 
