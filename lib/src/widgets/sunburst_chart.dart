@@ -42,6 +42,7 @@ class SunburstTextOptions {
     this.scaleToFit = false,
     this.dx = 0,
     this.dy = 0,
+    this.lineHeight = '1em',
     this.pointerEventsNone = false,
   });
 
@@ -73,6 +74,9 @@ class SunburstTextOptions {
   final int? maxLines;
   final bool breakAll, scaleToFit;
   final double dx, dy;
+
+  /// A number (px) or a CSS length; Text's `lineHeight`, default '1em'.
+  final Object lineHeight;
 
   /// `pointerEvents: 'none'`; otherwise labels take the pointer from the sector under them.
   final bool pointerEventsNone;
@@ -451,6 +455,7 @@ class _SunburstPainter extends CustomPainter {
           maxLines: o.maxLines,
           breakAll: o.breakAll,
           scaleToFit: o.scaleToFit,
+          lineHeight: o.lineHeight,
           scaler: scaler);
       if (strokeFirst && strokeStyle != null) draw(strokeStyle!);
       draw(fillStyle);

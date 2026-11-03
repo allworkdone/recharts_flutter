@@ -2,8 +2,11 @@
 // specs mock getBoundingClientRect, so every measured string has the mocked
 // width; debugTextMeasurerOverride plays that role here.
 
+import 'dart:ui' as ui;
+
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:recharts_flutter/src/components.dart' show TextVerticalAnchor;
 import 'package:recharts_flutter/src/render/svg_text.dart';
 
 const style = TextStyle(fontSize: 12);
@@ -91,5 +94,38 @@ void main() {
     final result = lines('This is really long text', width: 200, scaleToFit: true);
     expect(result, hasLength(1));
     expect(200 / result.single.width!, 0.5714285714285714);
+  });
+
+  group('lineHeight (Text.tsx): dy between lines, default 1em', () {
+    // Ahem: 10px glyphs are squares from baseline - 8 to baseline + 2. With
+    // verticalAnchor start the first baseline is at 0.71em = 7.1, so the last
+    // ink row moves with (lines - 1) * lineHeight.
+    Future<int> lastInkRow(WidgetTester tester, Object lineHeight) async {
+      final rec = ui.PictureRecorder();
+      paintSvgText(ui.Canvas(rec), 'a b', 0, 0,
+          style: const TextStyle(fontSize: 10, color: Color(0xFF000000)),
+          verticalAnchor: TextVerticalAnchor.start,
+          width: 1,
+          lineHeight: lineHeight);
+      final image = await rec.endRecording().toImage(40, 80);
+      final bytes = (await image.toByteData())!;
+      var last = -1;
+      for (var y = 0; y < 80; y++) {
+        for (var x = 0; x < 40; x++) {
+          if (bytes.getUint8((y * 40 + x) * 4 + 3) > 0) last = y;
+        }
+      }
+      return last;
+    }
+
+    testWidgets('default is 1em; a number is px; em and px lengths work', (tester) async {
+      await tester.runAsync(() async {
+        final base = await lastInkRow(tester, '1em');
+        expect(await lastInkRow(tester, 30), base + 20);
+        expect(await lastInkRow(tester, '30px'), base + 20);
+        expect(await lastInkRow(tester, '2em'), base + 10);
+        expect(await lastInkRow(tester, '1em'), base);
+      });
+    });
   });
 }

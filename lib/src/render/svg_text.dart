@@ -132,7 +132,26 @@ List<TextLineWords> getWordsByLines(
   return out(trimmed ?? original);
 }
 
-/// Draws `<Text x y textAnchor verticalAnchor angle width>` with [style].
+const _absoluteUnitPx = {'px': 1.0, 'cm': 96 / 2.54, 'mm': 96 / 25.4, 'pt': 96 / 72, 'pc': 96 / 6, 'in': 96.0, 'Q': 96 / (2.54 * 40)};
+
+/// Text's `lineHeight` (a number of px, or a CSS length such as '1.2em') in px;
+/// null when it is not a length SVG accepts for `dy`.
+double? _lineHeightPx(Object lineHeight, double em) {
+  if (lineHeight is num) return lineHeight.toDouble();
+  final m = RegExp(r'^\s*(-?\d+(?:\.\d+)?)([a-zA-Z%]*)\s*$').firstMatch('$lineHeight');
+  if (m == null) return null;
+  final n = double.parse(m[1]!);
+  return switch (m[2]!) {
+    '' => n,
+    'em' => n * em,
+    'rem' => n * 16,
+    final u when _absoluteUnitPx.containsKey(u) => n * _absoluteUnitPx[u]!,
+    _ => null,
+  };
+}
+
+/// Draws `<Text x y textAnchor verticalAnchor angle width lineHeight>` with [style].
+/// [lineHeight] is a number (px) or a CSS length, default '1em' as in Text.tsx.
 /// Lines are measured with [measureStyle] (default [style]).
 void paintSvgText(
   Canvas canvas,
@@ -147,6 +166,7 @@ void paintSvgText(
   bool breakAll = false,
   bool scaleToFit = false,
   int? maxLines,
+  Object lineHeight = '1em',
   TextStyle? measureStyle,
   TextScaler scaler = TextScaler.noScaling,
 }) {
@@ -161,11 +181,14 @@ void paintSvgText(
   if (wordLines.isEmpty) return;
   final lines = [for (final l in wordLines) l.words.join(breakAll ? '' : ' ')];
   final em = scaler.scale(style.fontSize ?? 14);
-  // capHeight '0.71em', lineHeight '1em' (textDefaultProps)
+  // capHeight '0.71em' (textDefaultProps). A lineHeight that is not a length leaves dy invalid: 0.
+  final lh = _lineHeightPx(lineHeight, em) ?? 0;
+  // `calc(k * -lineHeight + (capHeight / 2))` only reduces when lineHeight is in em: otherwise NaN, dy 0.
+  final lhIsEm = lineHeight is String && lineHeight.trim().endsWith('em') && !lineHeight.trim().endsWith('rem');
   final double startDy = switch (verticalAnchor) {
     TextVerticalAnchor.start => 0.71 * em,
-    TextVerticalAnchor.middle => (lines.length - 1) / 2 * -em + 0.355 * em,
-    TextVerticalAnchor.end => (lines.length - 1) * -em,
+    TextVerticalAnchor.middle => lhIsEm ? (lines.length - 1) / 2 * -lh + 0.355 * em : 0,
+    TextVerticalAnchor.end => (lines.length - 1) * -lh,
   };
   final firstWidth = wordLines.first.width;
   final scale = scaleToFit ? (width != null && firstWidth != null ? width / firstWidth : 1.0) : null;
@@ -179,7 +202,7 @@ void paintSvgText(
   }
   for (var i = 0; i < lines.length; i++) {
     final tp = textPainterFor(lines[i], style, scaler);
-    final baseline = y + startDy + i * em;
+    final baseline = y + startDy + i * lh;
     final ascent = tp.computeDistanceToActualBaseline(TextBaseline.alphabetic);
     final left = switch (textAnchor) {
       TextAnchor.start => x,
