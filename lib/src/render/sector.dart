@@ -110,6 +110,11 @@ String _sectorWithCorner(double cx, double cy, double innerRadius, double outerR
 /// The `d` attribute `<Sector>` renders (whitespace collapsed), or null when
 /// it renders nothing.
 String? sectorPathData(SectorGeometry s) {
+  // Chrome ignores a `d` containing NaN, so a non-finite sector paints nothing.
+  if (!(s.cx.isFinite && s.cy.isFinite && s.innerRadius.isFinite && s.outerRadius.isFinite &&
+      s.startAngle.isFinite && s.endAngle.isFinite)) {
+    return null;
+  }
   if (s.outerRadius < s.innerRadius || s.startAngle == s.endAngle) return null;
   final deltaRadius = s.outerRadius - s.innerRadius;
   final cr = getPercentValue(s.cornerRadius, deltaRadius, 0, true);

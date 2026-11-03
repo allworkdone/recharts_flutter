@@ -68,6 +68,16 @@ void main() {
     expect(l.positions['Child1']!.dy, closeTo(250, 1e-9));
   });
 
+  testWidgets('a root without a value renders without throwing', (tester) async {
+    await tester.pumpWidget(host(SunburstChart(width: 500, height: 500, data: {
+      'name': 'Root',
+      'children': [
+        {'name': 'a', 'value': 1}
+      ]
+    })));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('fires callbacks upon hover and click events', (tester) async {
     final entered = <Map<String, Object?>>[], left = <Map<String, Object?>>[], clicked = <Map<String, Object?>>[];
     await tester.pumpWidget(host(SunburstChart(

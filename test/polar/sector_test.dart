@@ -87,6 +87,12 @@ void main() {
           contains('a10,10,0,0,1,20,0 a10,10,0,0,1,-20,0'));
     });
 
+    test('a non-finite sector paints nothing', () {
+      const g = SectorGeometry(cx: 0, cy: 0, outerRadius: 100, endAngle: double.nan);
+      expect(sectorPathData(g), isNull);
+      expect(sectorPath(g), isNull);
+    });
+
     test('SVG path data reads into the same Path as Skia arcs', () {
       final path = parseSvgPathData('M 400,300 A 200,200,0, 0,0, 200,100 L 200,150 A 150,150,0, 0,1, 350,300 Z');
       expect(path.contains(const Offset(320, 200)), isTrue);
