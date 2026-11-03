@@ -102,7 +102,7 @@ void paintPolarSceneLabels(Canvas canvas, PolarFrame frame) {
             startAngle: s.startAngle,
             endAngle: s.endAngle);
         final fill = s.props['fill'];
-        final entry = LabelListEntry(value: s.value, payload: s.entry, viewBox: Rect.zero, fill: cssColorOf(fill));
+        final entry = LabelListEntry(value: s.value, payload: s.entry, viewBox: Rect.zero, fill: cssFillOf(fill));
         paintPolarLabel(canvas, labelOfEntry(list, entry, i), viewBox,
             index: i, baseStyle: frame.textStyle, scaler: frame.textScaler, boxes: frame.labelBoxes);
       }
@@ -614,7 +614,7 @@ void _paintRadialBarBackground(Canvas canvas, RadialBarModel m) {
     if (path == null) continue;
     final fill = style?.fill ?? const Color(0xFFEEEEEE);
     canvas.drawPath(path, fillPaint(fill, opacity: style?.fillOpacity ?? (s.props['fillOpacity'] as num?)?.toDouble() ?? 1));
-    final stroke = style?.stroke ?? cssColorOf(s.props['stroke']);
+    final stroke = style?.stroke ?? cssStrokeOf(s.props['stroke']);
     final width = style?.strokeWidth ?? (s.props['strokeWidth'] as num?)?.toDouble() ?? 1;
     if (stroke != null && width > 0) {
       drawStroke(canvas, path, strokePaint(stroke, width, opacity: style?.strokeOpacity ?? 1), style?.strokeDasharray);

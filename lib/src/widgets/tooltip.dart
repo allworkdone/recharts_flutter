@@ -11,6 +11,7 @@ import '../components.dart';
 import '../core/easing.dart';
 import '../render/svg_text.dart';
 import '../util.dart';
+import '../css_color.dart' show textColorOf;
 
 /// `getTooltipTranslateXY` for one dimension.
 double getTooltipTranslateXY({
@@ -137,7 +138,7 @@ class DefaultTooltipContent extends StatelessWidget {
             finalValue is InlineSpan ? finalValue : TextSpan(text: jsString(finalValue)),
             TextSpan(text: entry.unit ?? ''),
           ]),
-          style: base.copyWith(color: entry.color ?? const Color(0xFF000000)).merge(itemStyle),
+          style: base.copyWith(color: textColorOf(entry.color) ?? const Color(0xFF000000)).merge(itemStyle),
           softWrap: false,
         ),
       ));

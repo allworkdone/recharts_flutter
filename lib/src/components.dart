@@ -66,8 +66,8 @@ class SvgStyle {
     this.strokeDasharray,
     this.r,
     this.radius,
-  })  : fill = cssColorOf(fill),
-        stroke = cssColorOf(stroke);
+  })  : fill = cssFillOf(fill),
+        stroke = cssStrokeOf(stroke);
   final Color? fill;
   final double? fillOpacity;
   final Color? stroke;
@@ -599,7 +599,7 @@ abstract class CartesianSeries extends RechartsElement {
   final Object? dataKey;
   final Object xAxisId;
   final Object yAxisId;
-  final String? name;
+  final Object? name;
   final String? unit;
   final bool hide;
   final LegendType legendType;
@@ -844,8 +844,8 @@ class Cell extends RechartsElement {
   const Cell({this.fill, this.fillOpacity, this.stroke, this.strokeWidth});
   /// Like the default constructor, with `fill` and `stroke` as CSS color strings or [Color]s.
   Cell.css({Object? fill, this.fillOpacity, Object? stroke, this.strokeWidth})
-      : fill = cssColorOf(fill),
-        stroke = cssColorOf(stroke);
+      : fill = cssFillOf(fill),
+        stroke = cssStrokeOf(stroke);
   final Color? fill;
   final double? fillOpacity;
   final Color? stroke;
@@ -913,7 +913,7 @@ class Funnel extends RechartsElement {
   final Object dataKey;
   final List<Object?>? data;
   final Object nameKey;
-  final String? name;
+  final Object? name;
   final bool hide;
   final Color fill;
   final double? fillOpacity;

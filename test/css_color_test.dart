@@ -13,6 +13,7 @@ import 'package:recharts_flutter/src/sunburst.dart';
 import 'engine/funnel_model_test.dart' show trapezoids;
 import 'polar/polar_chart_ports_test.dart' show radialBarModel;
 import 'widgets/chart_widget_test.dart' show capture, host, pixel;
+import 'widgets/tooltip_item_test.dart' show Probe, mouseAt;
 
 const red = Color(0xFFFF0000);
 
@@ -55,9 +56,43 @@ void main() {
       expect(parseCssColor('transparent'), const Color(0x00000000));
       expect(parseCssColor('none'), isNull);
       expect(parseCssColor('not-a-color'), isNull);
-      expect(cssColorOf('none'), const Color(0x00000000));
-      expect(cssColorOf(red), red);
-      expect(cssColorOf(3), isNull);
+      expect(isCssNone(cssFillOf('none')), isTrue);
+      expect(cssFillOf('none'), isNot(parseCssColor('transparent')));
+      expect(cssFillOf(red), red);
+      expect(cssFillOf(3), isNull);
+      expect(textColorOf(cssNone), isNull);
+      expect(textColorOf(red), red);
+    });
+
+    test('an invalid string: black fill, no stroke, never the fallback', () {
+      expect(cssFillOf('not-a-color'), const Color(0xFF000000));
+      expect(isCssNone(cssStrokeOf('not-a-color')), isTrue);
+      expect(cssFillOf(null), isNull);
+      expect(cssStrokeOf(null), isNull);
+    });
+
+    test('grammar Chrome rejects', () {
+      for (final bad in [
+        'rgb(255, 0 0)', 'rgb(255 0 0 0.5)', 'rgb(255, 0, 0 / 0.5)', 'rgb(100%, 0, 0)', 'rgb(5., 0, 0)', 'rgb(1, 2)',
+        'rgb(255 0 0 /)', 'rgb(none, 0, 0)', 'hsl(120, 100, 50)', 'hsl(0, 100%, 50%, 0.5, 1)', 'rgb(255,0,0)x', '# fff',
+        'hwb(0 0% 0%)', 'oklch(0.6 0.2 30)', 'rgb(NaN, 0, 0)', 'rgb(Infinity, 0, 0)',
+      ]) {
+        expect(parseCssColor(bad), isNull, reason: bad);
+      }
+    });
+
+    test('grammar Chrome accepts', () {
+      expect(parseCssColor('rgb(none 0 0)'), const Color(0xFF000000));
+      expect(parseCssColor('rgb(255 0 0 / 50%)'), const Color(0x80FF0000));
+      expect(parseCssColor('rgba(255,0,0)'), red);
+      expect(parseCssColor('rgb(255,0,0,0.5)'), const Color(0x80FF0000));
+      expect(parseCssColor('rgb(1e2, 0, 0)'), const Color(0xFF640000));
+      expect(parseCssColor('rgb(50%, 0%, 0%)'), const Color(0xFF800000));
+      expect(parseCssColor('hsl(120 100 25)'), const Color(0xFF008000));
+      expect(parseCssColor('hsl(none 100% 50%)'), red);
+      expect(parseCssColor('hsl(200grad 100% 50%)'), parseCssColor('hsl(180 100% 50%)'));
+      expect(parseCssColor('HSL(120DEG 100% 50%)'), const Color(0xFF00FF00));
+      expect(parseCssColor('currentColor'), const Color(0xFF000000));
     });
   });
 
@@ -72,8 +107,8 @@ void main() {
       final s = m.pies.single.sectors!;
       expect(s[0].fill, const Color(0xFF008000));
       expect(s[0].stroke, const Color(0xFF0000FF));
-      expect(s[1].fill, const Color(0x00000000));
-      expect(pieLegendEntries(m.pies.single).map((e) => e.color), [const Color(0xFF008000), const Color(0x00000000)]);
+      expect(isCssNone(s[1].fill), isTrue);
+      expect(pieLegendEntries(m.pies.single).map((e) => isCssNone(e.color)), [false, true]);
       expect(Cell.css(fill: 'red', stroke: 'blue').fill, red);
     });
 
@@ -175,6 +210,70 @@ void main() {
       ])));
       final image = await capture(tester);
       expect(await pixel(tester, image, const Offset(50, 50)), red);
+    });
+
+    testWidgets('Bar: data fill and stroke sit between the Cell and the series', (tester) async {
+      await tester.pumpWidget(host(const BarChart(width: 100, height: 100, data: [
+        {'v': 50, 'fill': '#ff0000', 'stroke': 'blue'},
+      ], children: [
+        YAxis(hide: true, domain: [0, 100]),
+        Bar(dataKey: 'v', fill: Color(0xFF00FF00), strokeWidth: 4, isAnimationActive: false),
+      ])));
+      final image = await capture(tester);
+      expect(await pixel(tester, image, const Offset(50, 80)), red);
+    });
+
+    testWidgets('Scatter: data stroke', (tester) async {
+      await tester.pumpWidget(host(const ScatterChart(width: 100, height: 100, data: [
+        {'x': 1, 'y': 1, 'fill': 'red', 'stroke': 'blue'},
+      ], children: [
+        XAxis(dataKey: 'x', hide: true, domain: [0, 2]),
+        YAxis(dataKey: 'y', hide: true, domain: [0, 2]),
+        Scatter(isAnimationActive: false, strokeWidth: 3),
+      ])));
+      final image = await capture(tester);
+      var blue = false;
+      for (var x = 40; x <= 60; x++) {
+        final c = await pixel(tester, image, Offset(x.toDouble(), 50));
+        if (c.b > 0.5 && c.r < 0.5) blue = true;
+      }
+      expect(blue, isTrue);
+    });
+
+    testWidgets("Pie: fill 'none' paints nothing and its interior takes no pointer", (tester) async {
+      final probe = Probe();
+      await tester.pumpWidget(host(PieChart(width: 200, height: 200, children: [
+        const Pie(
+            data: [
+              {'name': 'a', 'value': 1, 'fill': 'none', 'stroke': 'none'},
+            ],
+            dataKey: 'value',
+            isAnimationActive: false),
+        Tooltip(isAnimationActive: false, content: probe.build),
+      ])));
+      final mouse = await mouseAt(tester, const Offset(100, 60));
+      expect(probe.visible, isFalse);
+      expect(await pixel(tester, await capture(tester), const Offset(100, 60)), const Color(0x00000000));
+      await mouse.removePointer();
+    });
+
+    testWidgets('a NaN value renders, hovers and labels without throwing', (tester) async {
+      await tester.pumpWidget(host(PieChart(width: 200, height: 200, children: [
+        Pie(
+            data: const [
+              {'name': 'a', 'value': 1},
+              {'name': 'b', 'value': double.nan},
+            ],
+            dataKey: 'value',
+            label: true,
+            isAnimationActive: false),
+        const Tooltip(isAnimationActive: false),
+      ])));
+      final mouse = await mouseAt(tester, const Offset(100, 60));
+      await mouse.moveTo(const Offset(150, 100));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      await mouse.removePointer();
     });
   });
 }

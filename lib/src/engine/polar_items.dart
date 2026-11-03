@@ -443,7 +443,7 @@ List<RadialBarSector> computeRadialBarSectors(PolarItem item, RadialBarContext c
         'strokeWidth': ?cell.strokeWidth,
       },
     };
-    Color? color(String k, Color? fallback) => cssColorOf(props[k]) ?? fallback;
+    Color? color(String k, Color? fallback) => (k == 'stroke' ? cssStrokeOf(props[k]) : cssFillOf(props[k])) ?? fallback;
     double? number(String k, double? fallback) => switch (props[k]) { final num n => n.toDouble(), _ => fallback };
     sectors.add(RadialBarSector(
       cx: vb.cx,

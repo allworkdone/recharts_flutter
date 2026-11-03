@@ -6,34 +6,102 @@
 import 'dart:math' as math;
 import 'dart:ui' show Color;
 
+/// A `Color` that paints nothing: CSS `none`. It is transparent wherever it is
+/// painted, but unlike `transparent` it is not hit-testable, and legend and
+/// tooltip text drop it and keep the inherited text color (`color: none` is
+/// invalid CSS). Compare with [isCssNone], not `==`.
+class CssNone extends Color {
+  const CssNone() : super(0x00000000);
+}
+
+const Color cssNone = CssNone();
+
+bool isCssNone(Color? c) => c is CssNone;
+
+/// The text color a legend or tooltip row takes from a series color: null
+/// (inherit) for `none`.
+Color? textColorOf(Color? c) => isCssNone(c) ? null : c;
+
 /// The color a CSS string names; null for `none` and for anything that is not
-/// a color (SVG then ignores the attribute).
+/// a color. Use [cssFillOf] / [cssStrokeOf] for data entries, which tell `none`
+/// and invalid strings apart.
+///
+/// ponytail: hwb(), lab(), lch(), oklab(), oklch(), color() and color-mix() are
+/// not parsed (null); add them when a fixture needs one.
 Color? parseCssColor(String input) {
   final s = input.trim().toLowerCase();
   if (s == 'none') return null;
   if (s == 'transparent') return const Color(0x00000000);
+  // ponytail: no CSS color inheritance here, so currentColor is the default text color, black.
+  if (s == 'currentcolor') return const Color(0xFF000000);
   final named = _named[s];
   if (named != null) return Color(named);
   if (s.startsWith('#')) return _hex(s.substring(1));
   final m = RegExp(r'^(rgba?|hsla?)\(\s*([^)]*?)\s*\)$').firstMatch(s);
   if (m == null) return null;
-  final parts = m[2]!.split(RegExp(r'\s*[,/]\s*|\s+'));
-  if (parts.length < 3 || parts.length > 4) return null;
+  final parts = _functionArguments(m[2]!);
+  if (parts == null) return null;
   final alpha = parts.length == 4 ? _alpha(parts[3]) : 1.0;
   if (alpha == null) return null;
   final a = (alpha.clamp(0.0, 1.0) * 255).round();
+  final legacy = m[2]!.contains(',');
   if (m[1]!.startsWith('rgb')) {
     final c = [for (final p in parts.take(3)) _channel(p)];
-    return c.contains(null) ? null : Color.fromARGB(a, c[0]!, c[1]!, c[2]!);
+    if (c.contains(null)) return null;
+    // The comma syntax takes three numbers or three percentages, never a mix.
+    if (legacy && parts.take(3).any((p) => p.endsWith('%')) && !parts.take(3).every((p) => p.endsWith('%'))) return null;
+    return Color.fromARGB(a, c[0]!, c[1]!, c[2]!);
   }
-  final h = _hue(parts[0]), sat = _percent(parts[1]), l = _percent(parts[2]);
+  final h = _hue(parts[0]);
+  final sat = _unitInterval(parts[1], requirePercent: legacy), l = _unitInterval(parts[2], requirePercent: legacy);
   if (h == null || sat == null || l == null) return null;
   return _hsl(h, sat.clamp(0.0, 1.0), l.clamp(0.0, 1.0), a);
 }
 
-/// A data entry's `fill` or `stroke`: a [Color] as it is, a CSS string parsed;
-/// `none` is a transparent color (nothing painted), other values are null.
-Color? cssColorOf(Object? v) => v is Color ? v : (v is String ? (v.trim().toLowerCase() == 'none' ? const Color(0x00000000) : parseCssColor(v)) : null);
+/// A data entry's `fill`: a [Color] as it is, `none` as [cssNone], a CSS string
+/// parsed. An unparseable string is ignored by SVG, so the fill inherits the
+/// default black; null for anything that is not a string or a Color (absent).
+Color? cssFillOf(Object? v) => _entryColor(v, const Color(0xFF000000));
+
+/// A data entry's `stroke`: like [cssFillOf], but an unparseable string leaves
+/// no stroke ([cssNone]).
+Color? cssStrokeOf(Object? v) => _entryColor(v, cssNone);
+
+Color? _entryColor(Object? v, Color invalid) {
+  if (v is Color) return v;
+  if (v is! String) return null;
+  if (v.trim().toLowerCase() == 'none') return cssNone;
+  return parseCssColor(v) ?? invalid;
+}
+
+/// The 3 or 4 arguments of rgb()/hsl(): comma separated (3 or 4, no `/`) or
+/// space separated with `/` before the alpha; null when the shape is invalid.
+List<String>? _functionArguments(String body) {
+  if (body.contains(',')) {
+    if (body.contains('/')) return null;
+    final parts = [for (final p in body.split(',')) p.trim()];
+    return (parts.length == 3 || parts.length == 4) && !parts.contains('none') ? parts : null;
+  }
+  final halves = body.split('/');
+  if (halves.length > 2) return null;
+  final head = halves[0].trim().split(RegExp(r'\s+'));
+  if (head.length != 3) return null;
+  if (halves.length == 1) return head;
+  final alpha = halves[1].trim();
+  return alpha.isEmpty || alpha.contains(RegExp(r'\s')) ? null : [...head, alpha];
+}
+
+final _number = r'[+-]?(?:\d+(?:\.\d+)?|\.\d+)(?:e[+-]?\d+)?';
+final _numberPattern = RegExp('^$_number\$');
+final _percentPattern = RegExp('^($_number)%\$');
+
+/// A plain number, or a percentage as its value; the `none` keyword is 0.
+({double value, bool percent})? _component(String v) {
+  if (v == 'none') return (value: 0, percent: false);
+  if (_numberPattern.hasMatch(v)) return (value: double.parse(v), percent: false);
+  final m = _percentPattern.firstMatch(v);
+  return m == null ? null : (value: double.parse(m[1]!), percent: true);
+}
 
 Color? _hex(String hex) {
   if (!RegExp(r'^[0-9a-f]+$').hasMatch(hex)) return null;
@@ -47,23 +115,26 @@ Color? _hex(String hex) {
 }
 
 int? _channel(String v) {
-  final n = v.endsWith('%') ? _percent(v) : double.tryParse(v);
-  if (n == null) return null;
-  return (v.endsWith('%') ? n * 255 : n).clamp(0, 255).round();
+  final c = _component(v);
+  return c == null ? null : (c.percent ? c.value * 255 / 100 : c.value).clamp(0, 255).round();
 }
 
-/// '50%' as 0.5.
-double? _percent(String v) {
-  if (!v.endsWith('%')) return null;
-  final n = double.tryParse(v.substring(0, v.length - 1));
-  return n == null ? null : n / 100;
+/// hsl() saturation and lightness: a percentage, or (space syntax) a bare number read as a percentage.
+double? _unitInterval(String v, {required bool requirePercent}) {
+  final c = _component(v);
+  if (c == null || (requirePercent && !c.percent)) return null;
+  return c.value / 100;
 }
 
-double? _alpha(String v) => v.endsWith('%') ? _percent(v) : double.tryParse(v);
+double? _alpha(String v) {
+  final c = _component(v);
+  return c == null ? null : (c.percent ? c.value / 100 : c.value);
+}
 
-/// Hue in degrees (deg, grad, rad, turn or unitless).
+/// Hue in degrees (deg, grad, rad, turn or unitless); `none` is 0.
 double? _hue(String v) {
-  final m = RegExp(r'^([-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?)(deg|grad|rad|turn)?$').firstMatch(v);
+  if (v == 'none') return 0;
+  final m = RegExp('^($_number)(deg|grad|rad|turn)?\$').firstMatch(v);
   if (m == null) return null;
   final n = double.parse(m[1]!);
   return switch (m[2]) {

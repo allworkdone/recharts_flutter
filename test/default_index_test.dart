@@ -3,7 +3,6 @@
 // non-finite index that keeps the string but finds nothing (Tooltip.visibility.spec
 // "should ignore invalid defaultIndex value").
 
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:recharts_flutter/recharts_flutter.dart';
 

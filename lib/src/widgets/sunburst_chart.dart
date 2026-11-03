@@ -8,6 +8,7 @@ import 'package:flutter/gestures.dart' show kTouchSlop, PointerDeviceKind;
 import 'package:flutter/widgets.dart';
 
 import '../components.dart';
+import '../css_color.dart' show isCssNone;
 import '../render/polar_painter.dart' show svgTextBox;
 import '../render/sector.dart';
 import '../render/shapes.dart';
@@ -250,7 +251,7 @@ class _SunburstChartState extends State<SunburstChart> with TickerProviderStateM
       if (_labelBoxes[i]?.contains(p) ?? false) return null;
       final path = _paths[i];
       if (path == null) continue;
-      if (path.contains(p) || (widget.stroke != null && strokeContains(path, p, width))) return i;
+      if ((!isCssNone(layout.sectors[i].fill) && path.contains(p)) || (widget.stroke != null && strokeContains(path, p, width))) return i;
     }
     return null;
   }

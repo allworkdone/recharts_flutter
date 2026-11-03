@@ -473,10 +473,11 @@ class CartesianPainter extends CustomPainter {
   void _paintBar(Canvas canvas, Bar bar, BarRect r, SvgStyle? active) {
     if (!r.x.isFinite || !r.y.isFinite || r.width == 0 || r.height == 0) return;
     final path = barPath(bar, r, active);
-    final fill = active?.fill ?? r.cell?.fill ?? bar.fill ?? const Color(0xFF000000);
+    final entry = r.payload is Map ? r.payload as Map : null;
+    final fill = active?.fill ?? r.cell?.fill ?? cssFillOf(entry?['fill']) ?? bar.fill ?? const Color(0xFF000000);
     canvas.drawPath(path,
         fillPaintOf(fill, path.getBounds(), opacity: active?.fillOpacity ?? r.cell?.fillOpacity ?? bar.fillOpacity ?? 1));
-    final stroke = active?.stroke ?? r.cell?.stroke ?? bar.stroke;
+    final stroke = active?.stroke ?? r.cell?.stroke ?? cssStrokeOf(entry?['stroke']) ?? bar.stroke;
     if (stroke != null) {
       drawStroke(
           canvas,
@@ -875,8 +876,9 @@ Path? scatterSymbolPath(Scatter scatter, ScatterPoint p, {bool active = false}) 
 void paintScatterPoint(Canvas canvas, Scatter scatter, ScatterPoint p, int index, {bool active = false}) {
   final (_, style, painter) = _scatterOption(scatter, active);
   final dataFill = p.payload is Map ? (p.payload as Map)['fill'] : null;
-  final fill = style?.fill ?? p.cell?.fill ?? cssColorOf(dataFill) ?? scatter.fill;
-  final stroke = style?.stroke ?? p.cell?.stroke ?? scatter.stroke;
+  final fill = style?.fill ?? p.cell?.fill ?? cssFillOf(dataFill) ?? scatter.fill;
+  final dataStroke = p.payload is Map ? (p.payload as Map)['stroke'] : null;
+  final stroke = style?.stroke ?? p.cell?.stroke ?? cssStrokeOf(dataStroke) ?? scatter.stroke;
   final strokeWidth = style?.strokeWidth ?? p.cell?.strokeWidth ?? scatter.strokeWidth;
   if (painter != null) {
     if (p.cx == null || p.cy == null || p.size == null) return;

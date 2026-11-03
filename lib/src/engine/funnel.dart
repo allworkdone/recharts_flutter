@@ -141,7 +141,7 @@ List<FunnelTrapezoid> computeFunnelTrapezoids(Funnel f, List<Object?> chartData,
     if (c != null) return c;
     final e = displayed[i];
     final v = e is Map ? e[key] : null;
-    return cssColorOf(v) ?? fallback;
+    return (key == 'stroke' ? cssStrokeOf(v) : cssFillOf(v)) ?? fallback;
   }
 
   double? numberOf(String key, int i, double? Function(Cell c) fromCell, double? fallback) {

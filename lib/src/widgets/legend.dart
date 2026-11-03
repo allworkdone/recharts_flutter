@@ -14,6 +14,7 @@ import '../core/curve.dart';
 import '../render/shapes.dart';
 import '../render/svg_text.dart';
 import '../util.dart';
+import '../css_color.dart' show textColorOf;
 
 class LegendItemLayout {
   LegendItemLayout(this.entry, this.text, this.style, this.origin, this.iconTop, this.textTop);
@@ -70,7 +71,7 @@ LegendLayout computeLegendLayout({
     final raw = legend.formatter != null ? legend.formatter!(e.value, e, i) : e.value;
     final text = jsString(raw);
     var style = baseStyle.merge(legend.labelStyle);
-    final color = e.inactive ? legend.inactiveColor : (legend.labelStyle?.color ?? e.color);
+    final color = e.inactive ? legend.inactiveColor : (legend.labelStyle?.color ?? textColorOf(e.color));
     if (color != null) style = style.copyWith(color: color);
     final width = iconSize + 4 + measureText(text, style, scaler).width;
     measured.add((e, text, style, width));

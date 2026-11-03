@@ -31,6 +31,7 @@ import 'legend.dart';
 import 'responsive_container.dart';
 import 'sync_registry.dart';
 import 'tooltip.dart';
+import '../css_color.dart' show isCssNone;
 
 /// Shared props of the polar charts (`PolarChartProps` with
 /// `defaultPolarChartProps`). [cx], [cy], [innerRadius] and [outerRadius] are
@@ -529,7 +530,8 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
         if (path == null) continue;
         final style = option is SectorStyle ? option : null;
         final stroke = style?.stroke ?? s.stroke;
-        if (path.contains(p) || (stroke != null && strokeContains(path, p, style?.strokeWidth ?? s.strokeWidth ?? 1))) {
+        if ((!isCssNone(style?.fill ?? s.fill) && path.contains(p)) ||
+            (stroke != null && !isCssNone(stroke) && strokeContains(path, p, style?.strokeWidth ?? s.strokeWidth ?? 1))) {
           return (id: bar.id, dataKey: b.dataKey, index: i, tooltipPosition: null);
         }
       }
@@ -545,7 +547,8 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
         final path = piePath(s, option);
         if (path == null) continue;
         final stroke = style?.stroke ?? s.stroke;
-        if (path.contains(p) || (stroke != null && strokeContains(path, p, style?.strokeWidth ?? s.strokeWidth ?? 1))) {
+        if ((!isCssNone(style?.fill ?? s.fill) && path.contains(p)) ||
+            (stroke != null && !isCssNone(stroke) && strokeContains(path, p, style?.strokeWidth ?? s.strokeWidth ?? 1))) {
           return (id: pie.id, dataKey: pie.settings.dataKey, index: i, tooltipPosition: sectors[i].tooltipPosition);
         }
       }

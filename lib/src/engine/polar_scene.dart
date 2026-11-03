@@ -399,7 +399,7 @@ List<LegendPayload> radialBarLegendPayload(RadialBar b, List<Object?> chartData)
         LegendPayload(
           value: switch (entry is Map ? entry['name'] : null) { null => null, final v => jsString(v) },
           type: b.legendType,
-          color: cssColorOf(entry is Map ? entry['fill'] : null),
+          color: cssFillOf(entry is Map ? entry['fill'] : null),
           dataKey: null,
         ),
     ];

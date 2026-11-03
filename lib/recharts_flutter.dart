@@ -2,7 +2,7 @@
 import 'recharts_flutter_platform_interface.dart';
 
 export 'src/components.dart';
-export 'src/css_color.dart' show parseCssColor;
+export 'src/css_color.dart' show parseCssColor, cssFillOf, cssStrokeOf, cssNone, isCssNone;
 export 'src/core/curve.dart' show CurveType, ChartLayout;
 export 'src/core/easing.dart' show EasingFunction, RechartsCurve, createEasingFunction, configBezier;
 export 'src/core/nice_ticks.dart' show NiceTicksAlgorithm;

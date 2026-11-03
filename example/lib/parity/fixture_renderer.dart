@@ -104,7 +104,7 @@ Widget buildChart(Map<String, dynamic> chart, {double? width, double? height}) {
       return RadarChart(
         width: w,
         height: h,
-        data: _polarData(data),
+        data: data,
         margin: margin,
         cx: p.raw['cx'] ?? '50%',
         cy: p.raw['cy'] ?? '50%',
@@ -120,7 +120,7 @@ Widget buildChart(Map<String, dynamic> chart, {double? width, double? height}) {
       return RadialBarChart(
         width: w,
         height: h,
-        data: _polarData(data),
+        data: data,
         margin: margin,
         cx: p.raw['cx'] ?? '50%',
         cy: p.raw['cy'] ?? '50%',
@@ -170,7 +170,7 @@ Widget buildChart(Map<String, dynamic> chart, {double? width, double? height}) {
       return SunburstChart(
         width: w,
         height: h,
-        data: _sunburstNode(p.raw['data'] as Map<String, dynamic>),
+        data: p.raw['data'] as Map<String, dynamic>,
         padding: p.dbl('padding') ?? 2,
         dataKey: p.str('dataKey') ?? 'value',
         nameKey: p.raw['nameKey'] ?? 'name',
@@ -746,8 +746,11 @@ LabelList? _labelList(Object? v) {
   );
 }
 
-Cell _cell(_Props p) => Cell(
-    fill: p.color('fill'), fillOpacity: p.dbl('fillOpacity'), stroke: p.color('stroke'), strokeWidth: p.dbl('strokeWidth'));
+/// Raw CSS strings go to the library; `url(#id)` paints are not colors and stay unset.
+Object? _cssPaint(_Props p, String k) => p.raw[k] is String && (p.raw[k] as String).startsWith('url(') ? null : p.raw[k];
+
+Cell _cell(_Props p) => Cell.css(
+    fill: _cssPaint(p, 'fill'), fillOpacity: p.dbl('fillOpacity'), stroke: _cssPaint(p, 'stroke'), strokeWidth: p.dbl('strokeWidth'));
 
 /// `<linearGradient>`s by id, from every chart rendered so far (SVG ids are document-wide).
 final _gradients = <String, LinearGradient>{};
@@ -879,16 +882,6 @@ class _Props {
   }
 }
 
-/// A Sunburst data node with its `fill` strings turned into colors.
-Map<String, Object?> _sunburstNode(Map<String, dynamic> n) => {
-      for (final e in n.entries)
-        e.key: switch (e.key) {
-          'fill' when e.value is String => parseCssColor(e.value as String),
-          'children' when e.value is List => [for (final c in e.value as List) _sunburstNode(c as Map<String, dynamic>)],
-          _ => e.value,
-        },
-    };
-
 /// `textOptions` of a SunburstChart; absent means the chart's defaults.
 SunburstTextOptions _sunburstText(Object? raw) {
   if (raw is! Map) return SunburstTextOptions.defaults;
@@ -912,10 +905,10 @@ SunburstTextOptions _sunburstText(Object? raw) {
 SvgStyle? _sankeyStyle(Object? v) {
   if (v is! Map<String, dynamic>) return null;
   final p = _Props(v);
-  return SvgStyle(
-    fill: p.color('fill'),
+  return SvgStyle.css(
+    fill: _cssPaint(p, 'fill'),
     fillOpacity: p.dbl('fillOpacity'),
-    stroke: p.color('stroke'),
+    stroke: _cssPaint(p, 'stroke'),
     strokeWidth: p.dbl('strokeWidth'),
     strokeOpacity: p.dbl('strokeOpacity'),
     strokeDasharray: p.dash('strokeDasharray'),
@@ -955,20 +948,7 @@ extension on List<Color> {
 
 // ---- polar: helpers ----
 
-/// Radar and RadialBar `fill`: absent stays null (SVG black), `'none'` is transparent.
-Color? _polarFill(_Props p) => p.raw['fill'] == 'none' ? const Color(0x00000000) : p.color('fill');
+/// Radar and RadialBar `fill`: absent stays null (SVG black), `'none'` paints nothing.
+Color? _polarFill(_Props p) => p.raw['fill'] == 'none' ? cssNone : p.color('fill');
 
-/// Data entries as the polar charts read them: `fill` and `stroke` strings become colors.
-List<Object?> _polarData(List<Object?> data) => [
-      for (final e in data)
-        if (e is Map<String, dynamic>)
-          {
-            for (final kv in e.entries)
-              kv.key: (kv.key == 'fill' || kv.key == 'stroke') && kv.value is String
-                  ? parseCssColor(kv.value as String)
-                  : kv.value,
-          }
-        else
-          e,
-    ];
 // ---- end polar ----

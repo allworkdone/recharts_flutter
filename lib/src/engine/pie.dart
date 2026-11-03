@@ -325,7 +325,7 @@ List<PieSector>? computePieSectors(Pie pie, List<Object?> displayedData, List<Ce
     final cell = i < cells.length ? cells[i] : null;
     final payload = cell == null || entry is! Map ? entry : {...entry, ..._cellProps(cell)};
     final entryFill = _prop(payload, 'fill');
-    final sectorColor = cssColorOf(entryFill) ?? pie.fill;
+    final sectorColor = cssFillOf(entryFill) ?? pie.fill;
     final startAngle = i == 0 ? pie.startAngle : sectors.last.endAngle + sign * paddingAngle * (notZero(val) ? 1 : 0);
     final endAngle = startAngle + sign * ((notZero(val) ? effectiveMinAngle : 0) + percent * realTotalAngle);
     final midAngle = (startAngle + endAngle) / 2;
@@ -351,9 +351,9 @@ List<PieSector>? computePieSectors(Pie pie, List<Object?> displayedData, List<Ce
       payload: payload,
       dataKey: dataKey,
       cell: cell,
-      fill: cssColorOf(entryFill) ?? pie.fill,
+      fill: cssFillOf(entryFill) ?? pie.fill,
       fillOpacity: num2('fillOpacity', pie.fillOpacity),
-      stroke: cssColorOf(entryStroke) ?? pie.stroke,
+      stroke: cssStrokeOf(entryStroke) ?? pie.stroke,
       strokeWidth: num2('strokeWidth', pie.strokeWidth),
       strokeOpacity: num2('strokeOpacity', pie.strokeOpacity),
       tooltipPosition: polarToCartesian(coordinate.cx, coordinate.cy, middleRadius, midAngle),
@@ -422,7 +422,7 @@ List<LegendPayload> pieLegendEntries(PieModel p) {
       payload.add(LegendPayload(
         value: name != null ? jsString(name) : (pie.dataKey is String ? pie.dataKey as String : null),
         type: pie.legendType,
-        color: cellFill ?? (entry is Map && entry.containsKey('fill') ? cssColorOf(entryFill) : pie.fill),
+        color: cellFill ?? (entry is Map && entry.containsKey('fill') ? cssFillOf(entryFill) : pie.fill),
         dataKey: pie.dataKey,
       ));
     }

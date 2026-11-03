@@ -185,6 +185,15 @@ class _Interaction {
   final Offset? coordinate;
 }
 
+/// The Rectangle's fill and stroke: the node's own, else the chart's, else the color panel.
+(Color, Color) _rectColors(Treemap widget, _Item item) {
+  final node = item.node;
+  final colors = widget.colorPanel ?? _defaultColors;
+  final fill = cssFillOf(node['fill']) ??
+      widget.fill ?? (item.depth < 2 ? colors[(node['index'] as int) % colors.length] : const Color(0x00FFFFFF));
+  return (fill, cssStrokeOf(node['stroke']) ?? widget.stroke ?? const Color(0xFFFFFFFF));
+}
+
 class _TreemapState extends State<Treemap> with TickerProviderStateMixin {
   // State of TreemapWithState.
   TreemapNode? _formatRoot;
@@ -388,7 +397,11 @@ class _TreemapState extends State<Treemap> with TickerProviderStateMixin {
         if (arrow != null && arrow.contains(q)) return _Hit(item, _Part.arrow);
       }
       if (item.width == 0 || item.height == 0) continue;
-      if (Rect.fromLTWH(item.x, item.y, item.width, item.height).inflate(0.5).contains(q)) return _Hit(item, _Part.rect);
+      final rect = Rect.fromLTWH(item.x, item.y, item.width, item.height);
+      if (!rect.inflate(0.5).contains(q)) continue;
+      // fill="none" leaves the interior unhit; the 1px stroke ring still counts unless it is none too.
+      final (fill, stroke) = _rectColors(widget, item);
+      if (!isCssNone(fill) || (!isCssNone(stroke) && !rect.deflate(0.5).contains(q))) return _Hit(item, _Part.rect);
     }
     return null;
   }
@@ -730,13 +743,8 @@ class _TreemapPainter extends CustomPainter {
 
   /// `ContentItem`'s default content: Rectangle, nest arrow and name.
   void _paintContent(Canvas canvas, _Item item) {
-    final node = item.node;
     final x = item.x, y = item.y, width = item.width, height = item.height;
-    final colors = widget.colorPanel ?? _defaultColors;
-    final nodeFill = node['fill'], nodeStroke = node['stroke'];
-    final fill = cssColorOf(nodeFill) ??
-        widget.fill ?? (item.depth < 2 ? colors[(node['index'] as int) % colors.length] : const Color(0x00FFFFFF));
-    final stroke = cssColorOf(nodeStroke) ?? widget.stroke ?? const Color(0xFFFFFFFF);
+    final (fill, stroke) = _rectColors(widget, item);
     // The svg's own fill and stroke, which the arrow and the text inherit.
     final inheritedFill = widget.fill;
     final inheritedStroke = widget.stroke;
