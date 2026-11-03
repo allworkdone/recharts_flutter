@@ -288,6 +288,14 @@ RechartsElement? _child(Map<String, dynamic> node) {
           x: (p.raw['allowEscapeViewBox'] as Map?)?['x'] == true,
           y: (p.raw['allowEscapeViewBox'] as Map?)?['y'] == true,
         ),
+        reverseDirection: (
+          x: (p.raw['reverseDirection'] as Map?)?['x'] == true,
+          y: (p.raw['reverseDirection'] as Map?)?['y'] == true,
+        ),
+        position: switch (p.raw['position']) {
+          final Map m => (x: (m['x'] as num?)?.toDouble(), y: (m['y'] as num?)?.toDouble()),
+          _ => null,
+        },
       );
     case 'Legend':
       return Legend(

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import 'parity/fixture_renderer.dart';
 import 'parity/parity_hooks.dart' if (dart.library.js_interop) 'parity/parity_hooks_web.dart';
+import 'tooltip_modes.dart';
 
 const _fixtureDir = 'assets/parity/fixtures/';
 
@@ -129,6 +130,9 @@ class _FixtureList extends StatelessWidget {
   }
 }
 
+/// Shared by every fixture page, so a choice sticks while browsing.
+final _tooltipMode = ValueNotifier(TooltipMode.platformDefault);
+
 class _FixturePage extends StatelessWidget {
   const _FixturePage({required this.name});
   final String name;
@@ -149,18 +153,35 @@ class _FixturePage extends StatelessWidget {
               children: [
                 Text(f['description'] as String? ?? ''),
                 const SizedBox(height: 16),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: ColoredBox(
-                    color: Colors.white,
-                    child: DefaultTextStyle(
-                      style: _parityTextStyle,
-                      child: SizedBox(
-                        width: (f['width'] as num).toDouble(),
-                        height: (f['height'] as num).toDouble(),
-                        child: renderFixture(f),
+                ValueListenableBuilder(
+                  valueListenable: _tooltipMode,
+                  builder: (context, mode, _) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SegmentedButton<TooltipMode>(
+                        segments: [for (final m in TooltipMode.values) ButtonSegment(value: m, label: Text(m.label))],
+                        selected: {mode},
+                        onSelectionChanged: (s) => _tooltipMode.value = s.first,
                       ),
-                    ),
+                      const SizedBox(height: 16),
+                      // Scaled down rather than scrolled sideways, so a finger dragging
+                      // across the chart moves the tooltip instead of the page.
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.topLeft,
+                        child: ColoredBox(
+                          color: Colors.white,
+                          child: DefaultTextStyle(
+                            style: _parityTextStyle,
+                            child: SizedBox(
+                              width: (f['width'] as num).toDouble(),
+                              height: (f['height'] as num).toDouble(),
+                              child: renderFixture(withTooltipMode(f, mode) as Map<String, dynamic>),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
