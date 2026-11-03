@@ -118,6 +118,42 @@ void main() {
       return last;
     }
 
+    Future<int> firstInkRow(WidgetTester tester, TextVerticalAnchor anchor, Object lineHeight) async {
+      final rec = ui.PictureRecorder();
+      paintSvgText(ui.Canvas(rec), 'a b', 0, 40,
+          style: const TextStyle(fontSize: 10, color: Color(0xFF000000)),
+          verticalAnchor: anchor,
+          width: 1,
+          lineHeight: lineHeight);
+      final image = await rec.endRecording().toImage(40, 80);
+      final bytes = (await image.toByteData())!;
+      for (var y = 0; y < 80; y++) {
+        for (var x = 0; x < 40; x++) {
+          if (bytes.getUint8((y * 40 + x) * 4 + 3) > 0) return y;
+        }
+      }
+      return -1;
+    }
+
+    testWidgets('end anchor (Sunburst default) moves the first line up by (lines - 1) * lineHeight', (tester) async {
+      await tester.runAsync(() async {
+        final em = await firstInkRow(tester, TextVerticalAnchor.end, '1em');
+        expect(await firstInkRow(tester, TextVerticalAnchor.end, 30), em - 20);
+        expect(await firstInkRow(tester, TextVerticalAnchor.end, '.5em'), em + 5);
+      });
+    });
+
+    testWidgets('middle anchor with a px lineHeight reduces to NaN, so dy is 0', (tester) async {
+      await tester.runAsync(() async {
+        // calc(0.5 * -30px + (0.71em / 2)) mixes px and em: invalid, the first baseline stays at y.
+        final px = await firstInkRow(tester, TextVerticalAnchor.middle, '30px');
+        final zero = await firstInkRow(tester, TextVerticalAnchor.end, '0px'); // one line shifted by 0 as well
+        expect(px, zero);
+        // In em it does reduce: the first baseline moves up.
+        expect(await firstInkRow(tester, TextVerticalAnchor.middle, '1em'), lessThan(px));
+      });
+    });
+
     testWidgets('default is 1em; a number is px; em and px lengths work', (tester) async {
       await tester.runAsync(() async {
         final base = await lastInkRow(tester, '1em');

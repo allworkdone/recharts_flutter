@@ -110,19 +110,16 @@ String _sectorWithCorner(double cx, double cy, double innerRadius, double outerR
 /// The `d` attribute `<Sector>` renders (whitespace collapsed), or null when
 /// it renders nothing.
 String? sectorPathData(SectorGeometry s) {
-  // Chrome ignores a `d` containing NaN, so a non-finite sector paints nothing.
-  if (!(s.cx.isFinite && s.cy.isFinite && s.innerRadius.isFinite && s.outerRadius.isFinite &&
-      s.startAngle.isFinite && s.endAngle.isFinite)) {
-    return null;
-  }
   if (s.outerRadius < s.innerRadius || s.startAngle == s.endAngle) return null;
   final deltaRadius = s.outerRadius - s.innerRadius;
   final cr = getPercentValue(s.cornerRadius, deltaRadius, 0, true);
-  if (cr > 0 && (s.startAngle - s.endAngle).abs() < 360) {
-    return _sectorWithCorner(s.cx, s.cy, s.innerRadius, s.outerRadius, math.min(cr, deltaRadius / 2),
-        s.forceCornerRadius, s.cornerIsExternal, s.startAngle, s.endAngle);
-  }
-  return _sectorPath(s.cx, s.cy, s.innerRadius, s.outerRadius, s.startAngle, s.endAngle);
+  final d = cr > 0 && (s.startAngle - s.endAngle).abs() < 360
+      ? _sectorWithCorner(s.cx, s.cy, s.innerRadius, s.outerRadius, math.min(cr, deltaRadius / 2),
+          s.forceCornerRadius, s.cornerIsExternal, s.startAngle, s.endAngle)
+      : _sectorPath(s.cx, s.cy, s.innerRadius, s.outerRadius, s.startAngle, s.endAngle);
+  // Chrome ignores a `d` with NaN or Infinity in it, so such a sector paints nothing. A NaN
+  // innerRadius alone leaves `d` clean ('L cx,cy Z'): a full slice to the centre, as in Chrome.
+  return d.contains('NaN') || d.contains('Infinity') ? null : d;
 }
 
 /// The painted sector; null when `<Sector>` renders nothing.

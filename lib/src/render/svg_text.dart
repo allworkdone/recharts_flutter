@@ -136,9 +136,10 @@ const _absoluteUnitPx = {'px': 1.0, 'cm': 96 / 2.54, 'mm': 96 / 25.4, 'pt': 96 /
 
 /// Text's `lineHeight` (a number of px, or a CSS length such as '1.2em') in px;
 /// null when it is not a length SVG accepts for `dy`.
+// ponytail: '%', vh/vw, ex and ch lengths are not converted (null, dy 0); add them when a fixture needs one.
 double? _lineHeightPx(Object lineHeight, double em) {
   if (lineHeight is num) return lineHeight.toDouble();
-  final m = RegExp(r'^\s*(-?\d+(?:\.\d+)?)([a-zA-Z%]*)\s*$').firstMatch('$lineHeight');
+  final m = RegExp(r'^\s*(-?(?:\d+(?:\.\d+)?|\.\d+))([a-zA-Z%]*)\s*$').firstMatch('$lineHeight');
   if (m == null) return null;
   final n = double.parse(m[1]!);
   return switch (m[2]!) {

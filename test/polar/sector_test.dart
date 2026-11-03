@@ -93,6 +93,14 @@ void main() {
       expect(sectorPath(g), isNull);
     });
 
+    test('a NaN innerRadius draws a full slice to the centre; NaN elsewhere draws nothing', () {
+      final d = sectorPathData(const SectorGeometry(cx: 0, cy: 0, innerRadius: double.nan, outerRadius: 100, endAngle: 90));
+      expect(d, endsWith('L 0,0 Z'));
+      expect(sectorPathData(const SectorGeometry(cx: 0, cy: 0, innerRadius: double.negativeInfinity, outerRadius: 100, endAngle: 90)), endsWith('L 0,0 Z'));
+      expect(sectorPathData(const SectorGeometry(cx: double.nan, cy: 0, outerRadius: 100, endAngle: 90)), isNull);
+      expect(sectorPathData(const SectorGeometry(cx: 0, cy: 0, outerRadius: double.infinity, endAngle: 90)), isNull);
+    });
+
     test('SVG path data reads into the same Path as Skia arcs', () {
       final path = parseSvgPathData('M 400,300 A 200,200,0, 0,0, 200,100 L 200,150 A 150,150,0, 0,1, 350,300 Z');
       expect(path.contains(const Offset(320, 200)), isTrue);
