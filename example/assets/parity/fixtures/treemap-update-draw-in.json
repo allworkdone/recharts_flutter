@@ -1,0 +1,70 @@
+{
+ "name": "treemap-update-draw-in",
+ "description": "isUpdateAnimationActive={false}: Recharts hands Rectangle the inverted flag, so each node's stroke draws in over 1500 ms beside the slide-in.",
+ "width": 500,
+ "height": 300,
+ "chart": {
+  "type": "Treemap",
+  "props": {
+   "data": [
+    {
+     "name": "Alpha",
+     "value": 400
+    },
+    {
+     "name": "Bravo",
+     "value": 300
+    },
+    {
+     "name": "Charlie",
+     "value": 300
+    },
+    {
+     "name": "Delta",
+     "value": 200
+    },
+    {
+     "name": "Echo",
+     "value": 278
+    },
+    {
+     "name": "Foxtrot",
+     "value": 189
+    },
+    {
+     "name": "Golf",
+     "value": 150
+    },
+    {
+     "name": "Hotel",
+     "value": 90
+    }
+   ],
+   "dataKey": "value",
+   "nameKey": "name",
+   "isUpdateAnimationActive": false
+  },
+  "children": [
+   {
+    "type": "Tooltip",
+    "props": {}
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-alpha",
+   "type": "hover",
+   "x": 120,
+   "y": 40
+  }
+ ],
+ "captureAnimation": [
+  0,
+  32,
+  200,
+  500,
+  1000,
+  1600
+ ]
+}

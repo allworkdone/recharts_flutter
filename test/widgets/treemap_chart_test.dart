@@ -378,4 +378,39 @@ void main() {
       expect(log, isEmpty);
     });
   });
+
+  testWidgets('isUpdateAnimationActive false: Rectangle strokes draw in from the top-left corner, clockwise', (tester) async {
+    Widget chart({bool? isAnimationActive}) => Treemap(
+          width: 100,
+          height: 60,
+          data: const [
+            {'name': 'a', 'value': 1},
+          ],
+          isUpdateAnimationActive: false,
+          isAnimationActive: isAnimationActive,
+          animationDuration: 1, // the slide-in is over at once
+        );
+    await tester.pumpWidget(host(chart()));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
+    // The slide-in is done; the dasharray transition starts on this frame from `0 L`: no stroke yet.
+    var image = await capture(tester);
+    final fill = await pixel(tester, image, const Offset(50, 30));
+    expect(fill.a, 1);
+    expect(await pixel(tester, image, const Offset(50, 0)), fill);
+    await tester.pump(const Duration(milliseconds: 500));
+    // ease(1/3) of the 320 px perimeter: the top edge and part of the right one, not the bottom.
+    image = await capture(tester);
+    expect(await pixel(tester, image, const Offset(50, 0)), isNot(fill));
+    expect(await pixel(tester, image, const Offset(50, 59)), fill);
+    await tester.pump(const Duration(milliseconds: 1100));
+    image = await capture(tester);
+    expect(await pixel(tester, image, const Offset(50, 59)), isNot(fill));
+
+    // Rectangle's isAnimationActive (the Treemap's) false: the dasharray is `L L` at once.
+    await tester.pumpWidget(host(const SizedBox()));
+    await tester.pumpWidget(host(chart(isAnimationActive: false)));
+    image = await capture(tester);
+    expect(await pixel(tester, image, const Offset(50, 59)), isNot(await pixel(tester, image, const Offset(50, 30))));
+  });
 }

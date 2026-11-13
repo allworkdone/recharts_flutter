@@ -950,6 +950,7 @@ Widget _treemap(_Props p, double? w, double? h, List<Object?> data, List<Rechart
     type: p.str('type') == 'nest' ? TreemapType.nest : TreemapType.flat,
     colorPanel: [for (final c in (p.raw['colorPanel'] as List? ?? const [])) ?parseCssColor(c as String)].nullIfEmpty,
     isAnimationActive: p.boolean('isAnimationActive'),
+    isUpdateAnimationActive: p.boolean('isUpdateAnimationActive'),
     animationBegin: p.dbl('animationBegin')?.toInt() ?? 0,
     animationDuration: p.dbl('animationDuration')?.toInt() ?? 1500,
     animationEasing: p.str('animationEasing') ?? 'linear',

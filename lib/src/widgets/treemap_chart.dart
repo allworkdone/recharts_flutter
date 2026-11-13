@@ -110,8 +110,9 @@ class Treemap extends StatefulWidget {
   /// null is `'auto'`: on unless the platform asks for reduced motion.
   final bool? isAnimationActive;
 
-  /// Accepted for parity. Recharts hands `!isUpdateAnimationActive` to Rectangle, so an explicit `false`
-  /// turns on Rectangle's stroke-dasharray draw-in; that is not ported (the default 'auto' is a no-op).
+  /// Recharts hands `!isUpdateAnimationActive` to each node's Rectangle, so an explicit `false` turns on
+  /// Rectangle's update animation: the stroke draws in over 1500 ms (unless [isAnimationActive] is
+  /// `false`) and a node whose geometry changes slides to it. The default `'auto'` (null) does neither.
   final bool? isUpdateAnimationActive;
   final int animationBegin;
   final int animationDuration;
@@ -176,6 +177,38 @@ class _Mount {
   }
 }
 
+/// Rectangle with `isUpdateAnimationActive` (src/shape/Rectangle.tsx): a JavascriptAnimate keyed by
+/// the geometry, interpolating from where the last one was drawn, and the stroke-dasharray CSS
+/// transition from `0 L` to `L L` (1500 ms, ease), where L is the path length measured at mount.
+/// The handle turns active one frame after mount and the transition starts on the frame after that.
+class _DrawIn {
+  _DrawIn(TickerProvider vsync, this.from, this.to, this.length)
+      : controller = AnimationController(vsync: vsync, duration: const Duration(milliseconds: 1500)) {
+    pendingStart = SchedulerBinding.instance.scheduleFrameCallback((_) {
+      pendingStart = SchedulerBinding.instance.scheduleFrameCallback((_) {
+        pendingStart = null;
+        controller.forward(from: 0);
+      });
+    });
+  }
+
+  final Rect from, to;
+  final double length;
+  final AnimationController controller;
+  int? pendingStart;
+  static final _ease = createEasingFunction('ease')!;
+
+  // ponytail: geometry and dash share the transition's clock; Recharts' geometry tick runs one frame
+  // ahead, which only shows while a node moves on a data update.
+  double get t => controller.value >= 1 ? 1 : _ease(controller.value);
+  Rect get rect => Rect.lerp(from, to, t)!;
+
+  void dispose() {
+    if (pendingStart != null) SchedulerBinding.instance.cancelFrameCallbackWithId(pendingStart!);
+    controller.dispose();
+  }
+}
+
 int _nextId = 0;
 
 class _Interaction {
@@ -208,6 +241,7 @@ class _TreemapState extends State<Treemap> with TickerProviderStateMixin {
   List<_Item> _items = const [];
   final Map<String, _Mount> _mountOf = {};
   final List<_Mount> _mounts = [];
+  final Map<String, _DrawIn> _drawIns = {};
   _Interaction _hover = const _Interaction();
   _Interaction _click = const _Interaction();
   String? _hoveredKey;
@@ -240,6 +274,9 @@ class _TreemapState extends State<Treemap> with TickerProviderStateMixin {
     PaintingBinding.instance.systemFonts.removeListener(_onFontsChanged);
     for (final m in _mounts) {
       m.dispose();
+    }
+    for (final d in _drawIns.values) {
+      d.dispose();
     }
     super.dispose();
   }
@@ -372,6 +409,26 @@ class _TreemapState extends State<Treemap> with TickerProviderStateMixin {
     for (final m in _mounts.where((m) => !live.contains(m)).toList()) {
       _mounts.remove(m);
       m.dispose();
+    }
+  }
+
+  /// Each node's Rectangle update animation, while [Treemap.isUpdateAnimationActive] is `false`.
+  void _syncDrawIns(List<_Item> items) {
+    final keep = widget.isUpdateAnimationActive == false ? {for (final i in items) i.key: i} : const <String, _Item>{};
+    _drawIns.removeWhere((k, d) {
+      if (keep.containsKey(k)) return false;
+      d.dispose();
+      return true;
+    });
+    for (final item in keep.values) {
+      final rect = Rect.fromLTWH(item.x, item.y, item.width, item.height);
+      final d = _drawIns[item.key];
+      if (d == null) {
+        _drawIns[item.key] = _DrawIn(this, rect, rect, 2 * (item.width + item.height));
+      } else if (d.to != rect) {
+        _drawIns[item.key] = _DrawIn(this, d.rect, rect, d.length);
+        d.dispose();
+      }
     }
   }
 
@@ -538,6 +595,7 @@ class _TreemapState extends State<Treemap> with TickerProviderStateMixin {
     if (_formatRoot != null) _collect(_formatRoot!, _formatRoot!, '', items);
     _items = items;
     _syncMounts(items, reducedMotion);
+    _syncDrawIns(items);
     _boxes = widget.type == TreemapType.nest ? _layoutBreadcrumb(size) : const [];
 
     final tooltip = widget.children.whereType<Tooltip>().firstOrNull;
@@ -550,7 +608,8 @@ class _TreemapState extends State<Treemap> with TickerProviderStateMixin {
       scaler: _scaler,
       boxes: _boxes,
       contentProps: _contentProps,
-      repaint: Listenable.merge([for (final m in _mounts) m.controller]),
+      drawIn: (item) => _drawIns[item.key],
+      repaint: Listenable.merge([for (final m in _mounts) m.controller, for (final d in _drawIns.values) d.controller]),
     );
     final stack = Stack(
       clipBehavior: Clip.none,
@@ -711,6 +770,7 @@ class _TreemapPainter extends CustomPainter {
     required this.scaler,
     required this.boxes,
     required this.contentProps,
+    required this.drawIn,
     required Listenable repaint,
   }) : super(repaint: repaint);
 
@@ -722,6 +782,7 @@ class _TreemapPainter extends CustomPainter {
   final TextScaler scaler;
   final List<_Box> boxes;
   final TreemapNode Function(_Item) contentProps;
+  final _DrawIn? Function(_Item) drawIn;
 
   @override
   void paint(Canvas canvas, Size _) {
@@ -750,9 +811,14 @@ class _TreemapPainter extends CustomPainter {
     final inheritedStroke = widget.stroke;
 
     if (x.isFinite && y.isFinite && width.isFinite && height.isFinite && width != 0 && height != 0) {
-      final rect = Rect.fromLTWH(x, y, width, height);
+      final d = drawIn(item);
+      final rect = d?.rect ?? Rect.fromLTWH(x, y, width, height);
       canvas.drawRect(rect, Paint()..color = fill);
-      canvas.drawRect(rect, _strokePaint(stroke));
+      if (d == null || widget.isAnimationActive == false) {
+        canvas.drawRect(rect, _strokePaint(stroke));
+      } else {
+        _drawDashedRect(canvas, rect, d.length * d.t, d.length, _strokePaint(stroke));
+      }
     }
 
     final arrow = _arrowPath(widget, item);
@@ -770,6 +836,26 @@ class _TreemapPainter extends CustomPainter {
         paintSvgText(canvas, label.name, label.x, label.y,
             style: _labelStyle(baseStyle, foreground: _strokePaint(inheritedStroke)), scaler: scaler);
       }
+    }
+  }
+
+  /// `stroke-dasharray: dash gap` along getRectanglePath (top-left, clockwise).
+  static void _drawDashedRect(Canvas canvas, Rect r, double dash, double gap, Paint paint) {
+    if (dash <= 0) return;
+    final perimeter = 2 * (r.width.abs() + r.height.abs());
+    if (dash >= perimeter) {
+      canvas.drawRect(r, paint);
+      return;
+    }
+    final path = Path()
+      ..moveTo(r.left, r.top)
+      ..lineTo(r.right, r.top)
+      ..lineTo(r.right, r.bottom)
+      ..lineTo(r.left, r.bottom)
+      ..close();
+    final metric = path.computeMetrics().first;
+    for (var start = 0.0; start < metric.length; start += dash + gap) {
+      canvas.drawPath(metric.extractPath(start, math.min(start + dash, metric.length)), paint);
     }
   }
 

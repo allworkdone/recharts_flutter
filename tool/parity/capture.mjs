@@ -149,6 +149,24 @@ async function captureFixture(fx) {
             });
           }, [Math.max(0, Math.floor((ms + lag) / 16) * 16 - begin)]);
         }
+        // Rectangle's update animation (Treemap isUpdateAnimationActive={false}) draws the stroke in with a
+        // stroke-dasharray CSS transition, set one frame after its JavascriptAnimate turns active (16 ms
+        // after mount, plus Rectangle's animationBegin 0): replay it the same way, from 32 ms.
+        if (side === 'web') {
+          await page.evaluate(([e]) => {
+            const toMs = (v) => (v.endsWith('ms') ? parseFloat(v) : parseFloat(v) * 1000);
+            document.querySelectorAll('path.recharts-rectangle[style*="transition"]').forEach((p) => {
+              const cs = getComputedStyle(p);
+              if (!cs.transitionProperty.includes('stroke-dasharray')) return;
+              const len = parseFloat(p.style.strokeDasharray.split(/[\s,]+/)[1]);
+              p.getAnimations().forEach((a) => a.cancel());
+              const a = p.animate([{ strokeDasharray: `0px ${len}px` }, { strokeDasharray: `${len}px ${len}px` }],
+                { duration: toMs(cs.transitionDuration), easing: cs.transitionTimingFunction, fill: 'both' });
+              a.pause();
+              a.currentTime = e;
+            });
+          }, [Math.max(0, Math.floor((ms + lag) / 16) * 16 - 32)]);
+        }
         frames[side][ms] = await shot(page, fx);
       }
       await ctx.close();
