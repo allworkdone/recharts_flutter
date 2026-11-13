@@ -1,5 +1,5 @@
 // Draws the polar items and axes of RadarChart and RadialBarChart in the z
-// layers of src/zIndex/DefaultZIndexes.tsx: PolarGrid (-100), RadialBar
+// layers of src/zIndex/DefaultZIndexes.tsx, or each component's zIndex: PolarGrid (-100), RadialBar
 // background (-50), Radar polygon (area, 100), RadialBar sectors (bar, 300),
 // PolarAngleAxis and PolarRadiusAxis (axis, 500), Radar dots (scatter, 600),
 // the active RadialBar sector (activeBar, 1000), the tooltip cursor
@@ -34,45 +34,61 @@ const _svgBlack = Color(0xFF000000);
 const _eps = 1e-5;
 final _cos45 = math.cos(degreeToRadian(45));
 
-void paintPolarBelowArea(Canvas canvas, PolarFrame frame, PolarHoverState? h) {
+/// The scene's paint calls for the main layer, each with its Recharts z
+/// layer. Like AllZIndexPortals, the caller paints them by ascending z and,
+/// within one z, in this order. The Radar dots and active dot, the active
+/// RadialBar sector and the cursor keep their fixed layers.
+List<(int, void Function())> polarSceneLayers(Canvas canvas, PolarFrame frame, PolarHoverState? h) {
   final scene = frame.model.scene;
-  if (scene == null) return;
+  if (scene == null) return const [];
+  final layers = <(int, void Function())>[];
   for (final g in scene.grids) {
-    _paintGrid(canvas, scene, g);
+    layers.add((g.zIndex, () => _paintGrid(canvas, scene, g)));
   }
-  for (final bar in scene.radialBars) {
-    if (!bar.settings.hide) _paintRadialBarBackground(canvas, bar);
+  final bars = [for (final bar in scene.radialBars) if (!bar.settings.hide) bar];
+  // getZIndexFromUnknown(background, barBackground); 0 renders inline, in the bar's own layer.
+  int? backgroundZ(RadialBarModel bar) {
+    final background = bar.settings.background;
+    if (background == false) return null;
+    return background is SectorStyle ? background.zIndex ?? -50 : -50;
   }
-}
 
-void paintPolarAboveArea(Canvas canvas, PolarFrame frame, PolarHoverState? h) {
-  final scene = frame.model.scene;
-  if (scene == null) return;
-  final stepped = <String, List<RadarPoint>>{};
-  for (final r in scene.radars) {
-    if (r.settings.hide || r.points == null) continue;
-    stepped[r.id] = _paintRadarPolygon(canvas, frame, r);
+  for (final bar in bars) {
+    final z = backgroundZ(bar);
+    if (z != null && z != 0) layers.add((z, () => _paintRadialBarBackground(canvas, bar)));
   }
-  for (final bar in scene.radialBars) {
-    if (!bar.settings.hide) _paintRadialBar(canvas, frame, bar, h, active: false);
+  // Radar animators step once per frame, before anything reads the points.
+  final stepped = <String, List<RadarPoint>>{
+    for (final r in scene.radars)
+      if (!r.settings.hide && r.points != null)
+        r.id: frame.radarAnimators[r.id]?.step(interpolateRadarPoints) ?? r.composed!.points,
+  };
+  for (final r in scene.radars) {
+    final points = stepped[r.id];
+    if (points != null) layers.add((r.settings.zIndex, () => _paintRadarPolygon(canvas, frame, r, points)));
+  }
+  for (final bar in bars) {
+    if (backgroundZ(bar) == 0) layers.add((bar.settings.zIndex, () => _paintRadialBarBackground(canvas, bar)));
+    layers.add((bar.settings.zIndex, () => _paintRadialBar(canvas, frame, bar, h, active: false)));
   }
   for (final a in scene.angleAxisElements) {
-    _paintAngleAxis(canvas, frame, scene, a);
+    layers.add((a.zIndex, () => _paintAngleAxis(canvas, frame, scene, a)));
   }
   for (final a in scene.radiusAxisElements) {
-    _paintRadiusAxis(canvas, frame, scene, a);
+    layers.add((a.zIndex, () => _paintRadiusAxis(canvas, frame, scene, a)));
   }
   for (final r in scene.radars) {
     final points = stepped[r.id];
-    if (points != null) _paintRadarDots(canvas, r, points);
+    if (points != null) layers.add((600, () => _paintRadarDots(canvas, r, points)));
   }
-  for (final bar in scene.radialBars) {
-    if (!bar.settings.hide) _paintRadialBar(canvas, frame, bar, h, active: true);
+  for (final bar in bars) {
+    layers.add((1000, () => _paintRadialBar(canvas, frame, bar, h, active: true)));
   }
-  _paintCursor(canvas, frame, scene, h);
+  layers.add((1100, () => _paintCursor(canvas, frame, scene, h)));
   for (final r in scene.radars) {
-    if (!r.settings.hide) _paintRadarActiveDot(canvas, r, h);
+    if (!r.settings.hide) layers.add((1200, () => _paintRadarActiveDot(canvas, r, h)));
   }
+  return layers;
 }
 
 void paintPolarSceneLabels(Canvas canvas, PolarFrame frame) {
@@ -464,14 +480,13 @@ Path? radarPolygonPath(PolarFrame frame, RadarModel r) {
 List<Offset?> _offsets(List<RadarPoint> points) => [for (final p in points) Offset(p.x, p.y)];
 
 /// StaticPolygon over the animation step; returns the step's points for the dots.
-List<RadarPoint> _paintRadarPolygon(Canvas canvas, PolarFrame frame, RadarModel r) {
+void _paintRadarPolygon(Canvas canvas, PolarFrame frame, RadarModel r, List<RadarPoint> points) {
   final radar = r.settings;
   final composed = r.composed!;
-  final points = frame.radarAnimators[r.id]?.step(interpolateRadarPoints) ?? composed.points;
   final baseLine = composed.isRange
       ? (frame.radarBaseLineAnimators[r.id]?.step(interpolateRadarPoints) ?? composed.baseLinePoints)
       : null;
-  if (points.isEmpty) return points;
+  if (points.isEmpty) return;
   if (radar.shape != null) {
     radar.shape!(
         canvas,
@@ -480,7 +495,7 @@ List<RadarPoint> _paintRadarPolygon(Canvas canvas, PolarFrame frame, RadarModel 
             baseLinePoints: [for (final p in baseLine ?? const <RadarPoint>[]) Offset(p.x, p.y)],
             fill: radar.fill ?? _svgBlack,
             stroke: radar.stroke));
-    return points;
+    return;
   }
   final stroke = radar.stroke;
   final hasStroke = stroke != null;
@@ -505,12 +520,12 @@ List<RadarPoint> _paintRadarPolygon(Canvas canvas, PolarFrame frame, RadarModel 
       strokePath(_segmentsPath(outer));
       strokePath(_segmentsPath(base));
     }
-    return points;
+    return;
   }
   final path = _segmentsPath(outer);
   fillPath(path, outer.length == 1);
   strokePath(path);
-  return points;
+  return;
 }
 
 void _paintRadarDots(Canvas canvas, RadarModel r, List<RadarPoint> points) {

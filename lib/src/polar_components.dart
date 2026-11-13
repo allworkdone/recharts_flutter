@@ -27,6 +27,7 @@ class SectorStyle {
     this.cornerRadius,
     this.forceCornerRadius,
     this.cornerIsExternal,
+    this.zIndex,
   });
   final Color? fill;
   final double? fillOpacity;
@@ -40,6 +41,11 @@ class SectorStyle {
   final Object? cornerRadius;
   final bool? forceCornerRadius;
   final bool? cornerIsExternal;
+
+  /// Read only from [RadialBar.background]: its z layer (`barBackground`,
+  /// -50, when null); 0 draws it inside the RadialBar's own layer, under its
+  /// sectors.
+  final int? zIndex;
 }
 
 /// Props handed to a custom sector painter (`PieSectorShapeProps`).
@@ -142,6 +148,7 @@ class Pie extends RechartsElement {
     this.onAnimationEnd,
     this.rootTabIndex = 0,
     this.id,
+    this.zIndex = 100,
     this.children = const [],
   });
   final Object dataKey;
@@ -204,6 +211,9 @@ class Pie extends RechartsElement {
 
   /// Stable identity (`id`); defaults to the Pie's position among the chart's Pies.
   final String? id;
+
+  /// Recharts' z layer (`area`, 100): higher layers paint on top.
+  final int zIndex;
 
   /// [Cell]s (matched to entries by index) and [LabelList]s.
   final List<RechartsElement> children;

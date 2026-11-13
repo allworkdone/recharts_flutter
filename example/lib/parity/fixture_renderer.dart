@@ -557,6 +557,7 @@ RechartsElement? _child(Map<String, dynamic> node) {
         labelLine: p.svgOrBool('labelLine') ?? true,
         activeShape: _sectorStyle(p.raw['activeShape']),
         inactiveShape: _sectorStyle(p.raw['inactiveShape']),
+        zIndex: p.integer('zIndex') ?? 100,
         isAnimationActive: p.boolean('isAnimationActive'),
         animationBegin: p.dbl('animationBegin')?.toInt() ?? 400,
         animationDuration: p.dbl('animationDuration')?.toInt() ?? 1500,
@@ -580,6 +581,7 @@ RechartsElement? _child(Map<String, dynamic> node) {
         strokeDasharray: p.dash('strokeDasharray'),
         fill: p.color('fill'),
         fillOpacity: p.dbl('fillOpacity'),
+        zIndex: p.integer('zIndex') ?? -100,
       );
     case 'PolarAngleAxis':
       return PolarAngleAxis(
@@ -601,6 +603,7 @@ RechartsElement? _child(Map<String, dynamic> node) {
         stroke: p.color('stroke'),
         strokeWidth: p.dbl('strokeWidth'),
         fontSize: p.dbl('fontSize'),
+        zIndex: p.integer('zIndex') ?? 500,
       );
     case 'PolarRadiusAxis':
       return PolarRadiusAxis(
@@ -621,6 +624,7 @@ RechartsElement? _child(Map<String, dynamic> node) {
         label: _label(p.raw['label']),
         stroke: p.raw.containsKey('stroke') ? p.color('stroke') : const Color(0xFFCCCCCC),
         fontSize: p.dbl('fontSize'),
+        zIndex: p.integer('zIndex') ?? 500,
       );
     case 'Radar':
       return Radar(
@@ -639,6 +643,7 @@ RechartsElement? _child(Map<String, dynamic> node) {
         stroke: p.color('stroke'),
         strokeWidth: p.dbl('strokeWidth'),
         strokeDasharray: p.dash('strokeDasharray'),
+        zIndex: p.integer('zIndex') ?? 100,
         isAnimationActive: p.boolean('isAnimationActive'),
         animationBegin: p.dbl('animationBegin')?.toInt() ?? 0,
         animationDuration: p.dbl('animationDuration')?.toInt() ?? 1500,
@@ -669,6 +674,7 @@ RechartsElement? _child(Map<String, dynamic> node) {
         stroke: p.color('stroke'),
         strokeWidth: p.dbl('strokeWidth'),
         activeShape: _sectorStyle(p.raw['activeShape']),
+        zIndex: p.integer('zIndex') ?? 300,
         isAnimationActive: p.boolean('isAnimationActive'),
         animationBegin: p.dbl('animationBegin')?.toInt() ?? 0,
         animationDuration: p.dbl('animationDuration')?.toInt() ?? 1500,
@@ -717,6 +723,7 @@ Object? _sectorStyle(Object? v) {
     startAngle: p.dbl('startAngle'),
     endAngle: p.dbl('endAngle'),
     cornerRadius: p.raw['cornerRadius'],
+    zIndex: p.integer('zIndex'),
   );
 }
 
@@ -810,6 +817,7 @@ class _Props {
 
   String? str(String k) => raw[k] is String ? raw[k] as String : null;
   double? dbl(String k) => raw[k] is num ? (raw[k] as num).toDouble() : null;
+  int? integer(String k) => raw[k] is num ? (raw[k] as num).toInt() : null;
   bool? boolean(String k) => raw[k] is bool ? raw[k] as bool : null;
   Color? color(String k) => raw[k] is String ? parseCssColor(raw[k] as String) : null;
 

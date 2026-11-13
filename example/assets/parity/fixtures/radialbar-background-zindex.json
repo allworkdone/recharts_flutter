@@ -1,0 +1,85 @@
+{
+ "name": "radialbar-background-zindex",
+ "description": "Two RadialBars: a translucent background raised over its sectors (zIndex 301) and a bar under the default background layer (zIndex -60).",
+ "width": 500,
+ "height": 300,
+ "chart": {
+  "type": "RadialBarChart",
+  "props": {
+   "data": [
+    {
+     "name": "18-24",
+     "uv": 31.47,
+     "pv": 2400,
+     "fill": "#8884d8"
+    },
+    {
+     "name": "25-29",
+     "uv": 26.69,
+     "pv": 4567,
+     "fill": "#83a6ed"
+    },
+    {
+     "name": "30-34",
+     "uv": 15.69,
+     "pv": 1398,
+     "fill": "#8dd1e1"
+    },
+    {
+     "name": "35-39",
+     "uv": 8.22,
+     "pv": 9800,
+     "fill": "#82ca9d"
+    }
+   ],
+   "innerRadius": 20,
+   "outerRadius": 140,
+   "barSize": 12
+  },
+  "children": [
+   {
+    "type": "RadialBar",
+    "props": {
+     "dataKey": "uv",
+     "isAnimationActive": false,
+     "background": {
+      "fill": "#000",
+      "fillOpacity": 0.35,
+      "zIndex": 301
+     }
+    }
+   },
+   {
+    "type": "RadialBar",
+    "props": {
+     "dataKey": "pv",
+     "isAnimationActive": false,
+     "fill": "#ff7300",
+     "zIndex": -60,
+     "background": {
+      "fill": "#9fd3c7"
+     }
+    }
+   },
+   {
+    "type": "PolarGrid",
+    "props": {
+     "zIndex": 400,
+     "gridType": "circle"
+    }
+   },
+   {
+    "type": "Tooltip",
+    "props": {}
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-ring",
+   "type": "hover",
+   "x": 250,
+   "y": 60
+  }
+ ]
+}

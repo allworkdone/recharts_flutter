@@ -41,6 +41,7 @@ class PolarGrid extends RechartsElement {
     this.strokeDasharray,
     this.fill,
     this.fillOpacity,
+    this.zIndex = -100,
   });
   final List<double>? polarAngles;
   final List<double>? polarRadius;
@@ -55,6 +56,9 @@ class PolarGrid extends RechartsElement {
   /// `'none'` by default.
   final Color? fill;
   final double? fillOpacity;
+
+  /// Recharts' z layer (`grid`, -100): higher layers paint on top.
+  final int zIndex;
 }
 
 /// src/polar/PolarAngleAxis.tsx. Its defaults carry no `stroke`, so the axis
@@ -83,7 +87,7 @@ class PolarAngleAxis extends RechartsElement {
     this.stroke,
     this.strokeWidth,
     this.fontSize,
-    this.zIndex,
+    this.zIndex = 500,
   });
   final Object angleAxisId;
   final Object? dataKey;
@@ -114,7 +118,9 @@ class PolarAngleAxis extends RechartsElement {
   final Color? stroke;
   final double? strokeWidth;
   final double? fontSize;
-  final int? zIndex;
+
+  /// Recharts' z layer (`axis`, 500): higher layers paint on top.
+  final int zIndex;
 }
 
 /// src/polar/PolarRadiusAxis.tsx.
@@ -142,7 +148,7 @@ class PolarRadiusAxis extends RechartsElement {
     this.name,
     this.stroke = const Color(0xFFCCCCCC),
     this.fontSize,
-    this.zIndex,
+    this.zIndex = 500,
   });
   final Object radiusAxisId;
   final Object? dataKey;
@@ -177,7 +183,9 @@ class PolarRadiusAxis extends RechartsElement {
   /// Axis line color and tick text fill (`#ccc`).
   final Color? stroke;
   final double? fontSize;
-  final int? zIndex;
+
+  /// Recharts' z layer (`axis`, 500): higher layers paint on top.
+  final int zIndex;
 }
 
 /// Props handed to a custom [Radar.shape] painter.
@@ -237,6 +245,7 @@ class Radar extends RechartsElement {
     this.onAnimationStart,
     this.onAnimationEnd,
     this.id,
+    this.zIndex = 100,
     this.children = const [],
   });
   final Object dataKey;
@@ -275,6 +284,9 @@ class Radar extends RechartsElement {
   final VoidCallback? onAnimationStart;
   final VoidCallback? onAnimationEnd;
   final String? id;
+
+  /// Recharts' z layer (`area`, 100): higher layers paint on top.
+  final int zIndex;
 
   /// [LabelList]s.
   final List<RechartsElement> children;
@@ -318,6 +330,7 @@ class RadialBar extends RechartsElement {
     this.onAnimationStart,
     this.onAnimationEnd,
     this.id,
+    this.zIndex = 300,
     this.children = const [],
   });
   final Object dataKey;
@@ -369,6 +382,9 @@ class RadialBar extends RechartsElement {
   final VoidCallback? onAnimationStart;
   final VoidCallback? onAnimationEnd;
   final String? id;
+
+  /// Recharts' z layer (`bar`, 300): higher layers paint on top.
+  final int zIndex;
 
   /// [Cell]s (matched to entries by index) and [LabelList]s.
   final List<RechartsElement> children;

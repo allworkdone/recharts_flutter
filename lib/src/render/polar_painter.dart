@@ -127,13 +127,16 @@ class PolarPainter extends CustomPainter {
     final h = hover?.value;
     switch (layer) {
       case PolarLayer.main:
-        // DefaultZIndexes order: grid, bar background, area, bar, axis, scatter (radar dots), active bar,
-        // cursor line, active dot.
-        paintPolarBelowArea(canvas, frame, h);
-        for (final p in m.pies) {
-          _paintPie(canvas, p);
+        // AllZIndexPortals: ascending zIndex, document order within one layer.
+        final layers = [
+          for (final p in m.pies) (p.settings.zIndex, () => _paintPie(canvas, p)),
+          ...polarSceneLayers(canvas, frame, h),
+        ];
+        final order = [for (var i = 0; i < layers.length; i++) i]
+          ..sort((a, b) => layers[a].$1 != layers[b].$1 ? layers[a].$1.compareTo(layers[b].$1) : a.compareTo(b));
+        for (final i in order) {
+          layers[i].$2();
         }
-        paintPolarAboveArea(canvas, frame, h);
       case PolarLayer.labels:
         frame.labelBoxes.clear();
         for (final p in m.pies) {
