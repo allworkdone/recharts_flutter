@@ -224,7 +224,8 @@ class _SunburstChartState extends State<SunburstChart> with TickerProviderStateM
       payload = [
         TooltipPayloadEntry(
           dataKey: w.dataKey,
-          name: name == null ? (w.nameKey == null ? w.dataKey : null) : jsString(name),
+          // `getValueByDataKey(node, nameKey) ?? settings.name`: the raw value, not String()ed.
+          name: name ?? (w.nameKey == null ? w.dataKey : null),
           value: getValueByDataKey(node, w.dataKey),
           payload: node,
           color: w.fill,

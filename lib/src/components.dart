@@ -1024,7 +1024,10 @@ class TooltipPayloadEntry {
     this.formatter,
   });
   final Object? dataKey;
-  final String? name;
+
+  /// Recharts' NameType: a String, or the raw value of `nameKey` (a number stays a number) where
+  /// the chart reads it off the hovered node (Treemap, SunburstChart).
+  final Object? name;
   final Object? value;
   final Object? payload;
   final Color? color;
@@ -1038,7 +1041,7 @@ class TooltipPayloadEntry {
 
 /// Returns a formatted value, or a `[value, name]` list, or null to hide the row.
 typedef TooltipFormatter = Object? Function(
-    Object? value, String? name, TooltipPayloadEntry entry, int index, List<TooltipPayloadEntry> payload);
+    Object? value, Object? name, TooltipPayloadEntry entry, int index, List<TooltipPayloadEntry> payload);
 
 /// Props handed to a custom tooltip `content` builder.
 class TooltipContentProps {

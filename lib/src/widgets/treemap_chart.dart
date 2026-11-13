@@ -561,7 +561,8 @@ class _TreemapState extends State<Treemap> with TickerProviderStateMixin {
     final name = getValueByDataKey(node, widget.nameKey);
     final entry = TooltipPayloadEntry(
       dataKey: widget.dataKey,
-      name: name == null ? null : jsString(name),
+      // `getValueByDataKey(node, nameKey)`: the raw value, not String()ed.
+      name: name,
       value: getValueByDataKey(node, widget.dataKey),
       payload: node,
       color: fill,

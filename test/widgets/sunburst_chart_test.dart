@@ -286,4 +286,16 @@ void main() {
     await tester.pump();
     expect(left, isEmpty);
   });
+
+  testWidgets('the payload name is the raw nameKey value: a number stays a number', (tester) async {
+    final probe = Probe();
+    await tester.pumpWidget(host(SunburstChart(width: 300, height: 300, data: const {
+      'name': 'root',
+      'children': [
+        {'name': 7, 'value': 3},
+      ],
+    }, children: [Tooltip(isAnimationActive: false, defaultIndex: 0, content: probe.build)])));
+    expect(probe.props!.payload.single.name, 7);
+    expect(probe.rows, ['7 : 3']);
+  });
 }

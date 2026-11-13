@@ -413,4 +413,15 @@ void main() {
     image = await capture(tester);
     expect(await pixel(tester, image, const Offset(50, 59)), isNot(await pixel(tester, image, const Offset(50, 30))));
   });
+
+  testWidgets('the tooltip payload name is the raw nameKey value: a number stays a number', (tester) async {
+    final probe = Probe();
+    await tester.pumpWidget(host(Treemap(width: 100, height: 60, isAnimationActive: false, data: const [
+      {'name': 7, 'value': 1},
+    ], children: [Tooltip(isAnimationActive: false, content: probe.build)])));
+    final mouse = await mouseAt(tester, const Offset(50, 30));
+    await tester.pump();
+    expect(probe.props!.payload.single.name, 7);
+    await mouse.removePointer();
+  });
 }
