@@ -58,6 +58,9 @@ class PieSectorShapeProps {
 
 typedef PieShapePainter = void Function(Canvas canvas, PieSectorShapeProps props);
 
+/// A Pie sector's `onClick`, `onMouseEnter`, `onMouseLeave` and touch handlers.
+typedef PieEventHandler = void Function(PieSector data, int index, PointerEvent event);
+
 /// Props handed to [PieLabel.content] and [PieLabel.formatter] (`PieLabelRenderProps`).
 class PieLabelProps {
   const PieLabelProps({
@@ -140,6 +143,12 @@ class Pie extends RechartsElement {
     this.activeShape,
     this.inactiveShape,
     this.shape,
+    this.onClick,
+    this.onMouseEnter,
+    this.onMouseLeave,
+    this.onTouchStart,
+    this.onTouchMove,
+    this.onTouchEnd,
     this.isAnimationActive,
     this.animationBegin = 400,
     this.animationDuration = 1500,
@@ -210,6 +219,10 @@ class Pie extends RechartsElement {
   final int rootTabIndex;
 
   /// Stable identity (`id`); defaults to the Pie's position among the chart's Pies.
+  /// Sector events, fired for the sector under the pointer. Like DOM touch
+  /// events, [onTouchMove] and [onTouchEnd] go to the sector the touch
+  /// started on, even after the finger leaves it.
+  final PieEventHandler? onClick, onMouseEnter, onMouseLeave, onTouchStart, onTouchMove, onTouchEnd;
   final String? id;
 
   /// Recharts' z layer (`area`, 100): higher layers paint on top.

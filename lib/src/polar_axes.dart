@@ -209,7 +209,7 @@ class RadarEventProps {
 /// `onMouseEnter` / `onMouseLeave` of the Radar polygon.
 typedef RadarEventHandler = void Function(RadarEventProps props, PointerEvent event);
 
-/// `onMouseEnter`, `onMouseLeave` and `onClick` of a RadialBar sector.
+/// `onMouseEnter`, `onMouseLeave`, `onClick` and the touch handlers of a RadialBar sector.
 typedef RadialBarEventHandler = void Function(RadialBarSector data, int index, PointerEvent event);
 
 /// src/polar/Radar.tsx. Like SVG, an undefined `fill` (null) paints black
@@ -238,6 +238,12 @@ class Radar extends RechartsElement {
     this.onClick,
     this.onMouseEnter,
     this.onMouseLeave,
+    this.onMouseOver,
+    this.onMouseMove,
+    this.onMouseOut,
+    this.onTouchStart,
+    this.onTouchMove,
+    this.onTouchEnd,
     this.isAnimationActive,
     this.animationBegin = 0,
     this.animationDuration = 1500,
@@ -258,6 +264,11 @@ class Radar extends RechartsElement {
   /// Polygon events: a click on its fill or stroke, and the pointer entering or leaving it.
   final void Function(PointerEvent event)? onClick;
   final RadarEventHandler? onMouseEnter, onMouseLeave;
+
+  /// The polygon's DOM events (svgPropertiesAndEvents): the pointer over it,
+  /// moving on it and leaving it, and touches that start on it (touchmove
+  /// and touchend keep going to it after the finger leaves it).
+  final void Function(PointerEvent event)? onMouseOver, onMouseMove, onMouseOut, onTouchStart, onTouchMove, onTouchEnd;
 
   /// `true`/`false`, an [SvgStyle], or a [DotPainter].
   final Object dot;
@@ -323,6 +334,9 @@ class RadialBar extends RechartsElement {
     this.onClick,
     this.onMouseEnter,
     this.onMouseLeave,
+    this.onTouchStart,
+    this.onTouchMove,
+    this.onTouchEnd,
     this.isAnimationActive,
     this.animationBegin = 0,
     this.animationDuration = 1500,
@@ -373,8 +387,10 @@ class RadialBar extends RechartsElement {
   /// Draws every sector instead of the default Sector.
   final RadialBarShapePainter? shape;
 
-  /// Sector events, fired for the sector under the pointer.
-  final RadialBarEventHandler? onClick, onMouseEnter, onMouseLeave;
+  /// Sector events, fired for the sector under the pointer. Like DOM touch
+  /// events, [onTouchMove] and [onTouchEnd] go to the sector the touch
+  /// started on, even after the finger leaves it.
+  final RadialBarEventHandler? onClick, onMouseEnter, onMouseLeave, onTouchStart, onTouchMove, onTouchEnd;
   final bool? isAnimationActive;
   final int animationBegin;
   final int animationDuration;
