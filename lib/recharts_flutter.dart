@@ -1,6 +1,4 @@
 
-import 'recharts_flutter_platform_interface.dart';
-
 export 'src/components.dart';
 export 'src/css_color.dart' show parseCssColor, cssFillOf, cssStrokeOf, cssNone, isCssNone;
 export 'src/core/curve.dart' show CurveType, ChartLayout;
@@ -32,9 +30,3 @@ export 'src/widgets/sankey_chart.dart' show Sankey, SankeyNodePainter, SankeyLin
 // ---- sunburst: exports ----
 export 'src/widgets/sunburst_chart.dart' show SunburstChart, SunburstTextOptions, SunburstNodeHandler;
 // ---- end sunburst ----
-
-class RechartsFlutter {
-  Future<String?> getPlatformVersion() {
-    return RechartsFlutterPlatform.instance.getPlatformVersion();
-  }
-}
