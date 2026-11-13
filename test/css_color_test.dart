@@ -75,7 +75,7 @@ void main() {
       for (final bad in [
         'rgb(255, 0 0)', 'rgb(255 0 0 0.5)', 'rgb(255, 0, 0 / 0.5)', 'rgb(100%, 0, 0)', 'rgb(5., 0, 0)', 'rgb(1, 2)',
         'rgb(255 0 0 /)', 'rgb(none, 0, 0)', 'hsl(120, 100, 50)', 'hsl(0, 100%, 50%, 0.5, 1)', 'rgb(255,0,0)x', '# fff',
-        'hwb(0 0% 0%)', 'oklch(0.6 0.2 30)', 'rgb(NaN, 0, 0)', 'rgb(Infinity, 0, 0)',
+        'rgb(NaN, 0, 0)', 'rgb(Infinity, 0, 0)', 'hwb(0, 0%, 0%)', 'lab(50, 0, 0)', 'oklch(0.6 0.2)',
       ]) {
         expect(parseCssColor(bad), isNull, reason: bad);
       }
@@ -93,6 +93,40 @@ void main() {
       expect(parseCssColor('hsl(200grad 100% 50%)'), parseCssColor('hsl(180 100% 50%)'));
       expect(parseCssColor('HSL(120DEG 100% 50%)'), const Color(0xFF00FF00));
       expect(parseCssColor('currentColor'), const Color(0xFF000000));
+    });
+
+    // Bytes headless Chromium paints for an SVG rect with that fill (sRGB, out-of-gamut clipped).
+    test('hwb(), lab(), lch(), oklab(), oklch() match Chrome', () {
+      const chrome = {
+        'hwb(200 20% 30%)': 0xFF3388B3,
+        'hwb(120 0% 50%)': 0xFF008000,
+        'hwb(0 60% 60%)': 0xFF808080,
+        'hwb(200 20 30)': 0xFF3388B3,
+        'lab(100 0 0)': 0xFFFFFFFF,
+        'lab(50% 0 0)': 0xFF777777,
+        'lab(54.29 80.82 69.89)': 0xFFFF0000,
+        'lch(54.29 106.84 40.85)': 0xFFFF0000,
+        'lab(50 -128 0)': 0xFF009B74,
+        'lab(50 40 -60)': 0xFF8C5EDF,
+        'lch(60 50 120deg)': 0xFF769C3E,
+        'oklab(1 0 0)': 0xFFFFFFFF,
+        'oklab(62.8% 0.2249 0.1258)': 0xFFFF0000,
+        'oklch(0.628 0.2577 29.23)': 0xFFFF0000,
+        'oklch(62.8% 64.4% 29.23deg)': 0xFFFF0000,
+        'oklch(0.5 0 0)': 0xFF636363,
+        'oklch(0.7 0.4 145)': 0xFF00D200,
+        'oklch(0.65 0.2 30)': 0xFFF0503D,
+        'oklab(0.7 -0.1 0.1)': 0xFF77B253,
+        'oklch(0.6 0.15 0.5turn)': 0xFF009C84,
+        'oklch(0.9 0.3 260)': 0xFF55D2FF,
+        'lab(30 100 -100)': 0xFF8900EC,
+      };
+      for (final MapEntry(:key, :value) in chrome.entries) {
+        expect(parseCssColor(key), Color(value), reason: key);
+      }
+      expect(parseCssColor('hwb(0.5turn 0% 0% / 0.5)'), const Color(0x8000FFFF));
+      expect(parseCssColor('lch(54.29 106.84 40.85deg / 50%)'), const Color(0x80FF0000));
+      expect(parseCssColor('lab(50 none 0)'), parseCssColor('lab(50 0 0)'));
     });
   });
 

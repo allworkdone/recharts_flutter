@@ -1,0 +1,80 @@
+{
+ "name": "pie-css-colors-modern",
+ "description": "Data-entry fills in hwb(), lab(), lch(), oklab() and oklch(), with none, hue units, / alpha and an out-of-gamut oklch.",
+ "width": 400,
+ "height": 300,
+ "chart": {
+  "type": "PieChart",
+  "props": {},
+  "children": [
+   {
+    "type": "Pie",
+    "props": {
+     "isAnimationActive": false,
+     "dataKey": "value",
+     "nameKey": "name",
+     "outerRadius": 120,
+     "data": [
+      {
+       "name": "hwb",
+       "value": 1,
+       "fill": "hwb(200 20% 30%)"
+      },
+      {
+       "name": "lab",
+       "value": 1,
+       "fill": "lab(50 40 -60)"
+      },
+      {
+       "name": "lch",
+       "value": 1,
+       "fill": "lch(60 50 120deg)"
+      },
+      {
+       "name": "oklab",
+       "value": 1,
+       "fill": "oklab(0.7 -0.1 0.1)"
+      },
+      {
+       "name": "oklch",
+       "value": 1,
+       "fill": "oklch(0.65 0.2 30)"
+      },
+      {
+       "name": "gamut",
+       "value": 1,
+       "fill": "oklch(0.7 0.4 145)"
+      },
+      {
+       "name": "turn",
+       "value": 1,
+       "fill": "oklch(0.6 0.15 0.5turn)"
+      },
+      {
+       "name": "alpha",
+       "value": 1,
+       "fill": "lab(30 100 -100 / 0.5)"
+      },
+      {
+       "name": "none",
+       "value": 1,
+       "fill": "lch(70 none 0)"
+      }
+     ]
+    }
+   },
+   {
+    "type": "Tooltip",
+    "props": {}
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-slice",
+   "type": "hover",
+   "x": 260,
+   "y": 120
+  }
+ ]
+}

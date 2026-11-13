@@ -1,7 +1,8 @@
 // A CSS color string reader for the `fill` and `stroke` Recharts takes from
 // data entries and `<Cell>`: #rgb, #rgba, #rrggbb, #rrggbbaa, rgb()/rgba() and
-// hsl()/hsla() (comma or space separated, percentages, `/ alpha`), the CSS
-// named colors, `transparent` and `none`.
+// hsl()/hsla() (comma or space separated, percentages, `/ alpha`), hwb(),
+// lab(), lch(), oklab() and oklch() (space separated, CSS Color 4
+// conversions to sRGB), the CSS named colors, `transparent` and `none`.
 
 import 'dart:math' as math;
 import 'dart:ui' show Color;
@@ -26,8 +27,8 @@ Color? textColorOf(Color? c) => isCssNone(c) ? null : c;
 /// a color. Use [cssFillOf] / [cssStrokeOf] for data entries, which tell `none`
 /// and invalid strings apart.
 ///
-/// ponytail: hwb(), lab(), lch(), oklab(), oklch(), color() and color-mix() are
-/// not parsed (null); add them when a fixture needs one.
+/// ponytail: color() and color-mix() are not parsed (null). Colors outside
+/// sRGB are clipped per channel, as Chrome paints them on an sRGB canvas.
 Color? parseCssColor(String input) {
   final s = input.trim().toLowerCase();
   if (s == 'none') return null;
@@ -37,14 +38,35 @@ Color? parseCssColor(String input) {
   final named = _named[s];
   if (named != null) return Color(named);
   if (s.startsWith('#')) return _hex(s.substring(1));
-  final m = RegExp(r'^(rgba?|hsla?)\(\s*([^)]*?)\s*\)$').firstMatch(s);
+  final m = RegExp(r'^(rgba?|hsla?|hwb|lab|lch|oklab|oklch)\(\s*([^)]*?)\s*\)$').firstMatch(s);
   if (m == null) return null;
+  final legacy = m[2]!.contains(',');
+  // The color functions after hsl() have no comma syntax.
+  if (legacy && !m[1]!.startsWith('rgb') && !m[1]!.startsWith('hsl')) return null;
   final parts = _functionArguments(m[2]!);
   if (parts == null) return null;
   final alpha = parts.length == 4 ? _alpha(parts[3]) : 1.0;
   if (alpha == null) return null;
   final a = (alpha.clamp(0.0, 1.0) * 255).round();
-  final legacy = m[2]!.contains(',');
+  switch (m[1]) {
+    case 'hwb':
+      final (h, w, b) = (_hue(parts[0]), _unitInterval(parts[1], requirePercent: false), _unitInterval(parts[2], requirePercent: false));
+      return h == null || w == null || b == null ? null : _hwb(h, w.clamp(0.0, 1.0), b.clamp(0.0, 1.0), a);
+    case 'lab' || 'oklab':
+      final ok = m[1] == 'oklab';
+      // L: lab 0..100 (100% = 100), oklab 0..1 (100% = 1); a and b: 100% = 125 (lab) or 0.4 (oklab).
+      final l = _scaled(parts[0], ok ? 0.01 : 1), x = _scaled(parts[1], ok ? 0.004 : 1.25), y = _scaled(parts[2], ok ? 0.004 : 1.25);
+      if (l == null || x == null || y == null) return null;
+      return ok ? _oklab(l.clamp(0.0, 1.0), x, y, a) : _lab(l.clamp(0.0, 100.0), x, y, a);
+    case 'lch' || 'oklch':
+      final ok = m[1] == 'oklch';
+      // C: 100% = 150 (lch) or 0.4 (oklch), never negative.
+      final l = _scaled(parts[0], ok ? 0.01 : 1), c = _scaled(parts[1], ok ? 0.004 : 1.5), h = _hue(parts[2]);
+      if (l == null || c == null || h == null) return null;
+      final r = math.max(0.0, c), rad = h * math.pi / 180;
+      final (x, y) = (r * math.cos(rad), r * math.sin(rad));
+      return ok ? _oklab(l.clamp(0.0, 1.0), x, y, a) : _lab(l.clamp(0.0, 100.0), x, y, a);
+  }
   if (m[1]!.startsWith('rgb')) {
     final c = [for (final p in parts.take(3)) _channel(p)];
     if (c.contains(null)) return null;
@@ -146,14 +168,80 @@ double? _hue(String v) {
 }
 
 Color _hsl(double h, double s, double l, int a) {
+  final (r, g, b) = _hslRgb(h, s, l);
+  return _rgb(r, g, b, a);
+}
+
+(double, double, double) _hslRgb(double h, double s, double l) {
   h = ((h % 360) + 360) % 360;
   double f(int n) {
     final k = (n + h / 30) % 12;
     return l - s * math.min(l, 1 - l) * math.max(-1, math.min(math.min(k - 3, 9 - k), 1));
   }
 
-  int c(double v) => (v * 255).round();
-  return Color.fromARGB(a, c(f(0)), c(f(8)), c(f(4)));
+  return (f(0), f(8), f(4));
+}
+
+/// Gamma-encoded sRGB in 0..1, clipped.
+Color _rgb(double r, double g, double b, int a) {
+  int c(double v) => (v.clamp(0.0, 1.0) * 255).round();
+  return Color.fromARGB(a, c(r), c(g), c(b));
+}
+
+/// A lab()/oklab() component: a number, or a percentage times [percent]; `none` is 0.
+double? _scaled(String v, double percent) {
+  final c = _component(v);
+  return c == null ? null : (c.percent ? c.value * percent : c.value);
+}
+
+/// hwbToRgb: the pure hue mixed with white and black; past 100% they make a gray.
+Color _hwb(double h, double w, double b, int a) {
+  if (w + b >= 1) {
+    final gray = w / (w + b);
+    return _rgb(gray, gray, gray, a);
+  }
+  final (r, g, bl) = _hslRgb(h, 1, 0.5);
+  double mix(double v) => v * (1 - w - b) + w;
+  return _rgb(mix(r), mix(g), mix(bl), a);
+}
+
+/// Linear-light sRGB to gamma-encoded (gam_sRGB).
+double _gamma(double v) {
+  final abs = v.abs();
+  return abs > 0.0031308 ? v.sign * (1.055 * math.pow(abs, 1 / 2.4) - 0.055) : 12.92 * v;
+}
+
+/// CIE Lab (D50 white) to sRGB: Lab_to_XYZ, D50_to_D65 (Bradford), XYZ_to_lin_sRGB, gam_sRGB.
+Color _lab(double l, double a, double b, int alpha) {
+  const k = 24389 / 27, e = 216 / 24389;
+  final fy = (l + 16) / 116, fx = a / 500 + fy, fz = fy - b / 200;
+  double inv(double f) => f * f * f > e ? f * f * f : (116 * f - 16) / k;
+  final x50 = inv(fx) * 0.3457 / 0.3585, y50 = l > k * e ? fy * fy * fy : l / k, z50 = inv(fz) * (1 - 0.3457 - 0.3585) / 0.3585;
+  final x = 0.955473421488075 * x50 - 0.02309845494876471 * y50 + 0.06325924320057072 * z50;
+  final y = -0.0283697093338637 * x50 + 1.0099953980813041 * y50 + 0.021041441191917323 * z50;
+  final z = 0.012314014864481998 * x50 - 0.020507649298898964 * y50 + 1.330365926242124 * z50;
+  return _rgb(
+    _gamma(12831 / 3959 * x - 329 / 214 * y - 1974 / 3959 * z),
+    _gamma(-851781 / 878810 * x + 1648619 / 878810 * y + 36519 / 878810 * z),
+    _gamma(705 / 12673 * x - 2585 / 12673 * y + 705 / 667 * z),
+    alpha,
+  );
+}
+
+/// OKLab to sRGB (Ottosson's OKLab to linear sRGB, then gam_sRGB).
+Color _oklab(double l, double a, double b, int alpha) {
+  double cube(double v) => v * v * v;
+  final lms = (
+    cube(l + 0.3963377774 * a + 0.2158037573 * b),
+    cube(l - 0.1055613458 * a - 0.0638541728 * b),
+    cube(l - 0.0894841775 * a - 1.2914855480 * b),
+  );
+  return _rgb(
+    _gamma(4.0767416621 * lms.$1 - 3.3077115913 * lms.$2 + 0.2309699292 * lms.$3),
+    _gamma(-1.2684380046 * lms.$1 + 2.6097574011 * lms.$2 - 0.3413193965 * lms.$3),
+    _gamma(-0.0041960863 * lms.$1 - 0.7034186147 * lms.$2 + 1.7076147010 * lms.$3),
+    alpha,
+  );
 }
 
 const _named = <String, int>{
