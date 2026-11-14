@@ -295,10 +295,12 @@ List<PieSector>? computePieSectors(Pie pie, List<Object?> displayedData, List<Ce
   final minAngle = pie.minAngle.abs();
   final deltaAngle = parseDeltaAngle(pie.startAngle, pie.endAngle);
   final absDeltaAngle = deltaAngle.abs();
-  final paddingAngle = displayedData.length <= 1 ? 0.0 : pie.paddingAngle;
-  bool notZero(Object? v) => !(v is num && v == 0);
+  // A null value counts as 0, like a missing one.
+  bool notZero(Object? v) => isNumber(v) && v != 0;
   final values = [for (final e in displayedData) getValueByDataKey(e, dataKey, 0)];
   final notZeroItemCount = values.where(notZero).length;
+  final paddingAngle = notZeroItemCount <= 1 ? 0.0 : pie.paddingAngle;
+  final firstNonZeroIndex = values.indexWhere(notZero);
   final totalPaddingAngle = (absDeltaAngle >= 360 ? notZeroItemCount : notZeroItemCount - 1) * paddingAngle;
   final sum = values.fold<double>(0, (r, v) => r + (isNumber(v) ? (v as num).toDouble() : 0));
   double numberOr0(Object? v) => isNumber(v) ? (v as num).toDouble() : 0;
@@ -326,7 +328,9 @@ List<PieSector>? computePieSectors(Pie pie, List<Object?> displayedData, List<Ce
     final payload = cell == null || entry is! Map ? entry : {...entry, ..._cellProps(cell)};
     final entryFill = _prop(payload, 'fill');
     final sectorColor = cssFillOf(entryFill) ?? pie.fill;
-    final startAngle = i == 0 ? pie.startAngle : sectors.last.endAngle + sign * paddingAngle * (notZero(val) ? 1 : 0);
+    // Leading zero values take no space, so the first visible sector gets no padding in front of it.
+    final hasPadding = notZero(val) && !(i > 0 && i == firstNonZeroIndex);
+    final startAngle = i == 0 ? pie.startAngle : sectors.last.endAngle + sign * paddingAngle * (hasPadding ? 1 : 0);
     final endAngle = startAngle + sign * ((notZero(val) ? effectiveMinAngle : 0) + percent * realTotalAngle);
     final midAngle = (startAngle + endAngle) / 2;
     final middleRadius = (coordinate.innerRadius + coordinate.outerRadius) / 2;
@@ -343,7 +347,7 @@ List<PieSector>? computePieSectors(Pie pie, List<Object?> displayedData, List<Ce
       midAngle: midAngle,
       middleRadius: middleRadius,
       percent: percent,
-      paddingAngle: notZero(val) ? sign * paddingAngle : 0,
+      paddingAngle: hasPadding ? sign * paddingAngle : 0,
       cornerRadius: cornerRadius,
       name: name,
       value: val,

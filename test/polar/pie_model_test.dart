@@ -149,6 +149,53 @@ void main() {
     });
   });
 
+  group('pieSelectors.spec.tsx zero and null values with paddingAngle', () {
+    List<(double, double, double)> anglesOf(List<Object?> data,
+            {double startAngle = 0, double endAngle = 360, double paddingAngle = 10}) =>
+        [
+          for (final s in model([
+            Pie(
+                data: data,
+                cx: 200,
+                cy: 200,
+                outerRadius: 80,
+                startAngle: startAngle,
+                endAngle: endAngle,
+                paddingAngle: paddingAngle),
+          ], size: const Size(400, 400)).pies.single.sectors!)
+            (s.startAngle, s.endAngle, s.paddingAngle),
+        ];
+
+    test('a null value is treated like a zero value', () {
+      expect(
+          anglesOf(const [
+            {'name': 'A', 'value': 1},
+            {'name': 'Missing', 'value': null},
+            {'name': 'B', 'value': 1},
+          ], paddingAngle: 5),
+          [(0, 175, 5), (175, 175, 0), (180, 355, 5)]);
+    });
+
+    test('no padding in front of the first non-zero sector', () {
+      expect(
+          anglesOf(const [
+            {'name': 'Zero', 'value': 0},
+            {'name': 'A', 'value': 1},
+            {'name': 'B', 'value': 1},
+          ], startAngle: 180, endAngle: 0),
+          [(180, 180, 0), (180, 95, 0), (85, 0, -10)]);
+    });
+
+    test('the only non-zero value after a zero closes the full circle', () {
+      expect(
+          anglesOf(const [
+            {'name': 'Zero', 'value': 0},
+            {'name': 'A', 'value': 1},
+          ]),
+          [(0, 0, 0), (0, 360, 0)]);
+    });
+  });
+
   group('PieChart.spec.tsx', () {
     Pie pie(List<Object?> data, {double minAngle = 0}) => Pie(
         dataKey: 'value', data: data, cx: 200, cy: 200, outerRadius: 80, fill: const Color(0xFFFF7300), minAngle: minAngle);
@@ -191,6 +238,47 @@ void main() {
       ], size: const Size(800, 400));
       final s = m.pies.single.sectors!;
       expect(s[1].endAngle - s[1].startAngle, closeTo(10 + 1 / 1001 * 340, 1e-9));
+    });
+
+    group('null values', () {
+      const nullData = [
+        {'name': 'A', 'value': 1},
+        {'name': 'Missing', 'value': null},
+        {'name': 'B', 'value': 1},
+      ];
+      Object? getValue(Object? e) => (e as Map)['value'];
+      List<({double startAngle, double endAngle})> pieAngles(Object dataKey,
+              {double minAngle = 0, double paddingAngle = 0}) =>
+          angles(rendered(model([
+            Pie(data: nullData, dataKey: dataKey, minAngle: minAngle, paddingAngle: paddingAngle),
+          ], size: const Size(400, 400)).pies.single.sectors!));
+
+      for (final dataKey in <Object>['value', getValue]) {
+        test('no minimum-angle slice for a null value (dataKey $dataKey)', () {
+          expect(pieAngles(dataKey, minAngle: 10), [a(0, 180), a(180, 0)]);
+        });
+        test('no padding for a null value (dataKey $dataKey)', () {
+          expect(pieAngles(dataKey, paddingAngle: 5), [a(0, 175), a(180, 355)]);
+        });
+      }
+    });
+
+    group('zero values at the start with paddingAngle', () {
+      const dataStartingWithZero = [
+        {'name': 'Zero', 'value': 0},
+        {'name': 'A', 'value': 1},
+        {'name': 'B', 'value': 1},
+      ];
+      test('keeps a half pie between startAngle and endAngle', () {
+        final m = model(const [
+          Pie(data: dataStartingWithZero, startAngle: 180, endAngle: 0, paddingAngle: 10),
+        ], size: const Size(400, 400));
+        expect(angles(rendered(m.pies.single.sectors!)), [a(180, 95), a(85, 0)]);
+      });
+      test('starts a full pie at startAngle', () {
+        final m = model(const [Pie(data: dataStartingWithZero, paddingAngle: 10)], size: const Size(400, 400));
+        expect(angles(rendered(m.pies.single.sectors!)), [a(0, 170), a(180, 350)]);
+      });
     });
 
     test('6 sectors', () {
