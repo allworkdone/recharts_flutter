@@ -390,7 +390,8 @@ List<PieSector> interpolatePieSectors(List<AnimationItem<PieSector>>? items, dou
       case Removed():
         continue;
       case Matched(:final prev, :final next):
-        final paddingAngle = index > 0 ? next.paddingAngle : 0;
+        // The padding changes when a value crosses zero; it eases like the arc.
+        final paddingAngle = index > 0 ? interpolate(prev.paddingAngle, next.paddingAngle, t)! : 0;
         final angle = interpolate(prev.endAngle - prev.startAngle, next.endAngle - next.startAngle, t)!;
         final latest = next.withAngles(curAngle + paddingAngle, curAngle + angle + paddingAngle);
         out.add(latest);

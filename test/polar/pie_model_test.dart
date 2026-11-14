@@ -71,7 +71,7 @@ List<String> paths(List<PieSector> sectors) => [
 
 List<({double startAngle, double endAngle})> angles(List<PieSector> sectors) => [
       for (final (i, s) in sectors.indexed)
-        if (rendersSector(sectors, i)) anglesOf(s),
+        if (rendersSector(sectors, i) && sectorPathData(sectorGeometry(s)) != null) anglesOf(s),
     ];
 
 ({double startAngle, double endAngle}) a(double startAngle, double endAngle) =>
@@ -361,6 +361,27 @@ void main() {
         [a(0, 123.5542), a(123.5542, 247.1082), a(247.1082, 0)],
         [a(0, 120), a(120, 240), a(240, 0)],
       ]);
+    });
+
+    // PiePaddingAngleAnimation.spec.tsx
+    test('the closing gap stays at paddingAngle while a middle value animates to zero', () {
+      List<PieSector> sectors(int z, int b) => computePolarModel(
+          chartName: 'PieChart',
+          size: const Size(100, 100),
+          data: const [],
+          children: [
+            Pie(paddingAngle: 10, data: [
+              {'name': 'A', 'value': 40},
+              {'name': 'Z', 'value': z},
+              {'name': 'B', 'value': b},
+            ], children: const [Cell(), Cell(), Cell()]),
+          ]).pies.single.sectors!;
+      final prev = rendered(sectors(10, 50));
+      final next = sectors(0, 60);
+      for (final p in [0.1, 0.3, 0.5, 0.7, 0.9, 1.0]) {
+        final gap = 360 - angles(step(prev, next, p)).last.endAngle;
+        expect(gap, allOf(greaterThan(9.9), lessThanOrEqualTo(10)), reason: 'progress $p');
+      }
     });
 
     test('2 to 3 sectors mid-entrance', () {
