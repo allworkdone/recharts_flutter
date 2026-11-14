@@ -131,6 +131,24 @@ void main() {
     });
   });
 
+  group('pieSelectors.spec.tsx when maxRadius is set', () {
+    PieSector sector(double? maxRadius) => model([
+          Pie(dataKey: 'value', data: const [{'name': 'A', 'value': 400}], outerRadius: '80%', maxRadius: maxRadius),
+        ], size: const Size(800, 800)).pies.single.sectors!.single;
+
+    test('a percentage outerRadius resolves against maxRadius', () {
+      expect(sector(100).outerRadius, 80);
+    });
+
+    test('without maxRadius it resolves against the chart size', () {
+      expect(sector(null).outerRadius, 316);
+    });
+
+    test('a zero maxRadius is kept', () {
+      expect((sector(0).outerRadius, sector(0).maxRadius), (0, 0));
+    });
+  });
+
   group('PieChart.spec.tsx', () {
     Pie pie(List<Object?> data, {double minAngle = 0}) => Pie(
         dataKey: 'value', data: data, cx: 200, cy: 200, outerRadius: 80, fill: const Color(0xFFFF7300), minAngle: minAngle);

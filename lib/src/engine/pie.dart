@@ -270,7 +270,7 @@ Map<String, Object> _cellProps(Cell c) => {
 ({double cx, double cy, double innerRadius, double outerRadius, double maxRadius}) parseCoordinateOfPie(
     Pie pie, ChartOffset offset, Object? dataPoint) {
   final width = offset.width, height = offset.height;
-  final maxPieRadius = getMaxRadius(width, height);
+  final maxPieRadius = pie.maxRadius ?? getMaxRadius(width, height);
   final outer = pie.outerRadius;
   return (
     cx: offset.left + getPercentValue(pie.cx, width, width / 2),
@@ -278,7 +278,7 @@ Map<String, Object> _cellProps(Cell c) => {
     innerRadius: getPercentValue(pie.innerRadius, maxPieRadius, 0),
     outerRadius: getPercentValue(
         outer is Function ? (outer as dynamic)(dataPoint) : outer, maxPieRadius, maxPieRadius * 0.8),
-    maxRadius: pie.maxRadius != null && pie.maxRadius != 0 ? pie.maxRadius! : math.sqrt(width * width + height * height) / 2,
+    maxRadius: pie.maxRadius ?? math.sqrt(width * width + height * height) / 2,
   );
 }
 
