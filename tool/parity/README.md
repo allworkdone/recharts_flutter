@@ -2,7 +2,7 @@
 
     tool/parity/run.sh [fixture-name-filter] [--anim]
 
-Builds the web renderer (Vite + React + recharts 3.10.1), runs `flutter build web --release --no-web-resources-cdn`
+Builds the web renderer (Vite + React + recharts 3.11.0-canary.9), runs `flutter build web --release --no-web-resources-cdn`
 in `example/`, serves both (ports 5180 web, 5181 flutter), runs `capture.mjs`, prints a table.
 Output: `out/report.html`, `out/summary.json`, `out/<fixture>/<state>/{web,flutter,diff}.png`.
 If the Flutter build fails, web-only captures are still taken (no diff).

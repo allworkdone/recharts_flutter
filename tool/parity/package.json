@@ -2,10 +2,17 @@
   "name": "parity",
   "private": true,
   "type": "module",
-  "scripts": { "build": "vite build web" },
+  "scripts": {
+    "build": "vite build web"
+  },
   "dependencies": {
-    "react": "^19", "react-dom": "^19", "recharts": "3.10.1",
-    "vite": "^7", "@vitejs/plugin-react": "^5",
-    "playwright": "^1", "pixelmatch": "^7", "pngjs": "^7"
+    "@vitejs/plugin-react": "^5",
+    "pixelmatch": "^7",
+    "playwright": "^1",
+    "pngjs": "^7",
+    "react": "^19",
+    "react-dom": "^19",
+    "recharts": "3.11.0-canary.9",
+    "vite": "^7"
   }
 }
