@@ -1,3 +1,7 @@
 .reference/
 tool/
 test/core/fixtures/
+/build/
+/coverage/
+/pubspec.lock
+*.iml
