@@ -44,7 +44,9 @@ class PolarGrid extends RechartsElement {
     this.zIndex = -100,
   });
   final List<double>? polarAngles;
-  final List<double>? polarRadius;
+
+  /// Numbers, or percent strings of the outer radius (`'100%'` is the outermost circle).
+  final List<Object>? polarRadius;
   final PolarGridType gridType;
   final bool radialLines;
   final Object angleAxisId, radiusAxisId;

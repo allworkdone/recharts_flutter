@@ -167,7 +167,7 @@ PolarGridGeometry? polarGridGeometry(PolarScene scene, PolarGrid g) {
   if (vb.outerRadius <= 0) return null;
   return (
     angles: polarAngles,
-    radii: polarRadius,
+    radii: [for (final r in polarRadius) getPercentValue(r, vb.outerRadius)],
     lines: g.radialLines
         ? [
             for (final angle in polarAngles)

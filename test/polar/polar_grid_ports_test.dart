@@ -11,6 +11,8 @@ import 'package:recharts_flutter/src/engine/pie.dart';
 import 'package:recharts_flutter/src/engine/polar_axis.dart';
 import 'package:recharts_flutter/src/render/polar_scene_painter.dart';
 
+import 'polar_scene_test.dart' show exampleRadarData;
+
 // storybook/stories/data/Page.ts
 const pageData = [
   {'name': 'Page A', 'uv': 590, 'pv': 800, 'amt': 1400},
@@ -192,5 +194,25 @@ void main() {
     final tickCount = angleAxisTickGeometry(m.scene!, m.scene!.angleAxisElements.single).length;
     expect(polarGridGeometry(m.scene!, m.scene!.grids.single)!.lines.length, ends.length);
     expect(ends.length, tickCount);
+  });
+
+  // PolarGrid.spec.tsx 'Resolves percentage radii relative to the outer radius'
+  test('percentage radii resolve against the outer radius, numbers stay pixels', () {
+    List<double> radii(String chartName, PolarLayout layout, List<RechartsElement> children, List<Object> polarRadius) {
+      final m = computePolarModel(
+        chartName: chartName,
+        size: const Size(500, 500),
+        data: chartName == 'RadarChart' ? exampleRadarData : pageData,
+        children: [...children, PolarGrid(gridType: PolarGridType.circle, polarRadius: polarRadius)],
+        layout: layout,
+        options: const PolarOptions(outerRadius: 200, startAngle: 90, endAngle: -270),
+      );
+      return polarGridGeometry(m.scene!, m.scene!.grids.single)!.radii;
+    }
+
+    expect(radii('RadarChart', PolarLayout.centric, const [Radar(dataKey: 'value')], const ['10%', '50%', '100%']),
+        [20, 100, 200]);
+    expect(radii('RadialBarChart', PolarLayout.radial, const [RadialBar(dataKey: 'uv')], const ['25%', '50%', 120, '100%']),
+        [50, 100, 120, 200]);
   });
 }

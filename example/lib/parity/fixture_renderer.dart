@@ -571,7 +571,7 @@ RechartsElement? _child(Map<String, dynamic> node) {
     case 'PolarGrid':
       return PolarGrid(
         polarAngles: (p.raw['polarAngles'] as List?)?.map((e) => (e as num).toDouble()).toList(),
-        polarRadius: (p.raw['polarRadius'] as List?)?.map((e) => (e as num).toDouble()).toList(),
+        polarRadius: (p.raw['polarRadius'] as List?)?.cast<Object>(),
         gridType: p.str('gridType') == 'circle' ? PolarGridType.circle : PolarGridType.polygon,
         radialLines: p.boolean('radialLines') ?? true,
         angleAxisId: p.raw['angleAxisId'] ?? 0,
