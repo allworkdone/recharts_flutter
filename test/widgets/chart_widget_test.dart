@@ -170,6 +170,25 @@ void main() {
     expect(await pixel(tester, done, const Offset(16, 30)), const Color(0xFF8884D8));
   });
 
+  // Cursor.theme.spec.tsx: 'preserves the legacy cursor style without a provider' (stroke and fill #ccc).
+  testWidgets('the BarChart cursor rectangle has a #ccc stroke unless the cursor sets one', (tester) async {
+    const blue = Color(0xFF0000FF), red = Color(0xFFFF0000);
+    Future<ui.Image> paint(SvgStyle cursor) async {
+      await tester.pumpWidget(host(BarChart(width: 400, height: 200, data: data, children: [
+        const Bar(dataKey: 'uv', isAnimationActive: false),
+        Tooltip(defaultIndex: 0, isAnimationActive: false, cursor: cursor),
+      ])));
+      return capture(tester);
+    }
+
+    // The cursor spans x 5..102.5 from y 5.5, 189 high; the first bar starts at x 14.75.
+    var image = await paint(const SvgStyle(fill: blue));
+    expect(await pixel(tester, image, const Offset(8, 5)), const Color(0xFFCCCCCC));
+    expect(await pixel(tester, image, const Offset(8, 100)), blue);
+    image = await paint(const SvgStyle(fill: blue, stroke: red));
+    expect(await pixel(tester, image, const Offset(8, 5)), red);
+  });
+
   group('Bar.rerenderStability.spec.tsx: with Cell children', () {
     var starts = 0;
     Widget chart(List<String> fills) => host(BarChart(width: 100, height: 50, data: data.sublist(0, 2), children: [

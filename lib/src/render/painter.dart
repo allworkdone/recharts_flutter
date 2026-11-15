@@ -760,9 +760,9 @@ class CartesianPainter extends CustomPainter {
       if (r.width == 0 || r.height == 0) return;
       final path = rectanglePath(r.left, r.top, r.width, r.height, 0);
       canvas.drawPath(path, fillPaint(style?.fill ?? const Color(0xFFCCCCCC), opacity: style?.fillOpacity ?? 1));
-      if (style?.stroke != null) {
-        drawStroke(canvas, path, strokePaint(style!.stroke!, style.strokeWidth ?? 1), style.strokeDasharray);
-      }
+      // The legacy cursor stroke (#ccc) reaches the rectangle too since getCursorRectangle dropped `stroke: 'none'`.
+      drawStroke(canvas, path, strokePaint(style?.stroke ?? const Color(0xFFCCCCCC), style?.strokeWidth ?? 1),
+          style?.strokeDasharray);
     } else if (m.chartName == 'ScatterChart') {
       // Cross: `M${x},${top}v${height}M${left},${y}h${width}`.
       final c = h.coordinate!, o = m.offset;
