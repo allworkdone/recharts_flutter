@@ -1,6 +1,6 @@
 {
  "name": "bar-own-data",
- "description": "A Bar with its own data in a BarChart without data; the tooltip reads the (missing) chart data, so it shows the label only.",
+ "description": "A Bar with its own data in a BarChart without data; the tooltip reads the missing chart data and does not show.",
  "width": 500,
  "height": 300,
  "chart": {
