@@ -112,6 +112,34 @@ void main() {
     });
   });
 
+  group('Bar.spec.tsx: own data', () {
+    const ownData = [
+      {'name': 'A', 'value': 10},
+      {'name': 'B', 'value': 20},
+    ];
+    for (final chart in ['BarChart', 'ComposedChart']) {
+      test('$chart renders Bar using its own data prop even when the chart root has no data', () {
+        final m = model(chart, 400, 400, const [], const [
+          XAxis(dataKey: 'name'),
+          YAxis(),
+          Bar(dataKey: 'value', data: ownData, isAnimationActive: false),
+        ]);
+        expect(m.series.single.rects, hasLength(2));
+      });
+    }
+
+    test('the tooltip of a Bar with its own data reads the chart data (no dataDefinedOnItem)', () {
+      final m = model('BarChart', 400, 400, const [], const [
+        XAxis(dataKey: 'name'),
+        Bar(dataKey: 'value', data: ownData),
+      ]);
+      expect(activeLabelOf(m, 1), 'B');
+      final entry = tooltipPayloadOf(m, 1).single;
+      expect(entry.payload, isNull);
+      expect(entry.value, isNull);
+    });
+  });
+
   group('Line.animation.spec.tsx: points', () {
     test('LineChart 100x100 uv points', () {
       final m = model('LineChart', 100, 100, pageData, const [Line(dataKey: 'uv')]);

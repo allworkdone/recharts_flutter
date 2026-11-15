@@ -706,6 +706,7 @@ class Bar extends CartesianSeries {
     super.unit,
     super.tooltipType,
     super.formatter,
+    this.data,
     super.isAnimationActive,
     super.animationBegin,
     super.animationDuration = 400,
@@ -751,8 +752,14 @@ class Bar extends CartesianSeries {
   /// [Cell]s (matched to entries by index), [LabelList]s and [ErrorBar]s.
   final List<RechartsElement> children;
 
+  /// Drawn instead of the chart data when not empty. The tooltip still reads
+  /// the chart data, like Recharts.
+  final List<Object?>? data;
+
   List<Cell> get cells => children.whereType<Cell>().toList();
 
+  @override
+  Object? get itemData => data;
   @override
   Object? get stackIdOrNull => stackId;
   @override

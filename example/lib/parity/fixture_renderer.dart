@@ -377,6 +377,7 @@ RechartsElement? _child(Map<String, dynamic> node) {
         background: p.svgOrBool('background') ?? false,
         activeBar: p.svgOrBool('activeBar') ?? false,
         hide: p.boolean('hide') ?? false,
+        data: (p.raw['data'] as List?)?.cast<Object?>(),
         legendType: _enum(LegendType.values, p.str('legendType')) ?? LegendType.rect,
         name: p.raw['name'],
         unit: p.raw['unit']?.toString(),

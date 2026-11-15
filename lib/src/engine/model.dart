@@ -929,9 +929,10 @@ List<BarRect>? _barRectangles(GraphicalItem item, List<GraphicalItem> items, Axi
   }
 
   final cells = bar.cells;
+  final displayed = (item.data != null && item.data!.isNotEmpty) ? item.data! : chartData;
   final rects = <BarRect>[];
-  for (var index = 0; index < chartData.length; index++) {
-    final entry = chartData[index];
+  for (var index = 0; index < displayed.length; index++) {
+    final entry = displayed[index];
     List<Object?> value;
     if (stackedData != null) {
       // stackedData spans the whole chart data; the slice starts at dataStartIndex.
@@ -1407,7 +1408,8 @@ List<TooltipPayloadEntry> tooltipPayloadOf(CartesianModel m, int? activeIndex,
       }
       continue;
     }
-    final finalData = getSliced(item.data ?? m.chartData, m.dataStartIndex, m.dataEndIndex);
+    // Bar registers no dataDefinedOnItem: its tooltip reads the chart data.
+    final finalData = getSliced((el is Bar ? null : item.data) ?? m.chartData, m.dataStartIndex, m.dataEndIndex);
     Object? payload;
     if (axisDataKey != null && !itemEventType) {
       payload = finalData.where((e) => getValueByDataKey(e, axisDataKey) == activeLabel).firstOrNull;
