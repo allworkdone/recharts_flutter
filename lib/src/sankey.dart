@@ -576,7 +576,9 @@ Offset sankeyNodeTooltipCoordinate(SankeyNodeProps p) => Offset(p.x + p.width / 
 Offset sankeyLinkTooltipCoordinate(SankeyLinkProps p) => Offset((p.sourceX + p.targetX) / 2, (p.sourceY + p.targetY) / 2);
 
 /// `sankeyPayloadSearcher` + `combineTooltipPayload`'s non-array branch: the
-/// one tooltip entry of item `type-index`, or null.
+/// one tooltip entry of item `type-index`, or null. The searched item's `color`
+/// is `getRenderedPaint`: the node's own fill or the link's own stroke, which
+/// wins over the series [fill].
 TooltipPayloadEntry sankeyTooltipEntry({
   required SankeyElementType type,
   required int index,
@@ -591,30 +593,35 @@ TooltipPayloadEntry sankeyTooltipEntry({
   // An index with no item (the keyboard's '0') leaves the searcher result undefined.
   Object? searched;
   Object? payload, itemName, itemValue;
+  Color? color;
+  // getRenderedPaint: a color that paints, not none.
+  Color? paint(Color? c) => isCssNone(c) ? null : c;
   final inRange = index >= 0 && index < (type == SankeyElementType.node ? nodes.length : links.length);
   if (!inRange) {
     // searched stays null
   } else if (type == SankeyElementType.node) {
     final node = nodes[index].payload.toMap();
     payload = node;
+    color = paint(nodes[index].style?.fill);
     itemName = getValueByDataKey(node, nameKey, '');
     itemValue = getValueByDataKey(node, 'value');
   } else {
     final p = links[index].payload;
     payload = p;
+    color = paint(links[index].style?.stroke);
     final sourceName = getValueByDataKey(p['source'], nameKey, '');
     final targetName = getValueByDataKey(p['target'], nameKey, '');
     itemName = '${jsString(sourceName)} - ${jsString(targetName)}';
     itemValue = getValueByDataKey(p, 'value');
   }
-  if (inRange) searched = <String, Object?>{'payload': payload, 'name': itemName, 'value': itemValue};
+  if (inRange) searched = <String, Object?>{'payload': payload, 'name': itemName, 'value': itemValue, 'color': ?color};
   final n = getValueByDataKey(searched, nameKey) ?? name;
   return TooltipPayloadEntry(
     dataKey: dataKey,
     name: n == null ? null : jsString(n),
     value: getValueByDataKey(searched, dataKey),
     payload: searched,
-    color: fill,
+    color: color ?? fill,
     fill: fill,
     stroke: stroke,
     unit: '',

@@ -734,6 +734,47 @@ void main() {
     });
   });
 
+  group('tooltip color is the rendered paint (getRenderedPaint)', () {
+    Future<Probe> hover(WidgetTester tester, Offset at, {Color? fill, Object? node, Object? link, SankeyData? data}) async {
+      final probe = Probe();
+      await tester.pumpWidget(host(Sankey(
+        width: 1000,
+        height: 500,
+        data: data ?? exampleSankeyData,
+        fill: fill,
+        node: node,
+        link: link,
+        children: [Tooltip(isAnimationActive: false, content: probe.build)],
+      )));
+      final mouse = await mouseAt(tester, const Offset(999, 499));
+      await mouse.moveTo(at);
+      await tester.pump();
+      return probe;
+    }
+
+    testWidgets('a node with no fill of its own keeps the series fill (Sankey.theme.spec, no theme)', (tester) async {
+      final probe = await hover(tester, const Offset(10, 139), fill: const Color(0xFF800080));
+      expect(probe.props!.payload.single.color, const Color(0xFF800080));
+    });
+
+    testWidgets("a link takes the link prop's stroke", (tester) async {
+      // sankey-simple in canary.9: the hover-link row is drawn in the link stroke.
+      final probe = await hover(tester, const Offset(80, 142), link: SvgStyle.css(stroke: '#77c878'));
+      expect(probe.props!.payload.single.color, const Color(0xFF77C878));
+    });
+
+    testWidgets("a node takes its entry's fill, the fill it is drawn with", (tester) async {
+      // sankey-labels in canary.9: the hover-node row is drawn in the node's data fill.
+      final data = SankeyData(nodes: [
+        {...exampleSankeyData.nodes[0], 'fill': '#e76f51'},
+        ...exampleSankeyData.nodes.skip(1),
+      ], links: exampleSankeyData.links);
+      final probe = await hover(tester, const Offset(10, 139), data: data);
+      expect(probe.props!.payload.single.color, const Color(0xFFE76F51));
+      expect((probe.props!.payload.single.payload as Map)['color'], const Color(0xFFE76F51));
+    });
+  });
+
   group('node labels (recharts #8042)', () {
     final labelData = chain(['a', 'b', 'c'], [
       [0, 1, 10],
