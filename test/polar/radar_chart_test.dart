@@ -98,6 +98,19 @@ void main() {
     expect(probe.props!.label, 'Page A');
   });
 
+  // Label.spec.tsx 'should render position=center in the center of the polar chart when cy is set'
+  testWidgets('a centered PolarRadiusAxis label sits at the polar center', (tester) async {
+    Offset? at;
+    await tester.pumpWidget(host(RadialBarChart(width: 500, height: 500, data: pageData, cy: '70%', startAngle: 180, endAngle: 0, children: [
+      const RadialBar(dataKey: 'uv', isAnimationActive: false),
+      PolarRadiusAxis(
+          tick: false,
+          axisLine: false,
+          label: Label(position: LabelPosition.center, value: 'center label', content: (_, p) => at = Offset(p.x, p.y))),
+    ])));
+    expect(at, const Offset(250, 350));
+  });
+
   testWidgets('syncId shares the tooltip index between a LineChart and a RadarChart', (tester) async {
     final probe = Probe(), lineProbe = Probe();
     const data = [
