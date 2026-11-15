@@ -814,8 +814,10 @@ class _TreemapPainter extends CustomPainter {
     final inheritedFill = widget.fill;
     final inheritedStroke = widget.stroke;
 
-    if (x.isFinite && y.isFinite && width.isFinite && height.isFinite && width != 0 && height != 0) {
-      final d = drawIn(item);
+    final d = drawIn(item);
+    // A zero-size Rectangle still draws while it animates down from a visible size.
+    final shrinking = d != null && d.t < 1 && d.from.width != 0 && d.from.height != 0;
+    if (x.isFinite && y.isFinite && width.isFinite && height.isFinite && ((width != 0 && height != 0) || shrinking)) {
       final rect = d?.rect ?? Rect.fromLTWH(x, y, width, height);
       canvas.drawRect(rect, Paint()..color = fill);
       if (d == null || widget.isAnimationActive == false) {

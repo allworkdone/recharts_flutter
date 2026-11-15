@@ -475,6 +475,38 @@ void main() {
     expect(await pixel(tester, image, const Offset(50, 59)), isNot(await pixel(tester, image, const Offset(50, 30))));
   });
 
+  // Rectangle.animation.spec.tsx: a rectangle animating to zero stays mounted until the animation ends.
+  testWidgets('isUpdateAnimationActive false: a node shrinking to zero keeps drawing while it animates', (tester) async {
+    const red = Color(0xFFFF0000);
+    Widget chart(int a) => Treemap(
+          width: 100,
+          height: 60,
+          data: [
+            {'name': 'a', 'value': a, 'fill': '#f00'},
+            // b and c move, so they remount at once; they paint nothing to keep a in sight.
+            const {'name': 'b', 'value': 1, 'fill': 'none', 'stroke': 'none'},
+            const {'name': 'c', 'value': 2, 'fill': 'none', 'stroke': 'none'},
+          ],
+          isUpdateAnimationActive: false,
+          isAnimationActive: false,
+        );
+    // a spans (0, 0, 50, 30); with a = 0 it keeps its key and goes to (0, 0, 100, 0).
+    await tester.pumpWidget(host(chart(1)));
+    var image = await capture(tester);
+    expect(await pixel(tester, image, const Offset(30, 10)), red);
+    // The root node, under the unpainted b and c.
+    final root = await pixel(tester, image, const Offset(75, 30));
+    expect(root, isNot(red));
+    await tester.pumpWidget(host(chart(0)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump(const Duration(milliseconds: 300));
+    // ease(0.2) of the way: (0, 0, 64.8, 21.1).
+    expect(await pixel(tester, await capture(tester), const Offset(30, 10)), red);
+    await tester.pump(const Duration(milliseconds: 1300));
+    expect(await pixel(tester, await capture(tester), const Offset(30, 10)), root);
+  });
+
   testWidgets('the tooltip payload name is the raw nameKey value: a number stays a number', (tester) async {
     final probe = Probe();
     await tester.pumpWidget(host(Treemap(width: 100, height: 60, isAnimationActive: false, data: const [
