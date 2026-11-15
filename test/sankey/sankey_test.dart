@@ -226,6 +226,66 @@ void main() {
     });
   });
 
+  group('layout of graphs that contain a cycle (recharts #7619)', () {
+    test('a back edge lays out instead of exhausting the stack', () {
+      final data = chain(['a', 'b', 'c'], [
+        [0, 1, 10],
+        [1, 2, 10],
+        [2, 1, 5],
+      ]);
+      expect(compute(data).nodes, hasLength(3));
+    });
+
+    test('a self referencing node lays out', () {
+      final data = chain(['a', 'b', 'c'], [
+        [0, 1, 10],
+        [1, 1, 5],
+      ]);
+      expect(compute(data).nodes, hasLength(3));
+    });
+
+    testWidgets('a graph with a back edge renders every node and link', (tester) async {
+      var nodes = 0, links = 0;
+      await tester.pumpWidget(host(Sankey(
+        width: 1000,
+        height: 500,
+        data: chain(['a', 'b', 'c'], [
+          [0, 1, 10],
+          [1, 2, 10],
+          [2, 1, 5],
+        ]),
+        node: (Canvas c, Size s, SankeyNodeProps p) {
+          nodes++;
+          return null;
+        },
+        link: (Canvas c, Size s, SankeyLinkProps p) {
+          links++;
+          return null;
+        },
+      )));
+      expect([nodes, links], [3, 3]);
+    });
+
+    test('a target revisited by a longer acyclic path takes that depth', () {
+      final data = chain(['a', 'b', 'c', 'd', 'e'], [
+        [0, 1, 10],
+        [1, 3, 10],
+        [0, 2, 10],
+        [2, 4, 10],
+        [4, 3, 10],
+      ]);
+      expect(compute(data).nodes.map((n) => n.depth), [0, 1, 1, 3, 2]);
+    });
+
+    test('an acyclic graph keeps its depths', () {
+      final data = chain(['a', 'b', 'c'], [
+        [0, 1, 10],
+        [1, 2, 10],
+      ]);
+      expect(compute(data).nodes.map((n) => n.depth), [0, 1, 2]);
+    });
+  });
+
   group('widget', () {
     Widget chart(Probe probe, {Tooltip? tooltip, SankeyEventHandler? onClick, SankeyEventHandler? onEnter, SankeyEventHandler? onLeave}) =>
         host(Sankey(

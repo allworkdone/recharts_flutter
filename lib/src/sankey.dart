@@ -148,16 +148,22 @@ void _searchTargetsAndSources(SankeyNode node, List<SankeyLinkDatum> links, int 
   }
 }
 
-void _updateDepthOfTargets(List<SankeyNode> tree, SankeyNode curNode) {
+/// [onPath] holds the nodes on the current recursion path: a link back to one of
+/// them is skipped, else depth grows on every trip around the cycle.
+void _updateDepthOfTargets(List<SankeyNode> tree, SankeyNode curNode, [Set<SankeyNode>? onPath]) {
+  onPath ??= {};
+  onPath.add(curNode);
   for (final targetNode in curNode.targetNodes) {
     if (targetNode < 0 || targetNode >= tree.length) continue;
     final target = tree[targetNode];
+    if (onPath.contains(target)) continue;
     final newDepth = curNode.depth + 1;
     if (newDepth > target.depth) {
       target.depth = newDepth;
-      _updateDepthOfTargets(tree, target);
+      _updateDepthOfTargets(tree, target, onPath);
     }
   }
+  onPath.remove(curNode);
 }
 
 List<SankeyNode> _getNodesTree(SankeyData data, double width, double nodeWidth, SankeyAlign align) {
