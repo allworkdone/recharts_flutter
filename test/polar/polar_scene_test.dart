@@ -308,6 +308,57 @@ void main() {
     });
   });
 
+  group('RadialBar data entry colors in the Legend and Tooltip (RadialBar.theme.spec, no theme)', () {
+    const gold = Color(0xFFFFD700), lime = Color(0xFF00FF00), c123456 = Color(0xFF123456);
+    List<Color?> legend(List<Object?> data, RadialBar bar) => [
+          for (final p in radialBarLegendPayload(radialBarModel(data, [bar]).scene!.radialBars.single.settings, data))
+            p.color,
+        ];
+    Color? tooltipColor(List<Object?> data, RadialBar bar) =>
+        polarTooltipPayload(radialBarModel(data, [bar]).scene!, data, 0).single.color;
+
+    test('the Legend shows the Cell fill, then the RadialBar fill', () {
+      expect(
+          legend(const [
+            {'name': 'A', 'value': 1},
+            {'name': 'B', 'value': 2},
+          ], const RadialBar(dataKey: 'value', fill: gold, children: [Cell(fill: c123456)])),
+          [c123456, gold]);
+    });
+
+    test('the Legend shows the RadialBar fill when the entry only has a stroke', () {
+      expect(legend(const [{'name': 'A', 'value': 1, 'stroke': 'lime'}], const RadialBar(dataKey: 'value', fill: c123456)),
+          [c123456]);
+    });
+
+    test('the Legend shows each sector color: entry fill, else entry stroke', () {
+      expect(
+          legend(const [
+            {'name': 'A', 'value': 1, 'fill': 'gold'},
+            {'name': 'B', 'value': 2, 'stroke': 'lime'},
+            {'name': 'C', 'value': 3},
+          ], const RadialBar(dataKey: 'value')),
+          [gold, lime, null]);
+    });
+
+    test('the Tooltip shows the RadialBar fill when the entry only has a stroke', () {
+      expect(tooltipColor(const [{'name': 'A', 'value': 1, 'stroke': 'lime'}], const RadialBar(dataKey: 'value', fill: c123456)),
+          c123456);
+    });
+
+    test('the Tooltip shows the Cell fill', () {
+      expect(
+          tooltipColor(const [{'name': 'A', 'value': 1}],
+              const RadialBar(dataKey: 'value', fill: gold, children: [Cell(fill: c123456)])),
+          c123456);
+    });
+
+    test('the Tooltip shows the entry fill over the RadialBar fill', () {
+      expect(tooltipColor(const [{'name': 'A', 'value': 1, 'fill': 'gold'}], const RadialBar(dataKey: 'value', fill: c123456)),
+          gold);
+    });
+  });
+
   group('RadialBar minAngle (RadialBar.spec: 500x500)', () {
     const data = [
       {'name': 'A', 'pv': 100},

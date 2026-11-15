@@ -627,10 +627,11 @@ void _paintRadialBarBackground(Canvas canvas, RadialBarModel m) {
       cornerIsExternal: style?.cornerIsExternal ?? false,
     ));
     if (path == null) continue;
+    // The background is not the bar: the data entry's styles stay off it.
     final fill = style?.fill ?? const Color(0xFFEEEEEE);
-    canvas.drawPath(path, fillPaint(fill, opacity: style?.fillOpacity ?? (s.props['fillOpacity'] as num?)?.toDouble() ?? 1));
-    final stroke = style?.stroke ?? cssStrokeOf(s.props['stroke']);
-    final width = style?.strokeWidth ?? (s.props['strokeWidth'] as num?)?.toDouble() ?? 1;
+    canvas.drawPath(path, fillPaint(fill, opacity: style?.fillOpacity ?? 1));
+    final stroke = style?.stroke;
+    final width = style?.strokeWidth ?? 1;
     if (stroke != null && width > 0) {
       drawStroke(canvas, path, strokePaint(stroke, width, opacity: style?.strokeOpacity ?? 1), style?.strokeDasharray);
     }

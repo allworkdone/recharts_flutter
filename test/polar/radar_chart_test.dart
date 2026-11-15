@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:recharts_flutter/recharts_flutter.dart';
+import 'package:recharts_flutter/src/engine/pie.dart' show computePolarModel;
+import 'package:recharts_flutter/src/engine/polar_axis.dart';
 
 import '../widgets/chart_widget_test.dart' show capture, host, pixel, tooltipBox;
 import '../widgets/tooltip_item_test.dart' show Probe, mouseAt;
@@ -109,6 +111,29 @@ void main() {
           label: Label(position: LabelPosition.center, value: 'center label', content: (_, p) => at = Offset(p.x, p.y))),
     ])));
     expect(at, const Offset(250, 350));
+  });
+
+  // RadialBar.theme.spec.tsx 'does not apply the entry styles to the background'
+  testWidgets('a RadialBar background does not take the stroke of the data entry', (tester) async {
+    const data = [
+      {'name': 'A', 'value': 1, 'stroke': 'lime', 'strokeWidth': 5},
+      {'name': 'B', 'value': 2},
+    ];
+    await tester.pumpWidget(host(const RadialBarChart(width: 400, height: 400, data: data, children: [
+      RadialBar(dataKey: 'value', background: true, isAnimationActive: false),
+    ])));
+    // Sector A covers the upper half of its ring; below the center only its background shows.
+    final a = computePolarModel(
+      chartName: 'RadialBarChart',
+      size: const Size(400, 400),
+      data: data,
+      children: const [RadialBar(dataKey: 'value')],
+      layout: PolarLayout.radial,
+      options: const PolarOptions(startAngle: 0, endAngle: 360),
+    ).scene!.radialBars.single.sectors.first;
+    final image = await capture(tester);
+    expect(await pixel(tester, image, Offset(200, 200 + (a.innerRadius + a.outerRadius) / 2)), const Color(0xFFEEEEEE));
+    expect((await pixel(tester, image, Offset(200, 200 + a.outerRadius + 1.5))).a, 0);
   });
 
   testWidgets('syncId shares the tooltip index between a LineChart and a RadarChart', (tester) async {

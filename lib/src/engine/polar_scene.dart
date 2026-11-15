@@ -18,7 +18,6 @@ import 'get_ticks.dart';
 import 'model.dart' show calculateActiveTickIndex;
 import 'polar_axis.dart';
 import 'polar_items.dart';
-import '../css_color.dart';
 
 /// `PolarCoordinate`: a tooltip coordinate with its polar parts.
 class PolarCoordinate {
@@ -357,18 +356,18 @@ List<TooltipPayloadEntry> polarTooltipPayload(PolarScene s, List<Object?> chartD
       final b = item.radialBar!;
       // `dataDefinedOnItem` is the sectors, which are already sliced; getSliced slices them again.
       final sectors = getSliced(s.radialBars.firstWhere((m) => m.id == item.id).sectors, s.dataStartIndex, s.dataEndIndex);
-      final sector = activeIndex >= 0 && activeIndex < sectors.length ? sectors[activeIndex] : null;
-      Object? payload = sector?.asPayload;
+      var sector = activeIndex >= 0 && activeIndex < sectors.length ? sectors[activeIndex] : null;
       // `dataDefinedOnItem` is the sectors, searched by index (tooltipAxis dataKey ignored for objects)
       if (axisDataKey != null && sector != null) {
-        payload = sectors.where((e) => getValueByDataKey(e.asPayload, axisDataKey) == activeLabel).firstOrNull?.asPayload ?? payload;
+        sector = sectors.where((e) => getValueByDataKey(e.asPayload, axisDataKey) == activeLabel).firstOrNull ?? sector;
       }
+      final payload = sector?.asPayload;
       out.add(TooltipPayloadEntry(
         dataKey: b.dataKey,
         name: tooltipNameProp(b.name, b.dataKey),
         value: getValueByDataKey(payload, b.dataKey),
         payload: payload,
-        color: b.fill,
+        color: sector == null ? b.fill : radialBarEntryColor(b, sector.entry, sector.cell) ?? b.fill,
         fill: b.fill,
         stroke: b.stroke,
         unit: '',
@@ -393,13 +392,16 @@ LegendPayload radarLegendEntry(Radar r) => LegendPayload(
       inactive: r.hide,
     );
 
-/// `selectRadialBarLegendPayload`: one entry per data row.
-List<LegendPayload> radialBarLegendPayload(RadialBar b, List<Object?> chartData) => [
-      for (final entry in chartData)
-        LegendPayload(
-          value: switch (entry is Map ? entry['name'] : null) { null => null, final v => jsString(v) },
-          type: b.legendType,
-          color: cssFillOf(entry is Map ? entry['fill'] : null),
-          dataKey: null,
-        ),
-    ];
+/// `selectRadialBarLegendPayload`: one entry per data row, in the color of its sector.
+List<LegendPayload> radialBarLegendPayload(RadialBar b, List<Object?> chartData) {
+  final cells = b.cells;
+  return [
+    for (final (i, entry) in chartData.indexed)
+      LegendPayload(
+        value: switch (entry is Map ? entry['name'] : null) { null => null, final v => jsString(v) },
+        type: b.legendType,
+        color: radialBarEntryColor(b, entry, i < cells.length ? cells[i] : null),
+        dataKey: null,
+      ),
+  ];
+}

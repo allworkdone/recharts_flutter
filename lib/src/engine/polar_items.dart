@@ -237,6 +237,13 @@ class RadialBarSector {
   int get hashCode => Object.hash(cx, cy, innerRadius, outerRadius, startAngle, endAngle);
 }
 
+/// `getEntryColor` without a theme: the color a RadialBar paints [entry] with
+/// (its [cell] first), its fill or else its stroke. Tooltip and Legend show it.
+Color? radialBarEntryColor(RadialBar bar, Object? entry, Cell? cell) {
+  Object? prop(String k) => entry is Map ? entry[k] : null;
+  return cell?.fill ?? cssFillOf(prop('fill')) ?? bar.fill ?? cell?.stroke ?? cssStrokeOf(prop('stroke')) ?? bar.stroke;
+}
+
 /// `parseCornerRadius`: a string goes through `parseInt`.
 double? parseCornerRadius(Object? cornerRadius) => switch (cornerRadius) {
       final num n => n.toDouble(),
