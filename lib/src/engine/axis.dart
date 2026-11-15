@@ -864,6 +864,12 @@ double? getBandSizeOfAxis(RechartsScale? scale, List<TickItem>? ticks, [bool isB
     }
     return bandSize == double.infinity ? 0 : bandSize;
   }
+  // A single tick has no gap to measure: bars get the widest band centered on it inside the axis.
+  if (isBar && scale != null && ticks != null && ticks.length == 1) {
+    final tick = ticks.single.coordinate;
+    final band = 2.0 * math.min((tick - scale.range[0]).abs(), (scale.range[1] - tick).abs());
+    if (band > 0) return band;
+  }
   return isBar ? null : 0;
 }
 

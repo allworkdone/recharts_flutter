@@ -215,6 +215,101 @@ void main() {
     });
   });
 
+  group('Bar.singleBand.spec.tsx: a single tick on a numeric axis', () {
+    // [x, width] of each bar, rounded like the path.
+    List<List<double>> spans(CartesianModel m) => [
+          for (final r in m.series.single.rects!) [round4(r.x), round4(r.width)],
+        ];
+    CartesianModel lone(num x, {List<Object>? domain, Object? barSize, double? maxBarSize}) =>
+        model('BarChart', 400, 300, [
+          {'x': x, 'count': 10},
+        ], [
+          XAxis(dataKey: 'x', type: AxisDomainType.number, domain: domain),
+          Bar(dataKey: 'count', barSize: barSize, maxBarSize: maxBarSize),
+        ]);
+
+    test('renders one bar for a single datum on a time-scale number axis', () {
+      final time = DateTime.utc(2025).millisecondsSinceEpoch;
+      final m = model('BarChart', 400, 300, [
+        {'interval': time, 'count': 10},
+      ], [
+        XAxis(dataKey: 'interval', type: AxisDomainType.number, scale: 'time', domain: [time, time]),
+        const YAxis(dataKey: 'count', type: AxisDomainType.number),
+        const Bar(dataKey: 'count'),
+      ]);
+      expect(m.series.single.rects!.single.width, greaterThan(0));
+    });
+
+    test('renders one bar for a single datum on a default number axis', () {
+      expect(spans(lone(5)), hasLength(1));
+      expect(spans(lone(5)).single[1], greaterThan(0));
+    });
+
+    test('lets an explicit barSize win over the axis span', () {
+      expect([for (final s in spans(lone(5, barSize: 20))) s[1]], [20]);
+    });
+
+    test('lets maxBarSize cap the bar width', () {
+      expect([for (final s in spans(lone(5, maxBarSize: 30))) s[1]], [30]);
+    });
+
+    test('keeps the bar inside the plot area (x 5..395)', () {
+      for (final (x, domain) in <(num, List<Object>?)>[
+        (5, [0, 10]),
+        (5, [5, 5]),
+        (5, null),
+        (1, [0, 10]),
+        (9, [0, 10]),
+      ]) {
+        final s = spans(lone(x, domain: domain));
+        expect(s, hasLength(1), reason: '$x $domain');
+        expect(s.single[1], greaterThan(0));
+        expect(s.single[0], greaterThanOrEqualTo(5));
+        expect(s.single[0] + s.single[1], lessThanOrEqualTo(395));
+      }
+    });
+
+    test('fills the plot area minus the category gap when the tick is centered', () {
+      expect(spans(lone(5, domain: [5, 5])), [
+        [44, 312],
+      ]);
+    });
+
+    test('renders no bar rather than an overflowing one for a tick on the edge', () {
+      expect(spans(lone(0, domain: [0, 10])), isEmpty);
+      expect(spans(lone(10, domain: [0, 10])), isEmpty);
+    });
+
+    // BarChart.spec.tsx
+    const onePointData = [
+      {'number': 1, 'name': 'food', 'uv': 400, 'pv': 2400},
+    ];
+    test('renders a bar inside the plot area if barSize is not specified in a numerical XAxis', () {
+      expect(
+          rects(model('BarChart', 100, 50, onePointData, const [
+            XAxis(dataKey: 'number', type: AxisDomainType.number, domain: [0, 2]),
+            Bar(dataKey: 'uv', name: 'uv'),
+          ])),
+          [
+            [14, 5, 72, 10],
+          ]);
+    });
+
+    test('renders nothing instead of an overflowing bar if the only tick is on the edge', () {
+      for (final domain in const [
+        [1, 2],
+        [0, 1],
+      ]) {
+        expect(
+            rects(model('BarChart', 100, 50, onePointData, [
+              XAxis(dataKey: 'number', type: AxisDomainType.number, domain: domain),
+              const Bar(dataKey: 'uv', name: 'uv'),
+            ])),
+            isEmpty);
+      }
+    });
+  });
+
   group('Line.animation.spec.tsx: points', () {
     test('LineChart 100x100 uv points', () {
       final m = model('LineChart', 100, 100, pageData, const [Line(dataKey: 'uv')]);
