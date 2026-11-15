@@ -313,6 +313,7 @@ class RadialBar extends RechartsElement {
     this.stackId,
     this.barSize,
     this.maxBarSize,
+    this.minAngle = 0,
     this.minPointSize = 0,
     this.background = false,
     this.cornerRadius = 0,
@@ -357,6 +358,9 @@ class RadialBar extends RechartsElement {
   /// `barSize` resolves to zero thickness there as well.
   final num? barSize;
   final double? maxBarSize;
+
+  /// The minimum angle of each non-zero bar (radial layout); a negative value counts as its absolute value.
+  final double minAngle;
   final double minPointSize;
 
   /// `true`, `false` or a [SectorStyle] (default fill `#eee`).

@@ -405,10 +405,15 @@ List<RadialBarSector> computeRadialBarSectors(PolarItem item, RadialBarContext c
       innerRadius = _cateCoordinateOfBar(radiusAxis, radiusItemTicks, pos.offset, bandSize, entry, index);
       if (innerRadius != null) {
         outerRadius = innerRadius + pos.size;
-        final deltaAngle = endAngle - startAngle;
+        var deltaAngle = endAngle - startAngle;
         if (valueAngle != null && bar.minPointSize.abs() > 0 && deltaAngle.abs() < bar.minPointSize.abs()) {
           endAngle += mathSign(deltaAngle != 0 ? deltaAngle : bar.minPointSize) *
               (bar.minPointSize.abs() - deltaAngle.abs());
+          deltaAngle = endAngle - startAngle;
+        }
+        // A zero-value bar gets no sliver. Like minPointSize, this can overlap a stacked neighbor.
+        if (bar.minAngle.abs() > 0 && deltaAngle != 0 && deltaAngle.abs() < bar.minAngle.abs()) {
+          endAngle += mathSign(deltaAngle) * (bar.minAngle.abs() - deltaAngle.abs());
         }
         background = SectorGeometry(
             cx: vb.cx,

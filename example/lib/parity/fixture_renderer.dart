@@ -660,6 +660,7 @@ RechartsElement? _child(Map<String, dynamic> node) {
         stackId: p.raw['stackId'],
         barSize: p.dbl('barSize'),
         maxBarSize: p.dbl('maxBarSize'),
+        minAngle: p.dbl('minAngle') ?? 0,
         minPointSize: p.dbl('minPointSize') ?? 0,
         background: _sectorStyle(p.raw['background']) ?? false,
         cornerRadius: p.raw['cornerRadius'] ?? 0,

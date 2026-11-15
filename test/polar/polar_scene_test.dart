@@ -308,6 +308,35 @@ void main() {
     });
   });
 
+  group('RadialBar minAngle (RadialBar.spec: 500x500)', () {
+    const data = [
+      {'name': 'A', 'pv': 100},
+      {'name': 'B', 'pv': 5},
+      {'name': 'C', 'pv': 0},
+    ];
+    List<(double, double)> anglesOf(RadialBarModel b) => [for (final s in b.sectors) (s.startAngle, s.endAngle)];
+
+    for (final minAngle in [30.0, -30.0]) {
+      test('minAngle $minAngle widens a small bar, leaves a zero bar at 0 and a large one alone', () {
+        final m = radialBarModel(data, [RadialBar(dataKey: 'pv', minAngle: minAngle)]);
+        expect(anglesOf(m.scene!.radialBars.single), [(0, 360), (0, 30), (0, 0)]);
+      });
+    }
+
+    test('can overlap stacked bars, like minPointSize', () {
+      final m = radialBarModel(const [
+        {'name': 'A', 'a': 1, 'b': 99},
+      ], const [
+        RadialBar(dataKey: 'a', stackId: 's', minAngle: 30),
+        RadialBar(dataKey: 'b', stackId: 's', minAngle: 30),
+      ]);
+      final [a, b] = m.scene!.radialBars;
+      expect(anglesOf(a), [(0, 30)]);
+      expect(b.sectors.single.startAngle, closeTo(360 / 99, 1e-5));
+      expect(b.sectors.single.endAngle, 360);
+    });
+  });
+
   group('RadialBar with a null value (RadialBar.spec: 400x400, innerRadius 20, outerRadius 180)', () {
     const dataWithNull = [
       {'name': 'A', 'value': 50},
