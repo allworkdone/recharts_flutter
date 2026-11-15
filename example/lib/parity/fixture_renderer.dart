@@ -155,6 +155,7 @@ Widget buildChart(Map<String, dynamic> chart, {double? width, double? height}) {
         linkCurvature: p.dbl('linkCurvature') ?? 0.5,
         iterations: p.dbl('iterations')?.toInt() ?? 32,
         node: _sankeyStyle(p.raw['node']),
+        label: _labelList(p.raw['label']) ?? false,
         link: _sankeyStyle(p.raw['link']),
         margin: margin,
         sort: p.boolean('sort') ?? true,

@@ -734,6 +734,104 @@ void main() {
     });
   });
 
+  group('node labels (recharts #8042)', () {
+    final labelData = chain(['a', 'b', 'c'], [
+      [0, 1, 10],
+      [1, 2, 10],
+    ]);
+    // The label content gets the computed position, the value and the text style (fill).
+    Future<List<LabelProps>> labels(WidgetTester tester,
+        {Object label = false, List<RechartsElement> children = const [], Object nameKey = 'name', Object? node, SankeyData? data}) async {
+      final out = <LabelProps>[];
+      await tester.pumpWidget(host(Sankey(
+          width: 500, height: 300, data: data ?? labelData, label: label, nameKey: nameKey, node: node, children: children)));
+      await tester.pump();
+      return out;
+    }
+
+    LabelList capture(List<LabelProps> out, {LabelPosition position = LabelPosition.middle, Color? fill}) =>
+        LabelList(position: position, fill: fill, content: (c, p) => out.add(p));
+
+    testWidgets('label is off by default and with label=false: only LabelList children draw', (tester) async {
+      var out = <LabelProps>[];
+      await tester.pumpWidget(host(Sankey(width: 500, height: 300, data: labelData, children: [capture(out)])));
+      expect(out, hasLength(3));
+      out = [];
+      await labels(tester, label: false, children: [capture(out)]);
+      expect(out, hasLength(3));
+    });
+
+    testWidgets('renders one label per node with the node name', (tester) async {
+      final out = <LabelProps>[];
+      await labels(tester, label: capture(out));
+      expect([for (final p in out) p.value], ['a', 'b', 'c']);
+    });
+
+    testWidgets('a label function is the content of the implicit LabelList', (tester) async {
+      final out = <LabelProps>[];
+      await labels(tester, label: (Canvas c, LabelProps p) => out.add(p));
+      expect([for (final p in out) p.value], ['a', 'b', 'c']);
+    });
+
+    testWidgets('renders a LabelList child', (tester) async {
+      final out = <LabelProps>[];
+      await labels(tester, children: [capture(out)]);
+      expect([for (final p in out) p.value], ['a', 'b', 'c']);
+    });
+
+    testWidgets('reads the label value with nameKey, the same accessor as the tooltip', (tester) async {
+      final out = <LabelProps>[];
+      await labels(tester,
+          nameKey: 'id',
+          data: SankeyData(nodes: const [
+            {'name': 'a', 'id': 'first'},
+            {'name': 'b', 'id': 'second'},
+            {'name': 'c', 'id': 'third'},
+          ], links: labelData.links),
+          label: capture(out, position: LabelPosition.inside));
+      expect([for (final p in out) p.value], ['first', 'second', 'third']);
+    });
+
+    testWidgets('positions each label at the center of its node rectangle', (tester) async {
+      final out = <LabelProps>[];
+      await labels(tester, label: capture(out));
+      final layout = computeSankeyData(data: labelData, width: 490, height: 290);
+      for (var i = 0; i < 3; i++) {
+        final n = buildNodeProps(node: layout.nodes[i], top: 5, left: 5, i: i);
+        expect(out[i].x, closeTo(n.x + n.width / 2, 1e-9));
+        expect(out[i].y, closeTo(n.y + n.height / 2, 1e-9));
+      }
+    });
+
+    testWidgets('a label with no fill inherits the node fill; an explicit fill wins', (tester) async {
+      var out = <LabelProps>[];
+      await labels(tester, node: const SvgStyle(fill: Color(0xFF0000FF)), label: capture(out));
+      expect([for (final p in out) p.style.color], List.filled(3, const Color(0xFF0000FF)));
+      out = [];
+      await labels(tester, node: const SvgStyle(fill: Color(0xFF0000FF)), label: capture(out, fill: const Color(0xFF008000)));
+      expect([for (final p in out) p.style.color], List.filled(3, const Color(0xFF008000)));
+    });
+
+    testWidgets('a node with no fill of its own gives its label the default node fill', (tester) async {
+      final out = <LabelProps>[];
+      await labels(tester, label: capture(out));
+      expect([for (final p in out) p.style.color], List.filled(3, const Color(0xFF0088FE)));
+    });
+
+    testWidgets('the labels do not take the pointer from the node underneath', (tester) async {
+      final probe = Probe();
+      await tester.pumpWidget(host(Sankey(
+          width: 500, height: 300, data: labelData, label: true, children: [Tooltip(isAnimationActive: false, content: probe.build)])));
+      final layout = computeSankeyData(data: labelData, width: 490, height: 290);
+      final b = buildNodeProps(node: layout.nodes[1], top: 5, left: 5, i: 1);
+      final mouse = await mouseAt(tester, const Offset(499, 299));
+      await mouse.moveTo(Offset(b.x + b.width / 2, b.y + b.height / 2));
+      await tester.pump();
+      expect(probe.visible, isTrue);
+      expect(probe.props!.payload.single.name, 'b');
+    });
+  });
+
   group('keyboard (accessibilityLayer)', () {
     // The index '0' finds no item: one entry without a value and no coordinate.
     Widget chart(Probe probe, {bool accessibilityLayer = true, bool? active}) => host(Sankey(

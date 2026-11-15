@@ -3,7 +3,9 @@
 // (tooltipSlice: itemInteraction hover and click) under the 'item' event type,
 // with the tooltip anchored at the node centre or the link midpoint. Default
 // shapes: a Rectangle (fill #0088fe, fill-opacity 0.8) and a stroked cubic path
-// (stroke #333, stroke-opacity 0.2). Pointer handling follows polar_chart.dart.
+// (stroke #333, stroke-opacity 0.2). Node labels are a LabelList over
+// SankeyLabelListProvider entries, painted above the nodes. Pointer handling
+// follows polar_chart.dart.
 
 import 'dart:math' as math;
 
@@ -13,7 +15,8 @@ import 'package:flutter/services.dart' show KeyDownEvent, LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
 
 import '../components.dart';
-import '../util.dart' show jsString;
+import '../util.dart' show getValueByDataKey, jsString;
+import '../render/label.dart' show labelOfEntry, paintLabel;
 import '../render/sector.dart' show strokeContains;
 import '../render/shapes.dart';
 import '../sankey.dart';
@@ -50,6 +53,7 @@ class Sankey extends StatefulWidget {
     this.linkCurvature = 0.5,
     this.iterations = 32,
     this.node,
+    this.label = false,
     this.link,
     this.margin = const Margin.all(5),
     this.sort = true,
@@ -78,6 +82,11 @@ class Sankey extends StatefulWidget {
   final double linkCurvature;
   final int iterations;
   final Object? node;
+
+  /// `true`, a [LabelList] (its props) or a [LabelPainter] (its content): one
+  /// label per node, the node name read through [nameKey] in the box of the
+  /// node, filled with the node's fill unless the list sets one.
+  final Object label;
   final Object? link;
   final Margin margin;
   final bool sort;
@@ -102,7 +111,7 @@ class Sankey extends StatefulWidget {
   final SankeyEventHandler? onMouseEnter;
   final SankeyEventHandler? onMouseLeave;
 
-  /// Only a [Tooltip] is used.
+  /// A [Tooltip] and [LabelList]s (node labels, like [label]).
   final List<RechartsElement> children;
 
   @override
@@ -447,13 +456,23 @@ class _SankeyState extends State<Sankey> with TickerProviderStateMixin {
     _view.set(_computeView(), notify: false);
     final reducedMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     final tooltip = _tooltip;
+    // The label z-index layer: LabelList children render before LabelListFromLabelProp.
+    final fromProp = switch (widget.label) {
+      true => const LabelList(),
+      LabelList l => l,
+      LabelPainter p => LabelList(content: p),
+      _ => null,
+    };
+    final labelLists = [...widget.children.whereType<LabelList>(), ?fromProp];
 
     final stack = Stack(
       clipBehavior: Clip.none,
       children: [
         Positioned.fill(
           child: RepaintBoundary(
-            child: CustomPaint(painter: _SankeyPainter(m, widget.node, widget.link, widget.stroke, widget.strokeWidth)),
+            child: CustomPaint(
+                painter: _SankeyPainter(m, widget.node, widget.link, widget.stroke, widget.strokeWidth, labelLists,
+                    widget.nameKey, DefaultTextStyle.of(context).style, MediaQuery.maybeTextScalerOf(context) ?? TextScaler.noScaling)),
           ),
         ),
         if (tooltip != null)
@@ -510,12 +529,17 @@ class _SankeyState extends State<Sankey> with TickerProviderStateMixin {
 }
 
 class _SankeyPainter extends CustomPainter {
-  _SankeyPainter(this.model, this.node, this.link, this.stroke, this.strokeWidth);
+  _SankeyPainter(this.model, this.node, this.link, this.stroke, this.strokeWidth, this.labelLists, this.nameKey,
+      this.baseStyle, this.scaler);
   final _Model model;
   final Object? node;
   final Object? link;
   final Color? stroke;
   final double? strokeWidth;
+  final List<LabelList> labelLists;
+  final Object nameKey;
+  final TextStyle baseStyle;
+  final TextScaler scaler;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -553,8 +577,31 @@ class _SankeyPainter extends CustomPainter {
         drawStroke(canvas, path, strokePaint(stroke, s?.strokeWidth ?? strokeWidth ?? 1, opacity: s?.strokeOpacity ?? 1), s?.strokeDasharray);
       }
     }
+    for (final list in labelLists) {
+      for (var i = 0; i < model.nodes.length; i++) {
+        final n = model.nodes[i];
+        final payload = n.payload.toMap();
+        final e = LabelListEntry(
+          value: getValueByDataKey(payload, nameKey, ''),
+          payload: payload,
+          viewBox: Rect.fromLTWH(n.x, n.y, n.width, n.height),
+          // getRenderedNodeFill: the node's own fill, else the legacy default.
+          fill: n.style?.fill ?? const Color(0xFF0088FE),
+        );
+        paintLabel(canvas, labelOfEntry(list, e, i), e.viewBox, index: i, baseStyle: baseStyle, scaler: scaler);
+      }
+    }
   }
 
   @override
-  bool shouldRepaint(_SankeyPainter old) => old.model != model || old.node != node || old.link != link || old.stroke != stroke || old.strokeWidth != strokeWidth;
+  bool shouldRepaint(_SankeyPainter old) =>
+      old.model != model ||
+      old.node != node ||
+      old.link != link ||
+      old.stroke != stroke ||
+      old.strokeWidth != strokeWidth ||
+      !listEquals(old.labelLists, labelLists) ||
+      old.nameKey != nameKey ||
+      old.baseStyle != baseStyle ||
+      old.scaler != scaler;
 }
