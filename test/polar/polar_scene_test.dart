@@ -220,6 +220,41 @@ void main() {
     });
   }
 
+  group('Radar null values (Radar.spec: 400x400, PolarRadiusAxis domain [0, 100])', () {
+    const data = [
+      {'subject': 'Math', 'score': 80, 'range': [20, 80]},
+      {'subject': 'Physics', 'score': 60, 'range': [30, 60]},
+      {'subject': 'History', 'score': null, 'range': [null, 50]},
+      {'subject': 'Art', 'score': 70, 'range': [40, 70]},
+    ];
+    RadarComposed composed(String dataKey) => computePolarModel(
+          chartName: 'RadarChart',
+          size: const Size(400, 400),
+          data: data,
+          children: [
+            const PolarAngleAxis(dataKey: 'subject'),
+            const PolarRadiusAxis(domain: [0, 100]),
+            Radar(dataKey: dataKey),
+          ],
+          layout: PolarLayout.centric,
+          options: const PolarOptions(startAngle: 90, endAngle: -270),
+        ).scene!.radars.single.composed!;
+    List<(double, double)?> xy(List<RadarPoint> points) =>
+        [for (final p in points) p.x.isNaN && p.y.isNaN ? null : (round4(p.x), round4(p.y))];
+
+    test('a null value has no position instead of sitting at the center', () {
+      // 'M200,75.2L293.6,200M90.8,200L200,75.2'
+      expect(xy(composed('score').points), [(200, 75.2), (293.6, 200), null, (90.8, 200)]);
+    });
+
+    test('a null low value of a range leaves a gap in the base line', () {
+      // 'M200,75.2L293.6,200L200,278L90.8,200L200,75.2L137.6,200M246.8,200L200,168.8L137.6,200'
+      final c = composed('range');
+      expect(xy(c.points), [(200, 75.2), (293.6, 200), (200, 278), (90.8, 200)]);
+      expect(xy(c.baseLinePoints), [(200, 168.8), (246.8, 200), null, (137.6, 200)]);
+    });
+  });
+
   group('RadialBar with implicit axes (RadialBar.spec, 500x500, PageData, dataKey pv)', () {
     final m = radialBarModel(pageData, const [RadialBar(dataKey: 'pv', isAnimationActive: false)]);
     final scene = m.scene!;

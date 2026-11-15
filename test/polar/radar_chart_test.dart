@@ -187,6 +187,24 @@ void main() {
     expect(c.g, greaterThan(0));
   });
 
+  // Radar.spec.tsx 'null values': no dot and no label for the missing point.
+  testWidgets('a Radar with a null value paints its dots and labels without the missing point', (tester) async {
+    final probe = Probe();
+    await tester.pumpWidget(host(RadarChart(width: 400, height: 400, data: const [
+      {'subject': 'Math', 'score': 80},
+      {'subject': 'Physics', 'score': 60},
+      {'subject': 'History', 'score': null},
+      {'subject': 'Art', 'score': 70},
+    ], children: [
+      const PolarAngleAxis(dataKey: 'subject'),
+      const PolarRadiusAxis(domain: [0, 100]),
+      const Radar(dataKey: 'score', dot: true, label: true, isAnimationActive: false),
+      Tooltip(isAnimationActive: false, defaultIndex: 2, content: probe.build),
+    ])));
+    expect(tester.takeException(), isNull);
+    expect(probe.props!.label, 'History');
+  });
+
   testWidgets('syncId shares the tooltip index between a LineChart and a RadarChart', (tester) async {
     final probe = Probe(), lineProbe = Probe();
     const data = [

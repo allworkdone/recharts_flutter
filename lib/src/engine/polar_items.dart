@@ -81,7 +81,8 @@ RadarComposed computeRadarPoints({
     final value = getValueByDataKey(entry, dataKey);
     final angle = (angleScale.map(name) ?? 0) + angleBandSize;
     final pointValue = value is List ? value.lastOrNull : value;
-    final radius = pointValue == null ? 0.0 : (radiusScale.map(pointValue) ?? 0);
+    // A missing value has no position: NaN leaves a gap in the polygon and no dot.
+    final radius = pointValue == null ? double.nan : (radiusScale.map(pointValue) ?? 0);
     if (value is List && value.length >= 2) isRange = true;
     final p = polarToCartesian(cx, cy, radius, angle);
     points.add(RadarPoint(
@@ -92,7 +93,7 @@ RadarComposed computeRadarPoints({
     for (final point in points) {
       if (point.value is List) {
         final baseValue = (point.value as List).firstOrNull;
-        final radius = baseValue == null ? 0.0 : (radiusScale.map(baseValue) ?? 0);
+        final radius = baseValue == null ? double.nan : (radiusScale.map(baseValue) ?? 0);
         final p = polarToCartesian(cx, cy, radius, point.angle);
         baseLinePoints.add(RadarPoint(
             x: p.dx,

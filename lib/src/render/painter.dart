@@ -161,6 +161,8 @@ class ChartFrame {
 
 /// `<Dot>`; [fill] (a Color or Gradient) overrides [DotProps.fill].
 void paintDot(Canvas canvas, DotProps d, List<double>? dash, {Object? fill, double fillOpacity = 1}) {
+  // Dot.tsx renders nothing without a numeric position.
+  if (d.cx.isNaN || d.cy.isNaN || d.r.isNaN) return;
   final center = Offset(d.cx, d.cy);
   final f = fill ?? d.fill;
   if (f != null) {
