@@ -72,35 +72,43 @@ String _sectorPath(double cx, double cy, double innerRadius, double outerRadius,
 String _sectorWithCorner(double cx, double cy, double innerRadius, double outerRadius, double cornerRadius,
     bool forceCornerRadius, bool cornerIsExternal, double startAngle, double endAngle) {
   final sign = mathSign(endAngle - startAngle);
-  final s = _tangentCircle(cx, cy, outerRadius, startAngle, sign, false, cornerRadius, cornerIsExternal);
-  final e = _tangentCircle(cx, cy, outerRadius, endAngle, -sign, false, cornerRadius, cornerIsExternal);
-  final outerArcAngle =
-      cornerIsExternal ? (startAngle - endAngle).abs() : (startAngle - endAngle).abs() - s.theta - e.theta;
-  final cr = _n(cornerRadius);
+  final deltaAngle = (startAngle - endAngle).abs();
+  // In a narrow sector the corners shrink to the largest radius that still fits, like d3-shape:
+  // a circle touching both radial edges and the outer arc has radius outerRadius * sin(α) / (1 + sin(α)),
+  // one touching the inner arc innerRadius * sin(α) / (1 - sin(α)), α being half the sector angle.
+  final fitCorners = !forceCornerRadius && !cornerIsExternal && deltaAngle < 180;
+  final sinHalfAngle = math.sin(deltaAngle / 2 * radian);
+  final outerCorner =
+      fitCorners ? math.min(cornerRadius, outerRadius * sinHalfAngle / (1 + sinHalfAngle)) : cornerRadius;
+  final innerCorner =
+      fitCorners ? math.min(cornerRadius, innerRadius * sinHalfAngle / (1 - sinHalfAngle)) : cornerRadius;
+  final s = _tangentCircle(cx, cy, outerRadius, startAngle, sign, false, outerCorner, cornerIsExternal);
+  final e = _tangentCircle(cx, cy, outerRadius, endAngle, -sign, false, outerCorner, cornerIsExternal);
+  final outerArcAngle = cornerIsExternal ? deltaAngle : deltaAngle - s.theta - e.theta;
   final sweep = sign < 0 ? 1 : 0;
-  if (outerArcAngle < 0) {
-    if (forceCornerRadius) {
-      return 'M ${_n(s.lineTangency.dx)},${_n(s.lineTangency.dy)} a$cr,$cr,0,0,1,${_n(cornerRadius * 2)},0 '
-          'a$cr,$cr,0,0,1,${_n(-cornerRadius * 2)},0';
-    }
-    return _sectorPath(cx, cy, innerRadius, outerRadius, startAngle, endAngle);
+  // Unless forced, the corners were shrunk to fit; rounding alone can make outerArcAngle slightly negative.
+  if (outerArcAngle < 0 && forceCornerRadius) {
+    final cr = _n(cornerRadius);
+    return 'M ${_n(s.lineTangency.dx)},${_n(s.lineTangency.dy)} a$cr,$cr,0,0,1,${_n(cornerRadius * 2)},0 '
+        'a$cr,$cr,0,0,1,${_n(-cornerRadius * 2)},0';
   }
+  final ocr = _n(outerCorner);
   var path = 'M ${_n(s.lineTangency.dx)},${_n(s.lineTangency.dy)} '
-      'A$cr,$cr,0,0,$sweep,${_n(s.circleTangency.dx)},${_n(s.circleTangency.dy)} '
+      'A$ocr,$ocr,0,0,$sweep,${_n(s.circleTangency.dx)},${_n(s.circleTangency.dy)} '
       'A${_n(outerRadius)},${_n(outerRadius)},0,${outerArcAngle > 180 ? 1 : 0},$sweep,'
       '${_n(e.circleTangency.dx)},${_n(e.circleTangency.dy)} '
-      'A$cr,$cr,0,0,$sweep,${_n(e.lineTangency.dx)},${_n(e.lineTangency.dy)}';
+      'A$ocr,$ocr,0,0,$sweep,${_n(e.lineTangency.dx)},${_n(e.lineTangency.dy)}';
   if (innerRadius > 0) {
-    final si = _tangentCircle(cx, cy, innerRadius, startAngle, sign, true, cornerRadius, cornerIsExternal);
-    final ei = _tangentCircle(cx, cy, innerRadius, endAngle, -sign, true, cornerRadius, cornerIsExternal);
-    final innerArcAngle =
-        cornerIsExternal ? (startAngle - endAngle).abs() : (startAngle - endAngle).abs() - si.theta - ei.theta;
+    final si = _tangentCircle(cx, cy, innerRadius, startAngle, sign, true, innerCorner, cornerIsExternal);
+    final ei = _tangentCircle(cx, cy, innerRadius, endAngle, -sign, true, innerCorner, cornerIsExternal);
+    final innerArcAngle = cornerIsExternal ? deltaAngle : deltaAngle - si.theta - ei.theta;
     if (innerArcAngle < 0 && cornerRadius == 0) return '$path L${jsString(cx)},${jsString(cy)}Z';
+    final icr = _n(innerCorner);
     path += ' L${_n(ei.lineTangency.dx)},${_n(ei.lineTangency.dy)} '
-        'A$cr,$cr,0,0,$sweep,${_n(ei.circleTangency.dx)},${_n(ei.circleTangency.dy)} '
+        'A$icr,$icr,0,0,$sweep,${_n(ei.circleTangency.dx)},${_n(ei.circleTangency.dy)} '
         'A${_n(innerRadius)},${_n(innerRadius)},0,${innerArcAngle > 180 ? 1 : 0},${sign > 0 ? 1 : 0},'
         '${_n(si.circleTangency.dx)},${_n(si.circleTangency.dy)} '
-        'A$cr,$cr,0,0,$sweep,${_n(si.lineTangency.dx)},${_n(si.lineTangency.dy)}Z';
+        'A$icr,$icr,0,0,$sweep,${_n(si.lineTangency.dx)},${_n(si.lineTangency.dy)}Z';
   } else {
     path += ' L${_n(cx)},${_n(cy)}Z';
   }

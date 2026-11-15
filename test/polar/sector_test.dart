@@ -52,6 +52,39 @@ void main() {
   });
 
   group('Sector.spec.tsx', () {
+    group('when the sector is too narrow for the full cornerRadius', () {
+      String path(SectorGeometry Function(double cx, double cy) g) => sectorPathData(g(200, 200))!;
+      List<double> arcRadii(String d) => [for (final m in RegExp(r'A\s*([\d.]+),').allMatches(d)) double.parse(m[1]!)];
+
+      for (final (startAngle, endAngle) in [(0.0, 10.0), (10.0, 0.0)]) {
+        test('shrinks the corners so that they still fit ($startAngle to $endAngle)', () {
+          final d = path((cx, cy) => SectorGeometry(
+              cx: cx, cy: cy, outerRadius: 100, startAngle: startAngle, endAngle: endAngle, cornerRadius: 20));
+          expect(arcRadii(d), [8.0169, 100, 8.0169]);
+        });
+      }
+
+      test('shrinks the outer and inner corners separately', () {
+        final d = path((cx, cy) => SectorGeometry(
+            cx: cx, cy: cy, innerRadius: 50, outerRadius: 100, endAngle: 30, cornerRadius: 25));
+        expect(arcRadii(d), [20.5605, 100, 20.5605, 17.4599, 50, 17.4599]);
+      });
+
+      test('shrinks only the inner corners when the outer corners fit', () {
+        final d = path((cx, cy) => SectorGeometry(
+            cx: cx, cy: cy, innerRadius: 50, outerRadius: 100, endAngle: 18, cornerRadius: 10));
+        expect(arcRadii(d), [10, 100, 10, 9.2722, 50, 9.2722]);
+      });
+
+      test('renders a circle with the full cornerRadius when forceCornerRadius is true', () {
+        final d = path((cx, cy) => SectorGeometry(
+            cx: cx, cy: cy, outerRadius: 100, endAngle: 10, cornerRadius: 20, forceCornerRadius: true));
+        expect(arcRadii(d), isEmpty);
+        expect(d, contains('a20,20,0,0,1,40,0'));
+        expect(d, contains('a20,20,0,0,1,-40,0'));
+      });
+    });
+
     test('a simple sector', () {
       expect(
           sectorPathData(const SectorGeometry(cx: 200, cy: 300, innerRadius: 150, outerRadius: 200, endAngle: 90)),
