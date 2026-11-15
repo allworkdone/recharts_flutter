@@ -556,7 +556,8 @@ class _TreemapState extends State<Treemap> with TickerProviderStateMixin {
   // -------------------------------------------------------------- tooltip
 
   List<TooltipPayloadEntry> _payload(Tooltip tooltip, _Interaction state) {
-    final node = treemapPayloadSearcher(_currentRoot, state.index);
+    // dataDefinedOnItem is the rendered tree, whose tooltipIndex and depth match the hovered tile.
+    final node = treemapPayloadSearcher(_formatRoot, state.index);
     final fill = widget.fill;
     final name = getValueByDataKey(node, widget.nameKey);
     final entry = TooltipPayloadEntry(

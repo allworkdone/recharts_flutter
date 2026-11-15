@@ -287,6 +287,48 @@ void main() {
       expect(probe.visible, isFalse);
     });
 
+    testWidgets('the payload is the rendered node, with its layout (recharts #7980)', (tester) async {
+      final probe = Probe();
+      await tester.pumpWidget(chart(probe: probe));
+      final mouse = await mouseAt(tester, const Offset(600, 400));
+      await mouse.moveTo(const Offset(450, 200));
+      await tester.pump();
+      expect(probe.props!.payload.single.payload, expectedNode(4));
+    });
+
+    // Treemap.theme.spec "Treemap tooltip color" without a provider: the series color, none by default.
+    for (final (name, d, colorPanel, at) in [
+      ('the default tooltip text stays black', data, null, const Offset(450, 200)),
+      ('an explicit colorPanel keeps the black tooltip text', data, const [Color(0xFFDC143C), Color(0xFFFF8C00)], const Offset(450, 200)),
+      (
+        'a transparent nested tile does not color the tooltip text',
+        const [
+          {'name': 'Hardware', 'children': [{'name': 'Laptop', 'size': 120}]},
+          {'name': 'Software', 'children': [{'name': 'Editor', 'size': 100}, {'name': 'Browser', 'size': 60}]},
+        ],
+        const [Color(0xFFDC143C), Color(0xFFFF8C00), Color(0xFF000080), Color(0xFF008080)],
+        const Offset(10, 10),
+      ),
+    ]) {
+      testWidgets(name, (tester) async {
+        final probe = Probe();
+        await tester.pumpWidget(host(Treemap(
+          width: 500,
+          height: 250,
+          data: d,
+          dataKey: 'size',
+          isAnimationActive: false,
+          colorPanel: colorPanel,
+          children: [Tooltip(isAnimationActive: false, content: probe.build)],
+        )));
+        final mouse = await mouseAt(tester, const Offset(600, 400));
+        await mouse.moveTo(at);
+        await tester.pump();
+        expect(probe.visible, isTrue);
+        expect(probe.props!.payload.single.color, isNull);
+      });
+    }
+
     testWidgets('a parent has no row when dataKey is not its own key', (tester) async {
       final probe = Probe();
       await tester.pumpWidget(chart(probe: probe, d: [
