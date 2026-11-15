@@ -70,7 +70,10 @@ RadarComposed computeRadarPoints({
 }) {
   var isRange = false;
   final points = <RadarPoint>[];
-  final angleBandSize = angleAxis.type != AxisDomainType.number ? bandSize : 0.0;
+  // scaleBand reverses the values it emits for a descending range, so the band offset that lands
+  // the first category on startAngle flips sign with the range direction, like the angle axis ticks.
+  final bandDirection = mathSign(angleAxis.rangeWithReverse[0] - angleAxis.rangeWithReverse[1]);
+  final angleBandSize = angleAxis.type != AxisDomainType.number ? bandDirection * bandSize : 0.0;
   final radiusScale = radiusAxis.scale!, angleScale = angleAxis.scale!;
   for (var i = 0; i < displayedData.length; i++) {
     final entry = displayedData[i];

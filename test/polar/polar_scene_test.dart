@@ -178,6 +178,48 @@ void main() {
     });
   });
 
+  // Radar.spec.tsx 'in a chart rotating ...'
+  for (final (direction, startAngle, endAngle, angles, polygon) in [
+    (
+      'clockwise',
+      90.0,
+      -270.0,
+      [90, 45, 0, -45, -90, -135, -180, -225],
+      'M250,167.68L313.7527,186.2473L445.804,250L319.2965,319.2965L250,419.344L159.9146,340.0854L100.06,250L199.4136,199.4136',
+    ),
+    (
+      'counter-clockwise',
+      -270.0,
+      90.0,
+      [-315, -270, -225, -180, -135, -90, -45, 0],
+      'M308.209,191.791L250,159.84L111.5457,111.5457L152,250L130.2557,369.7443L250,377.4L356.0236,356.0236L321.54,250',
+    ),
+  ]) {
+    group('Radar in a chart rotating $direction', () {
+      final m = computePolarModel(
+        chartName: 'RadarChart',
+        size: const Size(500, 500),
+        data: exampleRadarData,
+        children: const [PolarAngleAxis(dataKey: 'name'), Radar(dataKey: 'value')],
+        layout: PolarLayout.centric,
+        options: PolarOptions(startAngle: startAngle, endAngle: endAngle),
+      );
+      final expected = [for (final (i, e) in exampleRadarData.indexed) (e['name'], angles[i])];
+
+      test('every point sits on the angle axis tick of its category', () {
+        expect([for (final t in m.scene!.angleAxes[0]!.ticks!) (t.value, t.coordinate)], expected);
+        expect([for (final p in m.scene!.radars.single.points!) (p.name, p.angle)], expected);
+      });
+
+      test('the polygon', () {
+        final d = [
+          for (final (i, p) in m.scene!.radars.single.points!.indexed) '${i == 0 ? 'M' : 'L'}${jsString(round4(p.x))},${jsString(round4(p.y))}',
+        ].join();
+        expect(d, polygon);
+      });
+    });
+  }
+
   group('RadialBar with implicit axes (RadialBar.spec, 500x500, PageData, dataKey pv)', () {
     final m = radialBarModel(pageData, const [RadialBar(dataKey: 'pv', isAnimationActive: false)]);
     final scene = m.scene!;
