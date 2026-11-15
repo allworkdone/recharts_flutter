@@ -559,7 +559,8 @@ void computeAxisDomain(AxisRuntime axis, ChartContext ctx) {
     } else {
       axis.domain = categorical.toSet().toList();
     }
-  } else if (ctx.stackOffset == StackOffset.expand && !isCategorical) {
+  } else if (!isCategorical &&
+      _stackOffsetOfAxis(ctx, (i) => (axis.isX ? i.xAxisId : i.yAxisId) == s.id) == StackOffset.expand) {
     axis.domain = const [0.0, 1.0];
   } else {
     axis.domain = numericalDomain;
@@ -599,6 +600,11 @@ void computeAxisDomain(AxisRuntime axis, ChartContext ctx) {
       s.dataKey != null && isCategorical && (axis.type == AxisDomainType.number || s.scale != 'auto') ? allData : null;
 }
 
+/// `combineStackOffsetTypeOfAxis`: the chart's stackOffset only applies to an
+/// axis with stacked items on it, hidden ones included.
+StackOffset _stackOffsetOfAxis(ChartContext ctx, bool Function(GraphicalItem) onAxis) =>
+    ctx.items.any((i) => onAxis(i) && (i.isBar || i.isArea) && i.stackId != null) ? ctx.stackOffset : StackOffset.none;
+
 /// `implicitZAxis`: the axis of a [Scatter] whose ZAxis is missing.
 const implicitZAxis = ZAxis(name: '', unit: '');
 
@@ -637,7 +643,9 @@ const implicitZAxis = ZAxis(name: '', unit: '');
   final numericalDomain = parseNumericalUserDomain(definition, dataDomain, false);
   if (displayedData.isEmpty && numericalDomain == null) return null;
   if (settings.type == AxisDomainType.category) return null;
-  final domain = ctx.stackOffset == StackOffset.expand ? const [0.0, 1.0] : numericalDomain;
+  // Line, Bar and Area register zAxisId 0.
+  bool onAxis(GraphicalItem i) => (i.element is Scatter ? (i.element as Scatter).zAxisId : 0) == settings.zAxisId;
+  final domain = _stackOffsetOfAxis(ctx, onAxis) == StackOffset.expand ? const [0.0, 1.0] : numericalDomain;
   final scale = buildScale(
       combineRealScaleType(settings.scale, settings.type, ctx.hasBar, ctx.chartName), domain, settings.range);
   return scale == null ? null : (settings: settings, scale: scale);

@@ -404,6 +404,66 @@ void main() {
     });
   });
 
+  group("AreaChart.stacked.spec.tsx with stackOffset='expand' and a second, unstacked YAxis", () {
+    const data = [
+      {'name': 'a', 'uv': 10, 'pv': 30, 'price': 120},
+      {'name': 'b', 'uv': 20, 'pv': 20, 'price': 480},
+      {'name': 'c', 'uv': 30, 'pv': 10, 'price': 250},
+    ];
+    List<Object?>? domain(Object yAxisId, {List<Object>? rightAxisDomain, bool hideStackedAreas = false}) {
+      final m = computeCartesianModel(
+        chartName: 'AreaChart',
+        size: const Size(400, 300),
+        data: data,
+        children: [
+          const XAxis(dataKey: 'name'),
+          const YAxis(yAxisId: 'left'),
+          YAxis(yAxisId: 'right', orientation: AxisOrientation.right, domain: rightAxisDomain),
+          Area(yAxisId: 'left', dataKey: 'uv', stackId: '1', hide: hideStackedAreas),
+          Area(yAxisId: 'left', dataKey: 'pv', stackId: '1', hide: hideStackedAreas),
+          const Line(yAxisId: 'right', dataKey: 'price'),
+        ],
+        stackOffset: StackOffset.expand,
+        measureFor: zero,
+      );
+      return m.axes.firstWhere((a) => !a.runtime.isX && a.settings.id == yAxisId).runtime.domain;
+    }
+
+    test('should keep the [0, 1] domain on the stacked axis', () {
+      expect(domain('left'), [0, 1]);
+    });
+
+    test('should keep the [0, 1] domain on the stacked axis when its areas are hidden', () {
+      expect(domain('left', hideStackedAreas: true), [0, 1]);
+    });
+
+    test('should give the unstacked axis its own domain', () {
+      expect(domain('right'), [0, 480]);
+      expect(domain('right', rightAxisDomain: [0, 1000]), [0, 1000]);
+    });
+
+    test('a ZAxis with no stacked items keeps its domain too', () {
+      final m = computeCartesianModel(
+        chartName: 'ScatterChart',
+        size: const Size(400, 300),
+        data: const [],
+        children: const [
+          XAxis(dataKey: 'x', type: AxisDomainType.number),
+          YAxis(dataKey: 'y', type: AxisDomainType.number),
+          ZAxis(zAxisId: 'z', dataKey: 'z', range: [0, 100]),
+          Scatter(zAxisId: 'z', data: [
+            {'x': 1, 'y': 1, 'z': 5},
+            {'x': 2, 'y': 2, 'z': 10},
+          ]),
+        ],
+        stackOffset: StackOffset.expand,
+        measureFor: zero,
+      );
+      // The domain [0, 10] maps z 10 to the end of the range.
+      expect([for (final p in m.series.single.scatterPoints!) p.size], [50, 100]);
+    });
+  });
+
   group('getTicks.spec.ts (width = text.length, height = 12)', () {
     List<TickItem> ticks() => [
           for (final (i, v) in ['100_000_000_000_000', '200_000_000_000_000', '300_000_000_000_000',

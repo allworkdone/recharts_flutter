@@ -64,6 +64,43 @@ PolarModel radialBarModel(List<Object?> data, List<RechartsElement> children, {S
 Matcher near(double v) => closeTo(v, 1e-9);
 
 void main() {
+  group("stackOffset='expand' only applies to an axis with stacked items", () {
+    // PolarAngleAxis.spec.tsx
+    for (final (stackId, expected) in [('1', <num>[0, 1]), (null, <num>[0, 9800])]) {
+      test('a RadialBarChart angle axis domain is $expected when stackId is $stackId', () {
+        final m = computePolarModel(
+          chartName: 'RadialBarChart',
+          size: const Size(500, 500),
+          data: pageData,
+          children: [
+            RadialBar(dataKey: 'uv', stackId: stackId),
+            RadialBar(dataKey: 'pv', stackId: stackId),
+            const PolarAngleAxis(),
+            const PolarRadiusAxis(),
+          ],
+          layout: PolarLayout.radial,
+          options: const PolarOptions(startAngle: 0, endAngle: 360),
+          stackOffset: StackOffset.expand,
+        );
+        expect(m.scene!.angleAxes[0]!.domain, expected);
+      });
+    }
+
+    // PolarRadiusAxis.spec.tsx
+    test('a RadarChart radius axis keeps the domain of the data, because Radar does not stack', () {
+      final m = computePolarModel(
+        chartName: 'RadarChart',
+        size: const Size(500, 500),
+        data: exampleRadarData,
+        children: const [PolarRadiusAxis(dataKey: 'value'), Radar(dataKey: 'value')],
+        layout: PolarLayout.centric,
+        options: const PolarOptions(startAngle: 90, endAngle: -270),
+        stackOffset: StackOffset.expand,
+      );
+      expect(m.scene!.radiusAxes[0]!.domain, [0, 999]);
+    });
+  });
+
   group('PolarGrid and axes in a RadarChart (exampleRadarData, 500x500)', () {
     final m = radarModel(exampleRadarData, const [
       Radar(dataKey: 'value'),

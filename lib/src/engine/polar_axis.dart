@@ -287,7 +287,10 @@ PolarAxisRuntime computePolarAxis(PolarAxisSettings s, bool isAngle, RechartsEle
     } else {
       a.domain = categorical.toSet().toList();
     }
-  } else if (ctx.stackOffset == StackOffset.expand && !isCategorical) {
+  } else if (!isCategorical &&
+      ctx.stackOffset == StackOffset.expand &&
+      // combineStackOffsetTypeOfAxis: only an axis with stacked radial bars on it, hidden ones included.
+      ctx.items.any((i) => (isAngle ? i.angleAxisId : i.radiusAxisId) == s.id && i.isRadialBar && i.stackId != null)) {
     a.domain = const [0.0, 1.0];
   } else {
     a.domain = numerical;
