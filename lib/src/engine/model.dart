@@ -97,10 +97,21 @@ class BarRect {
       other.width == width &&
       other.height == height &&
       identical(other.payload, payload) &&
-      other.cell == cell;
+      _sameCell(other.cell, cell);
   @override
   int get hashCode => Object.hash(x, y, width, height);
 }
+
+/// `useCells`: a rebuilt Cell with the same props is the same Cell, so it
+/// does not restart the bar animation.
+bool _sameCell(Cell? a, Cell? b) =>
+    identical(a, b) ||
+    (a != null &&
+        b != null &&
+        a.fill == b.fill &&
+        a.fillOpacity == b.fillOpacity &&
+        a.stroke == b.stroke &&
+        a.strokeWidth == b.strokeWidth);
 
 /// `LinePointItem`, also Area's `AreaPointItem` (whose [value] is the
 /// `[base, value]` pair) and its baseline points (no value).

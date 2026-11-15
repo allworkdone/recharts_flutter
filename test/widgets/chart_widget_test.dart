@@ -170,6 +170,35 @@ void main() {
     expect(await pixel(tester, done, const Offset(16, 30)), const Color(0xFF8884D8));
   });
 
+  group('Bar.rerenderStability.spec.tsx: with Cell children', () {
+    var starts = 0;
+    Widget chart(List<String> fills) => host(BarChart(width: 100, height: 50, data: data.sublist(0, 2), children: [
+          Bar(dataKey: 'pv', onAnimationStart: () => starts++, children: [for (final f in fills) Cell.css(fill: f)]),
+        ]));
+    setUp(() => starts = 0);
+
+    testWidgets('rebuilding the same Cells does not restart the animation', (tester) async {
+      await tester.pumpWidget(chart(['green', 'blue']));
+      await tester.pumpAndSettle();
+      expect(starts, 1);
+      await tester.pumpWidget(chart(['green', 'blue']));
+      await tester.pump();
+      expect(tester.hasRunningAnimations, isFalse);
+      expect(starts, 1);
+    });
+
+    testWidgets('new Cell props still apply when they actually change', (tester) async {
+      await tester.pumpWidget(chart(['green', 'blue']));
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(chart(['orange', 'purple']));
+      await tester.pumpAndSettle();
+      // Bars at x 9.5 and 54.5, 36 wide, down to y 45.
+      final image = await capture(tester);
+      expect(await pixel(tester, image, const Offset(16, 44)), const Color(0xFFFFA500));
+      expect(await pixel(tester, image, const Offset(70, 44)), const Color(0xFF800080));
+    });
+  });
+
   testWidgets('ResponsiveContainer resolves percent sizes and aspect', (tester) async {
     await tester.pumpWidget(Directionality(
       textDirection: TextDirection.ltr,
