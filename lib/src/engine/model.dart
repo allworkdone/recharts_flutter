@@ -379,6 +379,7 @@ CartesianModel computeCartesianModel({
   bool reverseStackOrder = false,
   Size legendSize = Size.zero,
   required StringMeasurer Function(CartesianAxisElement? axis) measureFor,
+  StringMeasurer Function(CartesianAxisElement axis)? measureGridFor,
   int dataStartIndex = 0,
   int? dataEndIndex,
   List<RechartsElement> sharedChildren = const [],
@@ -604,18 +605,18 @@ CartesianModel computeCartesianModel({
     final rect = Rect.fromLTWH(g.x ?? offset.left, g.y ?? offset.top, g.width ?? offset.width, g.height ?? offset.height);
     var horizontalPoints = g.horizontalPoints;
     var verticalPoints = g.verticalPoints;
-    final measure = measureFor(null);
+    StringMeasurer measure(AxisRuntime axis) => measureGridFor?.call(axis.settings) ?? measureFor(null);
     if (horizontalPoints.isEmpty) {
       final ya = yRt(g.yAxisId);
       final hasValues = g.horizontalValues != null && g.horizontalValues!.isNotEmpty;
-      final ticks = _gridTicks(ya, g.horizontalValues, axisViewBox, measure);
+      final ticks = _gridTicks(ya, g.horizontalValues, axisViewBox, measure(ya));
       horizontalPoints =
           getCoordinatesOfGrid(ticks, offset.top, offset.top + offset.height, hasValues ? true : g.syncWithTicks);
     }
     if (verticalPoints.isEmpty) {
       final xa = xRt(g.xAxisId);
       final hasValues = g.verticalValues != null && g.verticalValues!.isNotEmpty;
-      final ticks = _gridTicks(xa, g.verticalValues, axisViewBox, measure);
+      final ticks = _gridTicks(xa, g.verticalValues, axisViewBox, measure(xa));
       verticalPoints =
           getCoordinatesOfGrid(ticks, offset.left, offset.left + offset.width, hasValues ? true : g.syncWithTicks);
     }

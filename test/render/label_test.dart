@@ -218,6 +218,26 @@ void main() {
       expect(m.offset.left, 5 + 88);
     });
 
+    // CartesianGrid.tickFontSize.spec.tsx
+    testWidgets('CartesianGrid draws fewer vertical lines when a large tick fontSize makes the axis hide ticks',
+        (tester) async {
+      debugTextMeasurerOverride = (text, style) => Size(text.length * style.fontSize! * 0.6, style.fontSize!);
+      final data = [for (var i = 0; i < 40; i++) {'name': 'FontSizeTick ${i + 1}', 'value': (i * 37) % 100}];
+      Future<int> verticalLines(Object tick) async {
+        await tester.pumpWidget(host(LineChart(width: 700, height: 400, data: data, children: [
+          const CartesianGrid(),
+          XAxis(dataKey: 'name', tick: tick),
+          const YAxis(),
+          const Line(dataKey: 'value', isAnimationActive: false),
+        ])));
+        return paintedModel(tester).grid!.verticalPoints.length;
+      }
+
+      final withDefaultFont = await verticalLines(true);
+      final withLargeFont = await verticalLines(const TextStyle(fontSize: 30));
+      expect(withLargeFont, lessThan(withDefaultFont));
+    });
+
     testWidgets('YAxis width auto adds the label width and a 5px gap', (tester) async {
       debugTextMeasurerOverride = (_, _) => const Size(80, 30);
       await tester.pumpWidget(host(const LineChart(width: 400, height: 300, data: pageData, children: [

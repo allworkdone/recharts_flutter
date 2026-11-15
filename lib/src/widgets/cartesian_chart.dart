@@ -1117,6 +1117,13 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
         final style = tickStyle(axis);
         return (text) => measureText(text, style, scaler);
       },
+      // getTickFontStyle: the grid only reads the fontSize and letterSpacing of a tick style.
+      measureGridFor: (axis) {
+        final tick = axis.tick;
+        final style =
+            tick is TextStyle ? textStyle.copyWith(fontSize: tick.fontSize, letterSpacing: tick.letterSpacing) : textStyle;
+        return (text) => measureText(text, style, scaler);
+      },
       dataStartIndex: _dataStartIndex,
       dataEndIndex: _dataEndIndex,
       panorama: isPanorama,
