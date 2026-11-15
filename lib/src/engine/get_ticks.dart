@@ -154,13 +154,26 @@ List<TickItem> getEquidistantTicks(
   var index = 0;
   var stepsize = 1;
   var start = initialStart;
+  double? headCoord;
   while (stepsize <= result.length) {
-    if (index >= ticks.length) return getEveryNth(ticks, stepsize);
+    if (index >= ticks.length) {
+      final shown = getEveryNth(ticks, stepsize);
+      if (headCoord == null || shown.isEmpty) return shown;
+      return [shown.first.copy(tickCoord: headCoord), ...shown.skip(1)];
+    }
     final entry = ticks[index];
     final i = index;
     double? size;
     double getSize() => size ??= getTickSize(entry, i);
-    final tickCoord = entry.coordinate;
+    var tickCoord = entry.coordinate;
+    if (index == 0) {
+      // The first label can hang over the start: move it inwards, like getTicksStart.
+      final headGap = sign * (tickCoord - (sign * getSize()) / 2 - start);
+      if (headGap < 0) {
+        tickCoord -= headGap * sign;
+        headCoord = tickCoord;
+      }
+    }
     final isShow = index == 0 || isVisible(sign, tickCoord, getSize, start, end);
     if (!isShow) {
       index = 0;
@@ -184,12 +197,20 @@ List<TickItem> getEquidistantPreserveEndTicks(
     final offset = (len - 1) % stepsize;
     var start = initialStart;
     var ok = true;
+    double? tailCoord;
     for (var index = offset; index < len; index += stepsize) {
       final entry = ticks[index];
       final i = index;
       double? size;
       double getSize() => size ??= getTickSize(entry, i);
-      final tickCoord = entry.coordinate;
+      var tickCoord = entry.coordinate;
+      if (index == len - 1) {
+        // The last label usually overflows the end: move it inwards, like getTicksStart for
+        // preserveEnd, instead of rejecting every stepsize because of it.
+        final tailGap = sign * (tickCoord + (sign * getSize()) / 2 - end);
+        if (tailGap > 0) tickCoord -= tailGap * sign;
+        tailCoord = tickCoord;
+      }
       final isShow = index == offset || isVisible(sign, tickCoord, getSize, start, end);
       if (!isShow) {
         ok = false;
@@ -197,7 +218,12 @@ List<TickItem> getEquidistantPreserveEndTicks(
       }
       start = tickCoord + sign * (getSize() / 2 + minTickGap);
     }
-    if (ok) return [for (var index = offset; index < len; index += stepsize) ticks[index]];
+    if (ok) {
+      return [
+        for (var index = offset; index < len; index += stepsize)
+          index == len - 1 && tailCoord != null ? ticks[index].copy(tickCoord: tailCoord) : ticks[index],
+      ];
+    }
   }
   return [];
 }

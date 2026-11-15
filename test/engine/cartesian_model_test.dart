@@ -495,6 +495,66 @@ void main() {
     });
   });
 
+  group('getEquidistantTicks.spec.ts', () {
+    List<(Object?, double, double?)> shape(List<TickItem> ticks) => [for (final t in ticks) (t.value, t.coordinate, t.tickCoord)];
+    double sizeOf(TickItem t, int _) => (t.value as num).toDouble();
+
+    test('should return empty array if no ticks are passed', () {
+      expect(getEquidistantTicks(1, (start: 0, end: 100), sizeOf, [], 0), isEmpty);
+      expect(getEquidistantPreserveEndTicks(1, (start: 0, end: 100), sizeOf, [], 0), isEmpty);
+    });
+
+    for (final (fit, shown) in const [
+      ([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
+      ([0, 1, 2, 3, 4, 5, 6, 7, 8], [0, 2, 4, 6, 8]),
+      ([0, 1, 2, 3, 4, 5, 6, 7], [0, 5]),
+      ([0, 1, 2, 3, 4, 5, 6], [0, 5]),
+      ([0, 1, 2, 3, 4, 5], [0, 5]),
+      ([0, 1, 2, 3, 4], [0]),
+      ([0, 1, 2, 3], [0]),
+      ([0, 1, 2], [0]),
+      ([0, 1], [0]),
+      ([0], [0]),
+      ([1, 2, 3, 4, 5, 6, 7, 8, 9], [0]),
+    ]) {
+      test('shows only every n-th tick that fits, but always the first: $fit', () {
+        final ticks = [
+          for (var i = 0; i < 10; i++) TickItem(value: fit.contains(i) ? 10 : 1000, coordinate: i * 50.0, index: i),
+        ];
+        // The first tick sits on the axis start, so its label moves inwards by half its size.
+        expect(shape(getEquidistantTicks(1, (start: 0, end: 500), sizeOf, ticks, 0)), [
+          for (final i in shown) (ticks[i].value, ticks[i].coordinate, i == 0 ? sizeOf(ticks[0], 0) / 2 : null),
+        ]);
+      });
+    }
+
+    test('should move the first tick label inwards when it overflows the start boundary', () {
+      final ticks = [for (var i = 0; i < 10; i++) TickItem(value: i, coordinate: i * 50.0, index: i)];
+      final result = getEquidistantTicks(1, (start: 0, end: 500), (_, _) => 100, ticks, 20);
+      expect(result.first.coordinate, 0);
+      expect(result.first.tickCoord, 50);
+      expect([for (final t in result) t.value], [0, 4, 8]);
+    });
+
+    test('preserveEnd skips ticks to satisfy minTickGap while preserving the end tick', () {
+      final ticks = [
+        for (final (i, v) in ['A', 'B', 'C', 'D', 'E'].indexed) TickItem(value: v, coordinate: i * 10.0, index: i),
+      ];
+      final result = getEquidistantPreserveEndTicks(1, (start: 0, end: 100), (_, _) => 10, ticks, 8);
+      expect([for (final t in result) t.value], ['A', 'C', 'E']);
+    });
+
+    test('preserveEnd moves the end tick inwards instead of dropping every other tick', () {
+      final ticks = [for (var i = 0; i < 10; i++) TickItem(value: i, coordinate: (i + 1) * 50.0, index: i)];
+      final result = getEquidistantPreserveEndTicks(1, (start: 0, end: 500), (_, _) => 100, ticks, 20);
+      expect([for (final t in result) t.value], [1, 5, 9]);
+      expect(result.last.coordinate, 500);
+      expect(result.last.tickCoord, 450);
+      // The input ticks are not touched.
+      expect(ticks.last.tickCoord, isNull);
+    });
+  });
+
   group('Tooltip.animation.spec.tsx: active index and position', () {
     // LineChart 100x100, data [{A,1},{B,2}], tooltip box mocked to 10x10.
     final m = model('LineChart', 100, 100, const [
