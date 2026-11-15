@@ -140,6 +140,81 @@ void main() {
     });
   });
 
+  group('Bar.spec.tsx: minPointSize in a stacked bar chart', () {
+    test('shifts a stack segment outward instead of overlapping the inflated one below it (horizontal)', () {
+      final m = model('BarChart', 200, 400, const [
+        {'name': 'a', 'small': 1, 'big': 100},
+      ], const [
+        XAxis(dataKey: 'name'),
+        YAxis(),
+        Bar(dataKey: 'small', stackId: 's', minPointSize: 20),
+        Bar(dataKey: 'big', stackId: 's', minPointSize: 20),
+      ]);
+      final small = m.series[0].rects!.single, big = m.series[1].rects!.single;
+      expect(small.height, 20);
+      expect(big.y + big.height, closeTo(small.y, 1e-5));
+    });
+
+    test('shifts a stack segment outward instead of overlapping the inflated one before it (vertical)', () {
+      final m = model(
+          'BarChart',
+          400,
+          200,
+          const [
+            {'name': 'a', 'small': 1, 'big': 100},
+          ],
+          const [
+            XAxis(type: AxisDomainType.number),
+            YAxis(dataKey: 'name', type: AxisDomainType.category),
+            Bar(dataKey: 'small', stackId: 's', minPointSize: 20),
+            Bar(dataKey: 'big', stackId: 's', minPointSize: 20),
+          ],
+          layout: ChartLayout.vertical);
+      final small = m.series[0].rects!.single, big = m.series[1].rects!.single;
+      expect(small.width, 20);
+      expect(big.x, closeTo(small.x + small.width, 1e-5));
+    });
+
+    test('cascades the shift across more than two segments in the same stack', () {
+      final m = model('BarChart', 200, 400, const [
+        {'name': 'a', 's1': 50, 's2': 1, 's3': 50},
+      ], const [
+        XAxis(dataKey: 'name'),
+        YAxis(domain: [0, 101]),
+        Bar(dataKey: 's1', stackId: 's', minPointSize: 20),
+        Bar(dataKey: 's2', stackId: 's', minPointSize: 20),
+        Bar(dataKey: 's3', stackId: 's', minPointSize: 20),
+      ]);
+      final [seg1, seg2, seg3] = [for (final s in m.series) s.rects!.single];
+      expect(seg2.y + seg2.height, closeTo(seg1.y, 1e-5));
+      expect(seg3.y + seg3.height, closeTo(seg2.y, 1e-5));
+    });
+
+    test('still avoids overlap when a Brush makes dataStartIndex non-zero', () {
+      final m = computeCartesianModel(
+        chartName: 'BarChart',
+        size: const Size(200, 400),
+        data: const [
+          {'name': 'skipped', 'small': 50, 'big': 50},
+          {'name': 'a', 'small': 1, 'big': 100},
+        ],
+        children: const [
+          XAxis(dataKey: 'name'),
+          YAxis(),
+          Bar(dataKey: 'small', stackId: 's', minPointSize: 20),
+          Bar(dataKey: 'big', stackId: 's', minPointSize: 20),
+          Brush(dataKey: 'name', startIndex: 1, endIndex: 1, x: 0, y: 370, width: 200, height: 20),
+        ],
+        measureFor: zero,
+        dataStartIndex: 1,
+        dataEndIndex: 1,
+      );
+      final small = m.series[0].rects!.single, big = m.series[1].rects!.single;
+      expect(small.height, 20);
+      expect(big.y + big.height, closeTo(small.y, 1e-5));
+    });
+  });
+
   group('Line.animation.spec.tsx: points', () {
     test('LineChart 100x100 uv points', () {
       final m = model('LineChart', 100, 100, pageData, const [Line(dataKey: 'uv')]);

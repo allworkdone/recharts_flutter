@@ -900,10 +900,30 @@ List<BarRect>? _barRectangles(GraphicalItem item, List<GraphicalItem> items, Axi
   if (pos == null) return null;
 
   // selectStackedDataOfItem
-  final stackedData = item.stackId == null ? null : numericAxis.stackGroups?[item.stackId]?.stackedData[item.id];
+  final stackGroup = item.stackId == null ? null : numericAxis.stackGroups?[item.stackId];
+  final stackedData = stackGroup?.stackedData[item.id];
 
   // computeBarRectangles
   final numericScale = numericAxis.scale!;
+
+  // selectStackedMinPointSizeShift: per full data index, how far the bars before this one in the
+  // stack were pushed out by their own minPointSize, so this one moves along instead of overlapping.
+  final shifts = <int, double>{};
+  final stackItems = stackGroup?.items ?? const <GraphicalItem>[];
+  for (final before in stackItems.take(math.max(0, stackItems.indexWhere((i) => i.id == item.id)))) {
+    final series = stackGroup!.stackedData[before.id];
+    if (series == null || !before.isBar) continue;
+    for (var dataIndex = 0; dataIndex < series.length; dataIndex++) {
+      final start = numericScale.map(series[dataIndex][0]), end = numericScale.map(series[dataIndex][1]);
+      if (start == null || end == null) continue;
+      final naturalSize = horizontal ? start - end : end - start;
+      final minPointSize = _minPointSizeOf((before.element as Bar).minPointSize, series[dataIndex][1], dataIndex);
+      if (minPointSize.abs() > 0 && naturalSize.abs() < minPointSize.abs()) {
+        shifts[dataIndex] = (shifts[dataIndex] ?? 0) +
+            mathSign(naturalSize != 0 ? naturalSize : minPointSize) * (minPointSize.abs() - naturalSize.abs());
+      }
+    }
+  }
   final dom = numericScale.domain;
   final Object? baseValue;
   if (numericAxis.type == AxisDomainType.number) {
@@ -957,6 +977,7 @@ List<BarRect>? _barRectangles(GraphicalItem item, List<GraphicalItem> items, Axi
       final computedHeight = baseValueScale - currentValueScale;
       height = computedHeight.isNaN ? 0 : computedHeight;
       if (x != null) background = Rect.fromLTWH(x, offset.top, width, offset.height);
+      if (stackedData != null) y -= shifts[index + dataStartIndex] ?? 0;
       if (minPointSize.abs() > 0 && height.abs() < minPointSize.abs()) {
         final delta = mathSign(height != 0 ? height : minPointSize) * (minPointSize.abs() - height.abs());
         y -= delta;
@@ -971,6 +992,7 @@ List<BarRect>? _barRectangles(GraphicalItem item, List<GraphicalItem> items, Axi
       width = currentValueScale - baseValueScale;
       height = pos.size;
       if (y != null) background = Rect.fromLTWH(offset.left, y, offset.width, height);
+      if (stackedData != null) x += shifts[index + dataStartIndex] ?? 0;
       if (minPointSize.abs() > 0 && width.abs() < minPointSize.abs()) {
         final delta = mathSign(width != 0 ? width : minPointSize) * (minPointSize.abs() - width.abs());
         width += delta;
