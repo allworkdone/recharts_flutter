@@ -1,6 +1,6 @@
 {
  "name": "sunburst-angles",
- "description": "startAngle 90, endAngle -270: arc lengths scale with endAngle only.",
+ "description": "startAngle 90, endAngle -270: the arcs span endAngle - startAngle, a full clockwise ring from 12 o'clock.",
  "width": 500,
  "height": 500,
  "chart": {

@@ -299,6 +299,39 @@ void main() {
     expect(probe.rows, ['7 : 3']);
   });
 
+  group('startAngle and endAngle (recharts #8059)', () {
+    const halves = {
+      'name': 'Root',
+      'value': 100,
+      'children': [
+        {'name': 'A', 'value': 50},
+        {'name': 'B', 'value': 50},
+      ],
+    };
+    // getPieSectorAngles reads the angles back from the path, so they come out in [0, 360).
+    for (final (start, end, expected) in [
+      (0.0, 360.0, [[0, 180], [180, 0]]),
+      (90.0, 270.0, [[90, 180], [180, 270]]),
+      (180.0, 360.0, [[180, 270], [270, 0]]),
+      (90.0, -270.0, [[90, 270], [270, 90]]),
+    ]) {
+      test('fits the sectors between startAngle=$start and endAngle=$end', () {
+        final l = computeSunburst(
+            data: halves,
+            width: 500,
+            height: 500,
+            dataKey: 'value',
+            padding: 2,
+            ringPadding: 2,
+            innerRadius: 50,
+            startAngle: start,
+            endAngle: end,
+            fill: const Color(0xFF333333));
+        expect([for (final s in l.sectors) [s.startAngle % 360, s.endAngle % 360]], expected);
+      });
+    }
+  });
+
   group('data entry styles without a theme (recharts #7981)', () {
     SunburstLayout styled(Map<String, Object?> data, {Color fill = const Color(0xFF333333), Color? stroke = const Color(0xFFFFFFFF)}) =>
         computeSunburst(

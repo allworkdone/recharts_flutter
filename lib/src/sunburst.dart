@@ -1,5 +1,5 @@
 // Port of the geometry in src/chart/SunburstChart.tsx: getMaxDepthOf and the
-// recursive drawArcs (rScale = scaleLinear([0, root[dataKey]], [0, endAngle]),
+// recursive drawArcs (rScale = scaleLinear([0, root[dataKey]], [0, endAngle - startAngle]),
 // tooltip indexes like `[0]children[1]`, positions keyed by node name) and
 // resolveSectorProps without a theme.
 
@@ -88,7 +88,7 @@ SunburstLayout computeSunburst({
   final outer = outerRadius ?? (width < height ? width : height) / 2;
   final centerX = cx ?? width / 2, centerY = cy ?? height / 2;
   final total = _num(data[dataKey]);
-  final rScale = LinearScale(domain: [0, total], range: [0, endAngle]);
+  final rScale = LinearScale(domain: [0, total], range: [0, endAngle - startAngle]);
   final thickness = (outer - innerRadius) / getMaxDepthOf(data);
   final sectors = <SunburstSector>[];
   final positions = <String, Offset>{};
