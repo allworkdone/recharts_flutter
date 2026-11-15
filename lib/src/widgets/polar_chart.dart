@@ -16,6 +16,7 @@ import 'package:flutter/widgets.dart';
 
 import '../animation.dart';
 import '../components.dart';
+import '../core/polar_utils.dart' show polarToCartesian;
 import '../util.dart' show defaultIndexIsFractional, defaultPayloadIndex;
 import '../engine/pie.dart';
 import '../engine/polar_axis.dart';
@@ -354,21 +355,31 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
     return [for (final s in chosen) ...s.entries(index)];
   }
 
-  /// `combineCoordinateForDefaultIndex`.
-  Offset? _coordinateForIndex(PolarModel m, int i) {
+  /// `combineCoordinateForDefaultIndex`: on a polar tooltip axis, a point on
+  /// the outer radius with its polar parts, so the cursor shows too.
+  ({Offset? offset, PolarCoordinate? polar}) _coordinateForIndex(PolarModel m, int i) {
     final scene = m.scene;
     final firstId = _payloadSources(m).firstOrNull?.id;
     final firstIsPie = m.pies.any((p) => p.id == firstId);
     if (scene != null && (_isAxisEvent(m) || !firstIsPie)) {
       // The first item's `getPosition` is a noop for Radar and RadialBar; the tick decides.
       final ticks = scene.tooltipTicks;
-      if (i < 0 || i >= ticks.length) return null;
-      return Offset((m.offset.left + m.size.width) / 2, ticks[i].coordinate);
+      if (i < 0 || i >= ticks.length) return (offset: null, polar: null);
+      final vb = scene.viewBox;
+      final radial = scene.layout == PolarLayout.radial;
+      final angle = radial ? (vb.startAngle + vb.endAngle) / 2 : ticks[i].coordinate;
+      final offset = polarToCartesian(vb.cx, vb.cy, vb.outerRadius, angle);
+      return (offset: offset, polar: PolarCoordinate(offset, angle, radial ? ticks[i].coordinate : vb.outerRadius, vb));
     }
     final first = _payloadSources(m).firstOrNull;
     final pie = m.pies.where((p) => p.id == first?.id).firstOrNull ?? m.pies.where((p) => p.sectors != null).firstOrNull;
     final sectors = pie?.sectors;
-    return sectors != null && i >= 0 && i < sectors.length ? sectors[i].tooltipPosition : null;
+    return (offset: sectors != null && i >= 0 && i < sectors.length ? sectors[i].tooltipPosition : null, polar: null);
+  }
+
+  _Interaction _keyboardAt(PolarModel m, int index, {bool active = true}) {
+    final c = _coordinateForIndex(m, index);
+    return _Interaction(active: active, index: index, coordinate: c.offset, polar: c.polar);
   }
 
   _PolarView _computeView(PolarModel m) {
@@ -378,11 +389,12 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
     final finalIsActive = tooltip?.active ?? (state.active && activeIndex != null);
     final axis = _isAxisEvent(m);
     var coordinate = state.coordinate;
+    var polar = state.polar;
     final desired = state.desired ?? tooltip?.defaultIndexNumber;
     final fractional = state.desired != null &&
         defaultIndexIsFractional(state.desired, m.scene != null ? m.chartData.length : m.tooltipDisplayedData.length);
     if (coordinate == null && desired != null && desired.isFinite && desired == desired.truncateToDouble()) {
-      coordinate = _coordinateForIndex(m, desired.toInt());
+      (offset: coordinate, :polar) = _coordinateForIndex(m, desired.toInt());
     }
     final all = axis
         ? polarTooltipPayload(m.scene!, m.chartData, activeIndex)
@@ -398,7 +410,7 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
       activeIndex: fractional ? null : activeIndex,
       activeDataKey: state.dataKey,
       activeItemId: state.itemId,
-      polarCoordinate: axis ? state.polar : null,
+      polarCoordinate: axis ? polar : null,
       // Cursor.tsx renders nothing for the 'item' event type.
       cursorVisible: tooltip != null && finalIsActive && axis && !fractional,
       activeDataPoints: [for (final p in all) ?p.payload],
@@ -449,7 +461,7 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
   void _focusAction() {
     final m = _model;
     if (!widget.accessibilityLayer || m == null || _keyboard.active || _keyboard.index != null) return;
-    _keyboard = _Interaction(active: true, index: 0, coordinate: _coordinateForIndex(m, 0));
+    _keyboard = _keyboardAt(m, 0);
     _refreshView();
     _broadcastSync();
   }
@@ -487,8 +499,7 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
     final displayed = m.tooltipDisplayedData;
     if (key == LogicalKeyboardKey.enter) {
       if (currentIndex < 0) return KeyEventResult.ignored;
-      _keyboard = _Interaction(
-          active: !_keyboard.active, index: _keyboard.index, coordinate: _coordinateForIndex(m, _keyboard.index!));
+      _keyboard = _keyboardAt(m, _keyboard.index!, active: !_keyboard.active);
     } else {
       // Polar charts are 'left-to-right'.
       final movement = right ? 1 : -1;
@@ -500,7 +511,7 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
         nextIndex = currentIndex + movement;
         if (displayed.isEmpty || nextIndex >= displayed.length || nextIndex < 0) return KeyEventResult.ignored;
       }
-      _keyboard = _Interaction(active: true, index: nextIndex, coordinate: _coordinateForIndex(m, nextIndex));
+      _keyboard = _keyboardAt(m, nextIndex);
     }
     _refreshView();
     _broadcastSync();

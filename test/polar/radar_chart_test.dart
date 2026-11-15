@@ -136,6 +136,57 @@ void main() {
     expect((await pixel(tester, image, Offset(200, 200 + a.outerRadius + 1.5))).a, 0);
   });
 
+  // AccessibilityLayer.spec.tsx 'When chart receives focus, arrow keys navigate its tooltip around the polar axis'
+  testWidgets('RadarChart: the keyboard tooltip sits on the outer radius and draws the cursor', (tester) async {
+    final probe = Probe();
+    const radarKeyboardData = [
+      {'name': 'North', 'uv': 400},
+      {'name': 'East', 'uv': 300},
+      {'name': 'South', 'uv': 200},
+      {'name': 'West', 'uv': 100},
+    ];
+    await tester.pumpWidget(host(RadarChart(width: 400, height: 400, cx: 200, cy: 200, outerRadius: 100, data: radarKeyboardData, children: [
+      const PolarAngleAxis(dataKey: 'name'),
+      const Radar(dataKey: 'uv', isAnimationActive: false),
+      Tooltip(isAnimationActive: false, content: probe.build),
+    ])));
+    void expectAt(String label, Offset p) {
+      expect(probe.props!.label, label);
+      expect(probe.props!.coordinate!.dx, closeTo(p.dx, 1e-9));
+      expect(probe.props!.coordinate!.dy, closeTo(p.dy, 1e-9));
+    }
+
+    await tester.tapAt(const Offset(8, 8));
+    await tester.pump();
+    expect(probe.rows, ['uv : 400']);
+    expectAt('North', const Offset(200, 100));
+    // East's point is at radius 75: past it, only the cursor line M200,200L300,200 is drawn.
+    expect((await pixel(tester, await capture(tester), const Offset(290, 200))).a, 0);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump();
+    expect(probe.rows, ['uv : 300']);
+    expectAt('East', const Offset(300, 200));
+    expect((await pixel(tester, await capture(tester), const Offset(290, 200))).a, greaterThan(0));
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pump();
+    expectAt('North', const Offset(200, 100));
+  });
+
+  // combineCoordinateForDefaultIndex.spec.ts 'returns a PolarCoordinate for radial layout'
+  testWidgets('RadialBarChart: defaultIndex draws the cursor and puts the tooltip at the middle angle', (tester) async {
+    final probe = Probe();
+    await tester.pumpWidget(host(RadialBarChart(width: 400, height: 400, data: pageData, children: [
+      const RadialBar(dataKey: 'uv', fill: Color(0xFFFF0000), isAnimationActive: false),
+      Tooltip(isAnimationActive: false, defaultIndex: 0, content: probe.build),
+    ])));
+    // cx 200, cy 200, outerRadius 156, angles 0..360: the middle angle 180 on the outer radius.
+    expect(probe.props!.coordinate!.dx, closeTo(44, 1e-9));
+    expect(probe.props!.coordinate!.dy, closeTo(200, 1e-9));
+    // The cursor ring at the first category's radius, 13, crosses Page A's red bar.
+    final c = await pixel(tester, await capture(tester), const Offset(187, 200));
+    expect(c.g, greaterThan(0));
+  });
+
   testWidgets('syncId shares the tooltip index between a LineChart and a RadarChart', (tester) async {
     final probe = Probe(), lineProbe = Probe();
     const data = [
