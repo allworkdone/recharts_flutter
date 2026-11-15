@@ -117,15 +117,16 @@ void main() {
       expect(g, isNull);
     });
 
-    test('axis-pv: lines point to the ticks [0, 180, 360]', () {
+    // 3.11: the grid drops the line where the angle axis wraps around (360 = 0).
+    test('axis-pv: lines point to the ticks [0, 180], not again at 360', () {
       final m = model(chart(const PolarGrid(angleAxisId: 'axis-pv')), 300);
       final ticks = m.scene!.angleAxes['axis-pv']!.ticks!;
       expect([for (final t in ticks) t.coordinate], [0, 180, 360]);
       expect([for (final t in ticks) t.value], [0, 600, 1200]);
       expect({for (final t in ticks) t.offset}, {0.0});
       final g = polarGridGeometry(m.scene!, m.scene!.grids.single)!;
-      expect(g.angles, [0, 180, 360]);
-      expect([for (final (_, b) in g.lines) b.dx], [near(266), near(34), near(266)]);
+      expect(g.angles, [0, 180]);
+      expect([for (final (_, b) in g.lines) b.dx], [near(266), near(34)]);
       expect(g.lines.first.$2.dy, 150);
     });
 
@@ -155,8 +156,9 @@ void main() {
       for (final (i, r) in g.radii.indexed) {
         expect(r, closeTo(expected[i], 1e-6));
       }
-      // 'M 158.28571428571428,150L 141.71428571428572,150L 158.28571428571428,150Z'
-      final p = points('M 158.28571428571428,150L 141.71428571428572,150L 158.28571428571428,150Z');
+      // 'M 158.28571428571428,150L 141.71428571428572,150Z'
+      final p = points('M 158.28571428571428,150L 141.71428571428572,150Z');
+      expect(g.angles.length, p.length);
       for (final (i, a) in g.angles.indexed) {
         final e = polarToCartesian(150, 150, g.radii[0], a);
         expect(e.dx, near(p[i].dx));
@@ -175,5 +177,20 @@ void main() {
       final g = polarGridGeometry(m.scene!, m.scene!.grids.single)!;
       expect(g.radii, [for (final c in coords) closeTo(c, 1e-9)]);
     });
+  });
+
+  test('RadarChart: no repeated line where a full circle numerical axis wraps around', () {
+    final m = computePolarModel(
+      chartName: 'RadarChart',
+      size: const Size(300, 300),
+      data: pageData,
+      children: const [Radar(dataKey: 'uv'), PolarAngleAxis(type: AxisDomainType.number), PolarGrid()],
+      layout: PolarLayout.centric,
+      options: const PolarOptions(startAngle: 90, endAngle: -270),
+    );
+    final ends = {for (final (_, b) in polarGridGeometry(m.scene!, m.scene!.grids.single)!.lines) '${b.dx.round()},${b.dy.round()}'};
+    final tickCount = angleAxisTickGeometry(m.scene!, m.scene!.angleAxisElements.single).length;
+    expect(polarGridGeometry(m.scene!, m.scene!.grids.single)!.lines.length, ends.length);
+    expect(ends.length, tickCount);
   });
 }

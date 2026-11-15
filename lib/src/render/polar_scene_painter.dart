@@ -159,7 +159,8 @@ typedef PolarGridGeometry = ({List<double> angles, List<double> radii, List<(Off
 PolarGridGeometry? polarGridGeometry(PolarScene scene, PolarGrid g) {
   final angleTicks = scene.angleAxes[g.angleAxisId]?.ticks;
   final radiusTicks = scene.radiusAxes[g.radiusAxisId]?.ticks;
-  final polarAngles = g.polarAngles ?? (angleTicks == null ? null : [for (final t in angleTicks) t.coordinate]);
+  // The angle axis is circular: a tick where it wraps around (0 and 360) draws one line.
+  final polarAngles = g.polarAngles ?? (angleTicks == null ? null : [for (final t in dedupeAngleTicks(angleTicks)) t.coordinate]);
   final polarRadius = g.polarRadius ?? (radiusTicks == null ? null : [for (final t in radiusTicks) t.coordinate]);
   if (polarAngles == null || polarRadius == null) return null;
   final vb = scene.viewBox;
