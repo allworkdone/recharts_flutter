@@ -64,8 +64,8 @@ void main() {
     expect(child1.innerRadius, 50);
     expect(third.innerRadius, closeTo(50 + 200 / 3 + 2, 1e-9));
     expect([third.startAngle, third.endAngle], [0, 36]);
-    expect(l.positions['Child1']!.dx, closeTo(583.3333333333334, 1e-9));
-    expect(l.positions['Child1']!.dy, closeTo(250, 1e-9));
+    expect(l.positions['[0]']!.dx, closeTo(583.3333333333334, 1e-9));
+    expect(l.positions['[0]']!.dy, closeTo(250, 1e-9));
   });
 
   testWidgets('a root without a value renders without throwing', (tester) async {
@@ -78,7 +78,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets("defaultIndex is a lodash path into data.children; the coordinate is positions[String(index)], so the box sits at (0,0)", (tester) async {
+  testWidgets("defaultIndex is a lodash path into data.children; the coordinate is positions[String(index)], so other spellings have none", (tester) async {
     Future<Probe> show(Object index) async {
       final probe = Probe();
       await tester.pumpWidget(host(SunburstChart(
@@ -92,7 +92,6 @@ void main() {
     var probe = await show('[0]');
     expect(probe.rows, ['Child1 : 30']);
     expect(probe.props!.activeIndex, '[0]');
-    expect(probe.props!.coordinate, isNull);
     probe = await show('[0]children[0]');
     expect(probe.rows, ['third child : 10']);
     // payloadSearcher is lodash get(data.children, index): '0' is the first child.
@@ -101,6 +100,7 @@ void main() {
     expect(probe.props!.coordinate, isNull);
     probe = await show('1.children[0]');
     expect(probe.rows, ['another child : 10']);
+    expect(probe.props!.coordinate, isNull);
     probe = await show(7);
     expect(probe.props!.active, isTrue);
     expect(probe.props!.payload, isEmpty);
@@ -330,6 +330,73 @@ void main() {
         expect([for (final s in l.sectors) [s.startAngle % 360, s.endAngle % 360]], expected);
       });
     }
+  });
+
+  group('tooltip coordinate resolved from defaultIndex (recharts #8032)', () {
+    Future<Probe> show(WidgetTester tester, String index) async {
+      final probe = Probe();
+      await tester.pumpWidget(host(SunburstChart(
+          width: 400,
+          height: 400,
+          data: exampleSunburstData(),
+          children: [Tooltip(isAnimationActive: false, defaultIndex: index, content: probe.build)])));
+      return probe;
+    }
+
+    testWidgets('a first ring node sits at its sector position', (tester) async {
+      final probe = await show(tester, '[0]');
+      expect(probe.rows, ['Child1 : 30']);
+      // (200 - 50) / 3 = 50 thick, so 200 + (50 + 50 / 2) on the x axis; the box adds offset 10.
+      expect(probe.props!.coordinate, const Offset(275, 200));
+      expect(tooltipBox(tester).targetTranslate, const Offset(285, 210));
+    });
+
+    testWidgets('a nested node sits at its sector position', (tester) async {
+      final probe = await show(tester, '[0]children[0]');
+      expect(probe.rows, ['third child : 10']);
+      expect(tooltipBox(tester).targetTranslate, const Offset(337, 210));
+    });
+
+    testWidgets('an index that matches no node shows nothing', (tester) async {
+      final probe = await show(tester, '[9]');
+      expect(probe.visible, isFalse);
+    });
+  });
+
+  testWidgets('repeated node names: each sector gets its own coordinate (recharts #8032)', (tester) async {
+    final probe = Probe();
+    await tester.pumpWidget(host(SunburstChart(width: 400, height: 400, data: const {
+      'name': 'Root',
+      'value': 100,
+      'children': [
+        {
+          'name': 'A',
+          'value': 50,
+          'children': [
+            {'name': 'shared', 'value': 25},
+          ],
+        },
+        {
+          'name': 'B',
+          'value': 50,
+          'children': [
+            {'name': 'shared', 'value': 25},
+          ],
+        },
+      ],
+    }, children: [Tooltip(isAnimationActive: false, content: probe.build)])));
+    // Rings 50..100 and 102..152 around (200, 200): A, A/shared, B, B/shared at their mid angles.
+    final mouse = await mouseAt(tester, const Offset(2, 2));
+    final coordinates = <Offset?>[];
+    for (final p in const [Offset(200, 125), Offset(290, 110), Offset(200, 275), Offset(110, 290)]) {
+      await mouse.moveTo(p);
+      await tester.pump();
+      coordinates.add(probe.props!.coordinate);
+    }
+    expect(coordinates[0], const Offset(275, 200));
+    expect(coordinates[1], const Offset(327, 200));
+    expect(coordinates[3], isNot(coordinates[1]));
+    expect(coordinates.toSet(), hasLength(4));
   });
 
   group('data entry styles without a theme (recharts #7981)', () {

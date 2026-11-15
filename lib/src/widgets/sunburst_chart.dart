@@ -208,7 +208,7 @@ class _SunburstChartState extends State<SunburstChart> with TickerProviderStateM
       if (mouse.index != null) {
         if (tooltip?.active == true) state = _Interaction(active: true, index: mouse.index, coordinate: mouse.coordinate, dataKey: mouse.dataKey);
       } else if (tooltip?.defaultIndex != null) {
-        // Recharts: String(defaultIndex), and positions (keyed by node name) are looked up by that same string.
+        // Recharts: String(defaultIndex), and positions (keyed by tooltipIndex) are looked up by that same string.
         final i = jsString(tooltip!.defaultIndex);
         state = _Interaction(active: true, index: i, coordinate: layout.positions[i]);
       }
@@ -264,7 +264,7 @@ class _SunburstChartState extends State<SunburstChart> with TickerProviderStateM
 
   Map<String, Object?> _node(int i) => _layout!.sectors[i].node;
 
-  Offset? _position(int i) => _layout!.positions[jsString(_node(i)['name'])];
+  Offset? _position(int i) => _layout!.positions[_node(i)['tooltipIndex']];
 
   /// onMouseEnter / onMouseLeave of the sector under the pointer.
   void _setHover(int? hit, PointerEvent e) {

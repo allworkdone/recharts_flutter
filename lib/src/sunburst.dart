@@ -1,6 +1,6 @@
 // Port of the geometry in src/chart/SunburstChart.tsx: getMaxDepthOf and the
 // recursive drawArcs (rScale = scaleLinear([0, root[dataKey]], [0, endAngle - startAngle]),
-// tooltip indexes like `[0]children[1]`, positions keyed by node name) and
+// tooltip indexes like `[0]children[1]`, positions keyed by tooltip index) and
 // resolveSectorProps without a theme.
 
 import 'dart:ui';
@@ -50,7 +50,7 @@ class SunburstLayout {
   /// The original data node by `tooltipIndex` (`get(data.children, index)`).
   final Map<String, Map<String, Object?>> byIndex;
 
-  /// `positions`: the tooltip coordinate by node name; a repeated name keeps the last one.
+  /// `positions`: the tooltip coordinate by `tooltipIndex`.
   final Map<String, Offset> positions;
   final double thickness;
 }
@@ -123,7 +123,7 @@ SunburstLayout computeSunburst({
         textPosition: Offset(text.dx + centerX, centerY - text.dy),
       ));
       final tooltip = polarToCartesian(centerX, centerY, innerR + radius / 2, start);
-      positions[jsString(d['name'])] = tooltip;
+      positions[tooltipIndex] = tooltip;
       drawArcs(d['children'] as List?, radius, innerR + radius + ringPadding, start, fillColor, tooltipIndex, depth + 1);
     }
   }
