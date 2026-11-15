@@ -1,0 +1,71 @@
+{
+ "name": "radialbar-min-angle-null",
+ "description": "RadialBar with minAngle and cornerRadius over a small value, a null value and entries with their own fill or stroke; Legend and Tooltip show the sector colors, the Tooltip starts at defaultIndex 1 with its cursor.",
+ "width": 500,
+ "height": 360,
+ "chart": {
+  "type": "RadialBarChart",
+  "props": {
+   "data": [
+    {
+     "name": "A",
+     "uv": 100,
+     "fill": "#8884d8"
+    },
+    {
+     "name": "B",
+     "uv": 2,
+     "stroke": "#ff7300"
+    },
+    {
+     "name": "C",
+     "uv": null
+    },
+    {
+     "name": "D",
+     "uv": 60
+    }
+   ],
+   "innerRadius": 20,
+   "outerRadius": 140,
+   "barSize": 16
+  },
+  "children": [
+   {
+    "type": "RadialBar",
+    "props": {
+     "dataKey": "uv",
+     "minAngle": 25,
+     "cornerRadius": 8,
+     "background": true,
+     "fill": "#82ca9d",
+     "isAnimationActive": false
+    }
+   },
+   {
+    "type": "Legend",
+    "props": {}
+   },
+   {
+    "type": "Tooltip",
+    "props": {
+     "defaultIndex": 1
+    }
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-d",
+   "type": "hover",
+   "x": 250,
+   "y": 60
+  },
+  {
+   "id": "hover-a",
+   "type": "hover",
+   "x": 285,
+   "y": 160
+  }
+ ]
+}

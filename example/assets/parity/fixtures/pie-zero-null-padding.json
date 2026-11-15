@@ -1,0 +1,72 @@
+{
+ "name": "pie-zero-null-padding",
+ "description": "Half donut starting with a zero value, with a null value, a tiny slice widened by minAngle, paddingAngle and cornerRadius; one entry carries its own fill and strokeWidth, which stays off its label line.",
+ "width": 500,
+ "height": 300,
+ "chart": {
+  "type": "PieChart",
+  "props": {},
+  "children": [
+   {
+    "type": "Pie",
+    "props": {
+     "data": [
+      {
+       "name": "Zero",
+       "value": 0
+      },
+      {
+       "name": "A",
+       "value": 300,
+       "fill": "#ff7300",
+       "strokeWidth": 6
+      },
+      {
+       "name": "Missing",
+       "value": null
+      },
+      {
+       "name": "B",
+       "value": 200
+      },
+      {
+       "name": "Tiny",
+       "value": 3
+      }
+     ],
+     "dataKey": "value",
+     "cx": "50%",
+     "cy": "75%",
+     "startAngle": 180,
+     "endAngle": 0,
+     "innerRadius": 70,
+     "outerRadius": 140,
+     "paddingAngle": 6,
+     "minAngle": 6,
+     "cornerRadius": 12,
+     "fill": "#8884d8",
+     "label": true,
+     "isAnimationActive": false
+    }
+   },
+   {
+    "type": "Tooltip",
+    "props": {}
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-a",
+   "type": "hover",
+   "x": 170,
+   "y": 160
+  },
+  {
+   "id": "hover-b",
+   "type": "hover",
+   "x": 330,
+   "y": 130
+  }
+ ]
+}

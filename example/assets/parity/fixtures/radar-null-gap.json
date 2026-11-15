@@ -1,0 +1,115 @@
+{
+ "name": "radar-null-gap",
+ "description": "Counter-clockwise RadarChart (startAngle -270, endAngle 90) with a null value: the score Radar leaves a gap with no dot there, the range Radar's base line breaks at a null low value.",
+ "width": 400,
+ "height": 400,
+ "chart": {
+  "type": "RadarChart",
+  "props": {
+   "data": [
+    {
+     "subject": "Math",
+     "score": 80,
+     "range": [
+      20,
+      80
+     ]
+    },
+    {
+     "subject": "Physics",
+     "score": 60,
+     "range": [
+      30,
+      60
+     ]
+    },
+    {
+     "subject": "History",
+     "score": null,
+     "range": [
+      null,
+      50
+     ]
+    },
+    {
+     "subject": "Art",
+     "score": 70,
+     "range": [
+      40,
+      70
+     ]
+    },
+    {
+     "subject": "Music",
+     "score": 90,
+     "range": [
+      50,
+      90
+     ]
+    }
+   ],
+   "startAngle": -270,
+   "endAngle": 90
+  },
+  "children": [
+   {
+    "type": "PolarGrid",
+    "props": {}
+   },
+   {
+    "type": "PolarAngleAxis",
+    "props": {
+     "dataKey": "subject"
+    }
+   },
+   {
+    "type": "PolarRadiusAxis",
+    "props": {
+     "domain": [
+      0,
+      100
+     ]
+    }
+   },
+   {
+    "type": "Radar",
+    "props": {
+     "dataKey": "range",
+     "stroke": "#82ca9d",
+     "fill": "#82ca9d",
+     "fillOpacity": 0.3,
+     "isAnimationActive": false
+    }
+   },
+   {
+    "type": "Radar",
+    "props": {
+     "dataKey": "score",
+     "stroke": "#8884d8",
+     "fill": "#8884d8",
+     "fillOpacity": 0.5,
+     "dot": true,
+     "isAnimationActive": false
+    }
+   },
+   {
+    "type": "Tooltip",
+    "props": {}
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-physics",
+   "type": "hover",
+   "x": 300,
+   "y": 170
+  },
+  {
+   "id": "hover-history",
+   "type": "hover",
+   "x": 260,
+   "y": 300
+  }
+ ]
+}
