@@ -471,11 +471,32 @@ Path _rangePath(List<List<Offset>> outer, List<List<Offset>> base) {
   return path;
 }
 
-/// The Radar polygon as pointer events see it (its fill region), over the points shown this frame.
-Path? radarPolygonPath(PolarFrame frame, RadarModel r) {
+/// Polygon.tsx: the fill region, null when the outline is open (`fill="none"`, so
+/// pointer events hit only the stroke), and the stroked outlines.
+typedef RadarPolygonPaths = ({Path? fill, List<Path> strokes});
+
+RadarPolygonPaths _radarPolygon(List<RadarPoint> points, List<RadarPoint>? baseLine, bool connectNulls) {
+  final outer = _segments(_offsets(points), connectNulls);
+  if (baseLine != null && baseLine.isNotEmpty) {
+    final reversed = _segments(_offsets(baseLine.reversed.toList()), connectNulls);
+    return (
+      fill: reversed.length == 1 ? _rangePath(outer, reversed) : null,
+      strokes: [_segmentsPath(outer), _segmentsPath(_segments(_offsets(baseLine), connectNulls))],
+    );
+  }
+  final path = _segmentsPath(outer);
+  return (fill: outer.length == 1 ? path : null, strokes: [path]);
+}
+
+/// The Radar polygon as pointer events see it, over the points shown this frame.
+RadarPolygonPaths? radarPolygonPaths(PolarFrame frame, RadarModel r) {
   final points = frame.radarAnimators[r.id]?.peek(interpolateRadarPoints) ?? r.points;
   if (points == null || points.isEmpty) return null;
-  return _segmentsPath(_segments(_offsets(points), r.settings.connectNulls));
+  final composed = r.composed!;
+  final baseLine = composed.isRange
+      ? (frame.radarBaseLineAnimators[r.id]?.peek(interpolateRadarPoints) ?? composed.baseLinePoints)
+      : null;
+  return _radarPolygon(points, baseLine, r.settings.connectNulls);
 }
 
 List<Offset?> _offsets(List<RadarPoint> points) => [for (final p in points) Offset(p.x, p.y)];
@@ -507,26 +528,11 @@ void _paintRadarPolygon(Canvas canvas, PolarFrame frame, RadarModel r, List<Rada
     if (paint != null) drawStroke(canvas, path, paint, radar.strokeDasharray);
   }
 
-  void fillPath(Path path, bool closed) {
-    if (closed) canvas.drawPath(path, fillPaint(radar.fill ?? _svgBlack, opacity: radar.fillOpacity ?? 1));
+  final polygon = _radarPolygon(points, baseLine, radar.connectNulls);
+  if (polygon.fill != null) {
+    canvas.drawPath(polygon.fill!, fillPaint(radar.fill ?? _svgBlack, opacity: radar.fillOpacity ?? 1));
   }
-
-  final outer = _segments(_offsets(points), radar.connectNulls);
-  if (baseLine != null && baseLine.isNotEmpty) {
-    final base = _segments(_offsets(baseLine), radar.connectNulls);
-    final reversed = _segments(_offsets(baseLine.reversed.toList()), radar.connectNulls);
-    final range = _rangePath(outer, reversed);
-    fillPath(range, reversed.length == 1);
-    if (hasStroke) {
-      strokePath(_segmentsPath(outer));
-      strokePath(_segmentsPath(base));
-    }
-    return;
-  }
-  final path = _segmentsPath(outer);
-  fillPath(path, outer.length == 1);
-  strokePath(path);
-  return;
+  polygon.strokes.forEach(strokePath);
 }
 
 void _paintRadarDots(Canvas canvas, RadarModel r, List<RadarPoint> points) {

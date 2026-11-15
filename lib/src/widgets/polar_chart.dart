@@ -623,11 +623,11 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
     if (m?.scene == null || frame == null) return null;
     for (final r in m!.scene!.radars.reversed) {
       if (r.settings.hide || r.points == null) continue;
-      final path = radarPolygonPath(frame, r);
+      final paths = radarPolygonPaths(frame, r);
       final stroke = r.settings.stroke;
-      if (path != null &&
-          ((r.settings.fill?.a != 0 && path.contains(p)) ||
-              (stroke != null && strokeContains(path, p, r.settings.strokeWidth ?? 1)))) {
+      if (paths != null &&
+          ((r.settings.fill?.a != 0 && (paths.fill?.contains(p) ?? false)) ||
+              (stroke != null && paths.strokes.any((s) => strokeContains(s, p, r.settings.strokeWidth ?? 1))))) {
         return r.id;
       }
     }

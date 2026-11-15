@@ -100,6 +100,35 @@ void main() {
     expect(calls.where((c) => c.startsWith('touch')), ['touchstart', 'touchmove', 'touchend']);
   });
 
+  // Polygon.tsx paints an open outline (a null gap) with fill="none": pointer events hit only its stroke.
+  testWidgets('Radar with a null gap: clicks inside the open outline miss it, clicks on its stroke hit it', (tester) async {
+    var clicks = 0;
+    Future<int> clicksAt(Object? fourth, Offset p) async {
+      clicks = 0;
+      // 400x400, outerRadius 156 around (200, 200), six spokes 60 degrees apart from the top, all at 100.
+      await tester.pumpWidget(host(RadarChart(width: 400, height: 400, data: [
+        for (final v in [100, 100, 100, fourth, 100, 100]) {'v': v},
+      ], children: [
+        Radar(
+            dataKey: 'v',
+            fill: const Color(0xFFFF0000),
+            stroke: const Color(0xFF0000FF),
+            isAnimationActive: false,
+            onClick: (e) => clicks++),
+      ])));
+      await tester.tapAt(p);
+      await tester.pump();
+      return clicks;
+    }
+
+    // Inside the first three points' triangle, 45px from any stroke.
+    const inside = Offset(290, 148);
+    expect(await clicksAt(100, inside), 1);
+    expect(await clicksAt(null, inside), 0);
+    // On the stroke between the first two points.
+    expect(await clicksAt(null, const Offset(267.5, 83)), 1);
+  });
+
   testWidgets('Pie sectors: click, enter / leave and touch handlers get the sector and its index', (tester) async {
     final calls = <String>[];
     void log(String name, PieSector s, int i) => calls.add('$name ${s.value} $i');
