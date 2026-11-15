@@ -20,6 +20,7 @@ import 'dart:ui';
 
 import '../components.dart';
 import '../core/curve.dart';
+import '../css_color.dart';
 import '../core/scale.dart';
 import '../util.dart';
 import 'axis.dart';
@@ -1451,21 +1452,25 @@ List<TooltipPayloadEntry> tooltipPayloadOf(CartesianModel m, int? activeIndex,
       payload = activeIndex >= 0 && activeIndex < finalData.length ? finalData[activeIndex] : null;
     }
     final name = el.name != null ? jsString(el.name) : (el.dataKey is String ? el.dataKey as String : null);
+    // Bar's getEntryColor: the color its rectangle paints the datum with (the datum's fill, the
+    // Bar's fill, the datum's stroke, the Bar's stroke); fill and stroke take the datum's first.
+    final entry = el is Bar && payload is Map ? payload : null;
+    final entryFill = cssFillOf(entry?['fill']), entryStroke = cssStrokeOf(entry?['stroke']);
     out.add(TooltipPayloadEntry(
       dataKey: el.dataKey,
       name: name,
       value: getValueByDataKey(payload, el.dataKey),
       payload: payload,
-      color: el.tooltipColor,
+      color: el is Bar ? entryFill ?? (el.fill != null ? solidColor(el.fill) : entryStroke ?? el.stroke) : el.tooltipColor,
       fill: switch (el) {
         Line l => l.fill,
-        Bar b => solidColor(b.fill),
+        Bar b => entryFill ?? solidColor(b.fill),
         Area a => solidColor(a.fill),
         _ => null,
       },
       stroke: switch (el) {
         Line l => l.stroke,
-        Bar b => b.stroke,
+        Bar b => entryStroke ?? b.stroke,
         Area a => a.stroke,
         _ => null,
       },

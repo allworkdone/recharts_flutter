@@ -373,6 +373,39 @@ void main() {
     });
   });
 
+  group('Bar.theme.spec.tsx without a theme: the tooltip shows the color the bar renders with', () {
+    const gold = Color(0xFFFFD700), red = Color(0xFFFF0000), silver = Color(0xFFC0C0C0), blue = Color(0xFF0000FF);
+    (Color?, Color?, Color?) colors(List<Object?> data, Bar bar, int index) {
+      final e = tooltipPayloadOf(model('BarChart', 400, 400, data, [bar]), index).single;
+      return (e.color, e.fill, e.stroke);
+    }
+
+    test('per-datum colors: the datum fill, else the datum stroke', () {
+      const data = [
+        {'name': 'Sun', 'massKg': 1, 'fill': 'gold', 'stroke': 'red'},
+        {'name': 'Mercury', 'massKg': 2, 'fill': 'silver'},
+        {'name': 'Venus', 'massKg': 3, 'stroke': 'blue'},
+      ];
+      const bar = Bar(dataKey: 'massKg');
+      expect(colors(data, bar, 0), (gold, gold, red));
+      expect(colors(data, bar, 1), (silver, silver, null));
+      expect(colors(data, bar, 2), (blue, null, blue));
+    });
+
+    test('shows the Bar fill in the tooltip when the entry only has a stroke', () {
+      const lime = Color(0xFF00FF00), fill = Color(0xFF123456);
+      expect(colors(const [{'uv': 1, 'stroke': 'lime'}], const Bar(dataKey: 'uv', fill: fill), 0), (fill, fill, lime));
+    });
+
+    test('uses the Bar stroke when there is no fill', () {
+      expect(colors(const [{'uv': 1}], const Bar(dataKey: 'uv', stroke: red), 0), (red, null, red));
+    });
+
+    test('ignores the entry color key, because it does not paint the bar', () {
+      expect(colors(const [{'uv': 1, 'color': 'blue'}], const Bar(dataKey: 'uv', fill: red), 0), (red, red, null));
+    });
+  });
+
   group('tooltip payload (combineTooltipPayload)', () {
     test('one entry per item with name, value and color', () {
       final m = model('LineChart', 400, 400, pageData, const [
