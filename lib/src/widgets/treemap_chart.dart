@@ -558,7 +558,9 @@ class _TreemapState extends State<Treemap> with TickerProviderStateMixin {
   List<TooltipPayloadEntry> _payload(Tooltip tooltip, _Interaction state) {
     // dataDefinedOnItem is the rendered tree, whose tooltipIndex and depth match the hovered tile.
     final node = treemapPayloadSearcher(_formatRoot, state.index);
-    final fill = widget.fill;
+    // combineTooltipPayload: the datum's color, fill or stroke before the series colors
+    // (getEntryColor, which follows the tile color, is set only under a theme).
+    final fill = cssFillOf(node?['fill']), stroke = cssStrokeOf(node?['stroke']);
     final name = getValueByDataKey(node, widget.nameKey);
     final entry = TooltipPayloadEntry(
       dataKey: widget.dataKey,
@@ -566,9 +568,9 @@ class _TreemapState extends State<Treemap> with TickerProviderStateMixin {
       name: name,
       value: getValueByDataKey(node, widget.dataKey),
       payload: node,
-      color: fill,
-      fill: fill,
-      stroke: widget.stroke,
+      color: cssFillOf(node?['color']) ?? fill ?? stroke ?? widget.fill,
+      fill: fill ?? widget.fill,
+      stroke: stroke ?? widget.stroke,
       unit: '',
     );
     if (tooltip.filterNull && entry.value == null) return const [];

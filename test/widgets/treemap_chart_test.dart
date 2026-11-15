@@ -329,6 +329,25 @@ void main() {
       });
     }
 
+    testWidgets('keeps using the data entry color key without a provider (Treemap.theme.spec)', (tester) async {
+      final probe = Probe();
+      await tester.pumpWidget(host(Treemap(
+        width: 400,
+        height: 250,
+        data: const [
+          {'name': 'A', 'value': 100, 'color': 'blue'},
+          {'name': 'B', 'value': 80},
+        ],
+        isAnimationActive: false,
+        children: [Tooltip(isAnimationActive: false, content: probe.build)],
+      )));
+      final mouse = await mouseAt(tester, const Offset(600, 400));
+      await mouse.moveTo(const Offset(10, 10));
+      await tester.pump();
+      expect(probe.props!.payload.single.name, 'A');
+      expect(probe.props!.payload.single.color, const Color(0xFF0000FF));
+    });
+
     testWidgets('a parent has no row when dataKey is not its own key', (tester) async {
       final probe = Probe();
       await tester.pumpWidget(chart(probe: probe, d: [

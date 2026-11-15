@@ -299,6 +299,47 @@ void main() {
     expect(probe.rows, ['7 : 3']);
   });
 
+  group('tooltip color: the datum color, fill or stroke before the chart fill', () {
+    Future<Probe> hover(WidgetTester tester, Map<String, Object?> data, Offset at) async {
+      final probe = Probe();
+      await tester.pumpWidget(host(SunburstChart(
+          width: 400, height: 400, data: data, children: [Tooltip(isAnimationActive: false, content: probe.build)])));
+      final mouse = await mouseAt(tester, const Offset(2, 2));
+      await mouse.moveTo(at);
+      await tester.pump();
+      return probe;
+    }
+
+    testWidgets('a nested sector with no colors of its own keeps the chart fill (SunburstChart.theme.spec, no theme)', (tester) async {
+      // A1 is 0..108 degrees on the second ring (102..152) around (200, 200).
+      final probe = await hover(tester, const {
+        'name': 'root',
+        'value': 100,
+        'children': [
+          {
+            'name': 'A',
+            'value': 60,
+            'children': [
+              {'name': 'A1', 'value': 30},
+              {'name': 'A2', 'value': 30},
+            ],
+          },
+          {'name': 'B', 'value': 40},
+        ],
+      }, const Offset(275, 97));
+      expect(probe.rows, ['A1 : 30']);
+      expect(probe.props!.payload.single.color, const Color(0xFF333333));
+    });
+
+    testWidgets('a sector with its own fill gives the tooltip that fill', (tester) async {
+      // sunburst-simple in canary.9: hovering Child2 draws its row in Child2's fill.
+      final probe = await hover(tester, exampleSunburstData(), const Offset(244, 139));
+      expect(probe.rows, ['Child1 : 30']);
+      expect(probe.props!.payload.single.color, const Color(0xFF264653));
+      expect(probe.props!.payload.single.fill, const Color(0xFF264653));
+    });
+  });
+
   group('startAngle and endAngle (recharts #8059)', () {
     const halves = {
       'name': 'Root',

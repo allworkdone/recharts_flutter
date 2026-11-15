@@ -8,7 +8,7 @@ import 'package:flutter/gestures.dart' show kTouchSlop, PointerDeviceKind;
 import 'package:flutter/widgets.dart';
 
 import '../components.dart';
-import '../css_color.dart' show isCssNone;
+import '../css_color.dart' show cssFillOf, cssStrokeOf, isCssNone;
 import '../render/polar_painter.dart' show svgTextBox;
 import '../render/sector.dart';
 import '../render/shapes.dart';
@@ -223,6 +223,8 @@ class _SunburstChartState extends State<SunburstChart> with TickerProviderStateM
     if (active && node != null) {
       final w = widget;
       final name = getValueByDataKey(node, w.nameKey);
+      // combineTooltipPayload: the datum's color, fill or stroke before the series colors.
+      final fill = cssFillOf(node['fill']), stroke = cssStrokeOf(node['stroke']);
       payload = [
         TooltipPayloadEntry(
           dataKey: w.dataKey,
@@ -230,9 +232,9 @@ class _SunburstChartState extends State<SunburstChart> with TickerProviderStateM
           name: name ?? (w.nameKey == null ? w.dataKey : null),
           value: getValueByDataKey(node, w.dataKey),
           payload: node,
-          color: w.fill,
-          fill: w.fill,
-          stroke: w.stroke,
+          color: cssFillOf(node['color']) ?? fill ?? stroke ?? w.fill,
+          fill: fill ?? w.fill,
+          stroke: stroke ?? w.stroke,
           unit: '',
         ),
       ];
