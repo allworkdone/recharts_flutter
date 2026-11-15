@@ -239,6 +239,22 @@ void main() {
     expect(probe.rows, ['A : 250']);
     await finger.up();
   });
+
+  // Pie.theme.spec.tsx 'keeps only the entry color on the label line and the label text'
+  testWidgets('a label line takes the entry color but not its strokeWidth', (tester) async {
+    await tester.pumpWidget(host(const PieChart(width: 400, height: 400, children: [
+      Pie(isAnimationActive: false, label: true, data: [
+        {'name': 'A', 'value': 100, 'fill': red, 'strokeWidth': 7},
+        {'name': 'B', 'value': 100},
+      ]),
+    ])));
+    // Sector A spans 0..180 degrees: its label line runs straight up at x = 200, from radius 156 to 176.
+    final image = await capture(tester);
+    final onLine = await pixel(tester, image, const Offset(200, 34));
+    expect(onLine.a, greaterThan(0));
+    expect(onLine.r, greaterThan(onLine.g));
+    expect((await pixel(tester, image, const Offset(202, 34))).a, 0);
+  });
 }
 
 /// Tooltip position of the i-th of five equal sectors of the 400x400 chart.

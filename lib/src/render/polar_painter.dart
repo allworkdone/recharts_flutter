@@ -210,14 +210,15 @@ class PolarPainter extends CustomPainter {
         if (line is PieLabelLinePainter) {
           line(canvas, PieLabelLineProps(sector: s, index: i, points: points, stroke: s.fill));
         } else {
+          // Of a data entry's styles, only its color reaches the label line.
           final style = line is SvgStyle ? line : null;
           final stroke = style?.stroke ?? s.fill;
-          final width = style?.strokeWidth ?? s.strokeWidth ?? 1;
+          final width = style?.strokeWidth ?? pie.strokeWidth ?? 1;
           if (stroke != null && width > 0) {
             final path = Path()
               ..moveTo(points[0].dx, points[0].dy)
               ..lineTo(points[1].dx, points[1].dy);
-            drawStroke(canvas, path, strokePaint(stroke, width, opacity: style?.strokeOpacity ?? s.strokeOpacity ?? 1),
+            drawStroke(canvas, path, strokePaint(stroke, width, opacity: style?.strokeOpacity ?? pie.strokeOpacity ?? 1),
                 style?.strokeDasharray);
           }
         }
@@ -230,9 +231,7 @@ class PolarPainter extends CustomPainter {
         label.content!(canvas, props);
         continue;
       }
-      final value = label.formatter != null
-          ? label.formatter!(props)
-          : (pie.dataKey == 'value' ? s.value : getValueByDataKey(s.payload, pie.dataKey));
+      final value = label.formatter != null ? label.formatter!(props) : getValueByDataKey(s.payload, pie.dataKey, s.value);
       if (value == null) continue;
       final text = jsString(value);
       paintSvgText(canvas, text, end.dx, end.dy, style: style, textAnchor: textAnchor, scaler: frame.textScaler);
