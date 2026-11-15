@@ -308,6 +308,36 @@ void main() {
     });
   });
 
+  group('RadialBar with a null value (RadialBar.spec: 400x400, innerRadius 20, outerRadius 180)', () {
+    const dataWithNull = [
+      {'name': 'A', 'value': 50},
+      {'name': 'Missing', 'value': null},
+      {'name': 'B', 'value': 25},
+    ];
+    RadialBarModel bar(double minPointSize) => computePolarModel(
+          chartName: 'RadialBarChart',
+          size: const Size(400, 400),
+          data: dataWithNull,
+          children: [
+            const PolarAngleAxis(type: AxisDomainType.number, domain: [0, 100]),
+            RadialBar(dataKey: 'value', minPointSize: minPointSize),
+          ],
+          layout: PolarLayout.radial,
+          options: const PolarOptions(innerRadius: 20, outerRadius: 180, startAngle: 0, endAngle: 360),
+        ).scene!.radialBars.single;
+
+    for (final minPointSize in [0.0, 5.0]) {
+      test('an empty sector for a null value with minPointSize $minPointSize', () {
+        expect([for (final s in bar(minPointSize).sectors) (s.startAngle, s.endAngle)], [(0, 180), (0, 0), (0, 90)]);
+      });
+    }
+
+    test('no sector is drawn for the null value', () {
+      final b = bar(0);
+      expect([for (final s in b.sectors) radialBarPath(b.settings, s, null)].nonNulls, hasLength(2));
+    });
+  });
+
   group('Brush range synced from another chart', () {
     test('RadialBar sectors and the tooltip data follow it; Radar points and axes ignore it', () {
       final children = <RechartsElement>[

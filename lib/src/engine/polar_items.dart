@@ -399,12 +399,14 @@ List<RadialBarSector> computeRadialBarSectors(PolarItem item, RadialBarContext c
     SectorGeometry? background;
     if (layout == PolarLayout.radial) {
       startAngle = angleAxis.scale!.map(value[0]) ?? vb.startAngle;
-      endAngle = angleAxis.scale!.map(value.length > 1 ? value[1] : null) ?? vb.endAngle;
+      // A null value draws an empty sector, not a full circle.
+      final valueAngle = angleAxis.scale!.map(value.length > 1 ? value[1] : null);
+      endAngle = valueAngle ?? startAngle;
       innerRadius = _cateCoordinateOfBar(radiusAxis, radiusItemTicks, pos.offset, bandSize, entry, index);
       if (innerRadius != null) {
         outerRadius = innerRadius + pos.size;
         final deltaAngle = endAngle - startAngle;
-        if (bar.minPointSize.abs() > 0 && deltaAngle.abs() < bar.minPointSize.abs()) {
+        if (valueAngle != null && bar.minPointSize.abs() > 0 && deltaAngle.abs() < bar.minPointSize.abs()) {
           endAngle += mathSign(deltaAngle != 0 ? deltaAngle : bar.minPointSize) *
               (bar.minPointSize.abs() - deltaAngle.abs());
         }
