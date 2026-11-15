@@ -238,6 +238,22 @@ void main() {
       expect(withLargeFont, lessThan(withDefaultFont));
     });
 
+    testWidgets('YAxis width auto recovers after starting from empty data (YAxis.spec.tsx)', (tester) async {
+      debugTextMeasurerOverride = (_, _) => const Size(80, 30);
+      const data = [
+        {'name': 'Page A', 'uv': 400, 'pv': 2400, 'amt': 2400},
+        {'name': 'Page B', 'uv': 300, 'pv': 1398, 'amt': 2400},
+      ];
+      Widget chart(List<Object?> data) => host(BarChart(width: 400, height: 300, data: data, children: const [
+            YAxis(width: 'auto', ticks: [0, 800, 1600, 2400]),
+            Bar(dataKey: 'amt'),
+          ]));
+      await tester.pumpWidget(chart(const []));
+      await tester.pumpWidget(chart(data));
+      // 80 width + 6 tick size + 2 tick margin
+      expect(paintedModel(tester).axes.single.rect.width, 88);
+    });
+
     testWidgets('YAxis width auto adds the label width and a 5px gap', (tester) async {
       debugTextMeasurerOverride = (_, _) => const Size(80, 30);
       await tester.pumpWidget(host(const LineChart(width: 400, height: 300, data: pageData, children: [
