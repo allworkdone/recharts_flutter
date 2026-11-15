@@ -36,7 +36,9 @@ typedef SankeyEventHandler = void Function(Object item, SankeyElementType type, 
 ///
 /// [node] is an [SvgStyle] merged over the default Rectangle or a
 /// [SankeyNodePainter]; [link] an [SvgStyle] or a [SankeyLinkPainter]. A custom
-/// painter's shape is its returned hit path, else the default shape.
+/// painter's shape is its returned hit path, else the default shape. The
+/// `fill`, `stroke`, `strokeWidth`, `fillOpacity` and `strokeOpacity` of a node
+/// or link entry in [data] win over [node] / [link] ([SankeyNodeProps.style]).
 class Sankey extends StatefulWidget {
   const Sankey({
     super.key,
@@ -223,12 +225,13 @@ class _SankeyState extends State<Sankey> with TickerProviderStateMixin {
           left: margin.left,
           i: i,
           linkCurvature: w.linkCurvature,
-          style: linkStyle);
+          style: sankeyEntryStyle(computed.links[i].raw, linkStyle));
       if (p != null) links.add(p);
     }
     final nodes = [
       for (var i = 0; i < computed.nodes.length; i++)
-        buildNodeProps(node: computed.nodes[i], top: margin.top, left: margin.left, i: i, style: nodeStyle),
+        buildNodeProps(
+            node: computed.nodes[i], top: margin.top, left: margin.left, i: i, style: sankeyEntryStyle(computed.nodes[i].data, nodeStyle)),
     ];
     return _model = _Model(size, nodes, links, viewBox);
   }

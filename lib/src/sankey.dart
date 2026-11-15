@@ -1,12 +1,13 @@
 // Port of the layout and props of src/chart/Sankey.tsx (computeData and the
-// helpers above it, buildNodeProps / buildLinkProps, the tooltip payload
-// searcher). JS names are kept; Array.prototype.sort is stable, so `_sortBy`
+// helpers above it, buildNodeProps / buildLinkProps, getEntrySvgProps without
+// a theme, the tooltip payload searcher). JS names are kept; Array.prototype.sort is stable, so `_sortBy`
 // is too.
 
 import 'dart:math' as math;
 import 'dart:ui';
 
 import 'components.dart';
+import 'css_color.dart';
 import 'util.dart';
 
 enum SankeyElementType { node, link }
@@ -461,7 +462,7 @@ class SankeyNodeProps {
   final int index;
   final SankeyNode payload;
 
-  /// The `node` option when it is an [SvgStyle].
+  /// The `node` option when it is an [SvgStyle], under the data entry's own styles ([sankeyEntryStyle]).
   final SvgStyle? style;
 }
 
@@ -488,6 +489,8 @@ class SankeyLinkProps {
   final int index;
   final SankeyLink link;
   final SankeyNode source, target;
+
+  /// The `link` option when it is an [SvgStyle], under the data entry's own styles ([sankeyEntryStyle]).
   final SvgStyle? style;
 
   /// `{...link, source: sourceNode, target: targetNode}` as a JS object.
@@ -499,6 +502,26 @@ class SankeyLinkProps {
         'source': source.toMap(),
         'target': target.toMap(),
       };
+}
+
+/// `getEntrySvgProps` merged over the `node` / `link` [base]: a `fill`,
+/// `stroke`, `strokeWidth`, `fillOpacity` or `strokeOpacity` of the data
+/// [entry] wins, a null one keeps [base]'s.
+SvgStyle? sankeyEntryStyle(Map<String, Object?> entry, SvgStyle? base) {
+  double? number(String k) => switch (entry[k]) { final num n => n.toDouble(), _ => null };
+  final fill = cssFillOf(entry['fill']), stroke = cssStrokeOf(entry['stroke']);
+  final strokeWidth = number('strokeWidth'), fillOpacity = number('fillOpacity'), strokeOpacity = number('strokeOpacity');
+  if (fill == null && stroke == null && strokeWidth == null && fillOpacity == null && strokeOpacity == null) return base;
+  return SvgStyle(
+    fill: fill ?? base?.fill,
+    fillOpacity: fillOpacity ?? base?.fillOpacity,
+    stroke: stroke ?? base?.stroke,
+    strokeWidth: strokeWidth ?? base?.strokeWidth,
+    strokeOpacity: strokeOpacity ?? base?.strokeOpacity,
+    strokeDasharray: base?.strokeDasharray,
+    r: base?.r,
+    radius: base?.radius,
+  );
 }
 
 /// `buildLinkProps`; null when a link points at a missing node.

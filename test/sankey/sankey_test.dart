@@ -13,7 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:recharts_flutter/recharts_flutter.dart';
 import 'package:recharts_flutter/src/sankey.dart';
 
-import '../widgets/chart_widget_test.dart' show host, tooltipBox;
+import '../widgets/chart_widget_test.dart' show capture, host, pixel, tooltipBox;
 import '../widgets/tooltip_item_test.dart' show Probe, mouseAt;
 
 final exampleSankeyData =
@@ -283,6 +283,54 @@ void main() {
         [1, 2, 10],
       ]);
       expect(compute(data).nodes.map((n) => n.depth), [0, 1, 2]);
+    });
+  });
+
+  group('data entry styles without a theme (recharts #7982)', () {
+    // Sankey.theme.spec: A -> B 10, A -> C 5, B -> C 10 at 400x300.
+    SankeyData data({Map<String, Object?> a = const {}, Map<String, Object?> link0 = const {}}) => SankeyData(
+          nodes: [{'name': 'A', ...a}, {'name': 'B'}, {'name': 'C'}],
+          links: [
+            SankeyLinkDatum.fromMap({'source': 0, 'target': 1, 'value': 10, ...link0}),
+            SankeyLinkDatum(source: 0, target: 2, value: 5),
+            SankeyLinkDatum(source: 1, target: 2, value: 10),
+          ],
+        );
+    (int?, double?, int?, double?) attrs(SvgStyle? s) =>
+        (s?.fill?.toARGB32(), s?.fillOpacity, s?.stroke?.toARGB32(), s?.strokeOpacity);
+
+    test('styles from data apply over the legacy colors', () {
+      final d = data(a: {'fill': 'blue'}, link0: {'stroke': 'blue'});
+      expect([for (final n in d.nodes) attrs(sankeyEntryStyle(n, null))], [(0xFF0000FF, null, null, null), (null, null, null, null), (null, null, null, null)]);
+      expect([for (final l in d.links) attrs(sankeyEntryStyle(l.raw, null))], [(null, null, 0xFF0000FF, null), (null, null, null, null), (null, null, null, null)]);
+    });
+
+    test('nullish styles in data keep the fallback styles', () {
+      final d = data(a: {'fill': null, 'stroke': null}, link0: {'stroke': null});
+      expect(sankeyEntryStyle(d.nodes[0], null), isNull);
+      expect(sankeyEntryStyle(d.links[0].raw, null), isNull);
+    });
+
+    test('styles from data merge with explicit node and link props', () {
+      final d = data(a: {'fill': 'blue'}, link0: {'strokeOpacity': 1});
+      final node = SvgStyle.css(stroke: 'black', fill: 'purple'), link = SvgStyle.css(stroke: 'orange', strokeOpacity: 0.7);
+      expect([for (final n in d.nodes) attrs(sankeyEntryStyle(n, node))], [
+        (0xFF0000FF, null, 0xFF000000, null),
+        (0xFF800080, null, 0xFF000000, null),
+        (0xFF800080, null, 0xFF000000, null),
+      ]);
+      expect([for (final l in d.links) attrs(sankeyEntryStyle(l.raw, link))], [
+        (null, null, 0xFFFFA500, 1),
+        (null, null, 0xFFFFA500, 0.7),
+        (null, null, 0xFFFFA500, 0.7),
+      ]);
+    });
+
+    testWidgets('the default node paints the entry fill', (tester) async {
+      await tester.pumpWidget(host(Sankey(width: 400, height: 300, data: data(a: {'fill': 'blue'}))));
+      final image = await capture(tester);
+      // A is x 5..15 over the full height; blue at the legacy fill-opacity 0.8 (premultiplied, no background).
+      expect(await pixel(tester, image, const Offset(10, 150)), const Color(0xCC0000CC));
     });
   });
 
