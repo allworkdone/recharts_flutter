@@ -262,7 +262,11 @@ List<num> _getTickOfSingleValue(double value, int tickCount, bool allowDecimals)
     return (step: _Decimal.zero, tickMin: _Decimal.zero, tickMax: _Decimal.zero);
   }
 
-  final step = stepFn(_Decimal(max).sub(_Decimal(min)).div(_Decimal(tickCount - 1)), allowDecimals, correctionFactor);
+  // An interval with 0 strictly inside it gets a tick at 0 plus one on either side of it,
+  // so fewer than three ticks never fit and the correction below would recurse forever.
+  final count = min < 0 && max > 0 ? math.max(tickCount, 3) : tickCount;
+
+  final step = stepFn(_Decimal(max).sub(_Decimal(min)).div(_Decimal(count - 1)), allowDecimals, correctionFactor);
 
   _Decimal middle;
   if (min <= 0 && max >= 0) {
@@ -276,15 +280,15 @@ List<num> _getTickOfSingleValue(double value, int tickCount, bool allowDecimals)
   var upCount = _Decimal(max).sub(middle).div(step).toNumber().ceil();
   final scaleCount = belowCount + upCount + 1;
 
-  if (scaleCount > tickCount) {
-    // In JS this recursion never ends for some inputs (tickCount 2 with min < 0 < max)
-    // and throws RangeError on stack overflow; converging inputs need < 1300 levels.
+  if (scaleCount > count) {
+    // Should JS ever recurse without end it throws RangeError on stack overflow;
+    // converging inputs need < 1300 levels.
     if (correctionFactor > 2000) throw StateError('Maximum call stack size exceeded');
-    return _calculateStep(min, max, tickCount, allowDecimals, correctionFactor + 1, stepFn);
+    return _calculateStep(min, max, count, allowDecimals, correctionFactor + 1, stepFn);
   }
-  if (scaleCount < tickCount) {
-    upCount = max > 0 ? upCount + (tickCount - scaleCount) : upCount;
-    belowCount = max > 0 ? belowCount : belowCount + (tickCount - scaleCount);
+  if (scaleCount < count) {
+    upCount = max > 0 ? upCount + (count - scaleCount) : upCount;
+    belowCount = max > 0 ? belowCount : belowCount + (count - scaleCount);
   }
 
   return (

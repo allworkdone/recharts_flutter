@@ -380,6 +380,30 @@ void main() {
     });
   });
 
+  group("YAxis.ticks.spec.tsx with domain=['auto', 'auto'] and tickCount=2 and data that crosses zero", () {
+    final m = model('LineChart', 500, 300, const [
+      {'name': 'a', 'pv': -10},
+      {'name': 'b', 'pv': 10},
+    ], const [
+      XAxis(dataKey: 'name'),
+      YAxis(domain: ['auto', 'auto'], tickCount: 2),
+      Line(dataKey: 'pv'),
+    ]);
+    final y = m.axes.firstWhere((a) => !a.runtime.isX);
+
+    test('should select niceTicks with zero in the middle', () {
+      expect(y.runtime.niceTicks, [-10, 0, 10]);
+    });
+
+    test('should render 3 ticks', () {
+      expect([for (final t in y.ticks) (jsString(t.value), getTickLineCoord(y, t).tick)], const [
+        ('-10', Offset(57, 265)),
+        ('0', Offset(57, 135)),
+        ('10', Offset(57, 5)),
+      ]);
+    });
+  });
+
   group('getTicks.spec.ts (width = text.length, height = 12)', () {
     List<TickItem> ticks() => [
           for (final (i, v) in ['100_000_000_000_000', '200_000_000_000_000', '300_000_000_000_000',
