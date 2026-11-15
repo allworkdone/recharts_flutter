@@ -9,7 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:recharts_flutter/recharts_flutter.dart';
 import 'package:recharts_flutter/src/sunburst.dart';
 
-import 'chart_widget_test.dart' show host, tooltipBox;
+import 'chart_widget_test.dart' show capture, host, pixel, tooltipBox;
 import 'tooltip_item_test.dart' show Probe, click, mouseAt;
 
 Map<String, Object?> exampleSunburstData() => {
@@ -297,5 +297,108 @@ void main() {
     }, children: [Tooltip(isAnimationActive: false, defaultIndex: 0, content: probe.build)])));
     expect(probe.props!.payload.single.name, 7);
     expect(probe.rows, ['7 : 3']);
+  });
+
+  group('data entry styles without a theme (recharts #7981)', () {
+    SunburstLayout styled(Map<String, Object?> data, {Color fill = const Color(0xFF333333), Color? stroke = const Color(0xFFFFFFFF)}) =>
+        computeSunburst(
+            data: data,
+            width: 400,
+            height: 400,
+            dataKey: 'value',
+            padding: 2,
+            ringPadding: 2,
+            innerRadius: 50,
+            startAngle: 0,
+            endAngle: 360,
+            fill: fill,
+            stroke: stroke);
+    List<(int, int?, double)> sectors(SunburstLayout l) =>
+        [for (final s in l.sectors) (s.fill.toARGB32(), s.stroke?.toARGB32(), s.strokeWidth)];
+    const data = {
+      'name': 'root',
+      'value': 100,
+      'children': [
+        {
+          'name': 'A',
+          'value': 60,
+          'children': [
+            {'name': 'A1', 'value': 30},
+            {'name': 'A2', 'value': 30},
+          ],
+        },
+        {'name': 'B', 'value': 40},
+      ],
+    };
+
+    test('entry props merge over the chart props', () {
+      final l = styled(const {
+        'name': 'root',
+        'value': 100,
+        'children': [
+          {
+            'name': 'A',
+            'value': 60,
+            'fill': 'lime',
+            'children': [
+              {'name': 'A1', 'value': 60, 'stroke': 'navy'},
+            ],
+          },
+          {'name': 'B', 'value': 40, 'stroke': 'orange'},
+        ],
+      }, fill: const Color(0xFF123456), stroke: const Color(0xFF654321));
+      expect(sectors(l), [
+        (0xFF00FF00, 0xFF654321, 2),
+        (0xFF00FF00, 0xFF000080, 2),
+        (0xFF123456, 0xFFFFA500, 2),
+      ]);
+    });
+
+    test('an entry with no colors keeps the chart stroke', () {
+      final l = styled(data, fill: const Color(0xFF123456));
+      expect(sectors(l), List.filled(4, (0xFF123456, 0xFFFFFFFF, 2)));
+    });
+
+    test('a child inherits its parent fill but not its stroke; an entry strokeWidth wins over padding', () {
+      final l = styled(const {
+        'name': 'root',
+        'value': 100,
+        'children': [
+          {
+            'name': 'A',
+            'value': 60,
+            'fill': '#ff0000',
+            'stroke': '#00ff00',
+            'strokeWidth': 7,
+            'children': [
+              {'name': 'A1', 'value': 30},
+              {'name': 'A2', 'value': 30, 'stroke': '#0000ff'},
+            ],
+          },
+          {'name': 'B', 'value': 40, 'strokeWidth': 9},
+        ],
+      });
+      expect(sectors(l), [
+        (0xFFFF0000, 0xFF00FF00, 7),
+        (0xFFFF0000, 0xFFFFFFFF, 2),
+        (0xFFFF0000, 0xFF0000FF, 2),
+        (0xFF333333, 0xFFFFFFFF, 9),
+      ]);
+    });
+
+    testWidgets('the entry stroke is painted', (tester) async {
+      await tester.pumpWidget(host(SunburstChart(width: 400, height: 400, data: const {
+        'name': 'root',
+        'value': 100,
+        'children': [
+          {'name': 'A', 'value': 60, 'fill': '#ff0000', 'stroke': '#00ff00', 'strokeWidth': 7},
+          {'name': 'B', 'value': 40},
+        ],
+      })));
+      final image = await capture(tester);
+      // A starts at 0 degrees (ring 50..125): 3px above its start edge is inside its 7px stroke.
+      expect(await pixel(tester, image, const Offset(280, 197)), const Color(0xFF00FF00));
+      expect(await pixel(tester, image, const Offset(280, 180)), const Color(0xFFFF0000));
+    });
   });
 }

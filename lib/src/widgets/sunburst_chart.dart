@@ -88,7 +88,9 @@ typedef SunburstNodeHandler = void Function(Map<String, Object?> node, PointerEv
 int _nextId = 0;
 
 /// src/chart/SunburstChart.tsx. [data] is the root node: maps with `name`,
-/// [dataKey] (default 'value'), an optional `fill` [Color] and `children`.
+/// [dataKey] (default 'value'), `children`, and optional `fill` / `stroke`
+/// ([Color] or CSS string), `strokeWidth`, `fillOpacity`, `strokeOpacity` that
+/// win over the chart's [fill], [stroke] and [padding].
 class SunburstChart extends StatefulWidget {
   SunburstChart({
     super.key,
@@ -246,13 +248,16 @@ class _SunburstChartState extends State<SunburstChart> with TickerProviderStateM
   int? _sectorAt(Offset p) {
     final layout = _layout;
     if (layout == null) return null;
-    final width = widget.padding;
     for (var i = layout.sectors.length - 1; i >= 0; i--) {
       // A label is painted above its own sector, so it takes the pointer first.
       if (_labelBoxes[i]?.contains(p) ?? false) return null;
       final path = _paths[i];
       if (path == null) continue;
-      if ((!isCssNone(layout.sectors[i].fill) && path.contains(p)) || (widget.stroke != null && strokeContains(path, p, width))) return i;
+      final s = layout.sectors[i];
+      if ((!isCssNone(s.fill) && path.contains(p)) ||
+          (s.stroke != null && !isCssNone(s.stroke) && strokeContains(path, p, s.strokeWidth))) {
+        return i;
+      }
     }
     return null;
   }
@@ -332,6 +337,7 @@ class _SunburstChartState extends State<SunburstChart> with TickerProviderStateM
       startAngle: w.startAngle,
       endAngle: w.endAngle,
       fill: w.fill,
+      stroke: w.stroke,
     );
     _paths = [
       for (final s in layout.sectors)
@@ -444,8 +450,10 @@ class _SunburstPainter extends CustomPainter {
       final s = layout.sectors[i];
       final path = paths[i];
       if (path != null) {
-        canvas.drawPath(path, fillPaint(s.fill));
-        if (w.stroke != null && w.padding > 0) canvas.drawPath(path, strokePaint(w.stroke!, w.padding));
+        canvas.drawPath(path, fillPaint(s.fill, opacity: s.fillOpacity ?? 1));
+        if (s.stroke != null && s.strokeWidth > 0) {
+          canvas.drawPath(path, strokePaint(s.stroke!, s.strokeWidth, opacity: s.strokeOpacity ?? 1));
+        }
       }
       final v = s.node[w.dataKey];
       if (v == null) continue;

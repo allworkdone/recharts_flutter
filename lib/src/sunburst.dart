@@ -1,6 +1,7 @@
 // Port of the geometry in src/chart/SunburstChart.tsx: getMaxDepthOf and the
 // recursive drawArcs (rScale = scaleLinear([0, root[dataKey]], [0, endAngle]),
-// tooltip indexes like `[0]children[1]`, positions keyed by node name).
+// tooltip indexes like `[0]children[1]`, positions keyed by node name) and
+// resolveSectorProps without a theme.
 
 import 'dart:ui';
 
@@ -18,13 +19,24 @@ class SunburstSector {
     required this.innerRadius,
     required this.outerRadius,
     required this.fill,
+    required this.stroke,
+    required this.strokeWidth,
+    this.fillOpacity,
+    this.strokeOpacity,
     required this.textPosition,
   });
 
   /// The data node with its `tooltipIndex`.
   final Map<String, Object?> node;
   final double startAngle, endAngle, innerRadius, outerRadius;
+
+  /// The entry's own `fill`, else the parent's, else the chart's.
   final Color fill;
+
+  /// The entry's `stroke` / `strokeWidth`, else the chart's `stroke` / `padding`.
+  final Color? stroke;
+  final double strokeWidth;
+  final double? fillOpacity, strokeOpacity;
 
   /// Where the label is anchored (`textX + cx`, `cy - textY`).
   final Offset textPosition;
@@ -71,6 +83,7 @@ SunburstLayout computeSunburst({
   required double startAngle,
   required double endAngle,
   required Color fill,
+  Color? stroke,
 }) {
   final outer = outerRadius ?? (width < height ? width : height) / 2;
   final centerX = cx ?? width / 2, centerY = cy ?? height / 2;
@@ -93,6 +106,7 @@ SunburstLayout computeSunburst({
       final arcLength = rScale.map(_num(d[dataKey])) ?? double.nan;
       final start = currentAngle;
       final fillColor = cssFillOf(d['fill']) ?? childColor ?? fill;
+      double? number(String k) => switch (d[k]) { final num n => n.toDouble(), _ => null };
       final text = polarToCartesian(0, 0, innerR + radius / 2, -(start + arcLength - arcLength / 2));
       currentAngle += arcLength;
       sectors.add(SunburstSector(
@@ -102,6 +116,10 @@ SunburstLayout computeSunburst({
         innerRadius: innerR,
         outerRadius: innerR + radius,
         fill: fillColor,
+        stroke: cssStrokeOf(d['stroke']) ?? stroke,
+        strokeWidth: number('strokeWidth') ?? padding,
+        fillOpacity: number('fillOpacity'),
+        strokeOpacity: number('strokeOpacity'),
         textPosition: Offset(text.dx + centerX, centerY - text.dy),
       ));
       final tooltip = polarToCartesian(centerX, centerY, innerR + radius / 2, start);
