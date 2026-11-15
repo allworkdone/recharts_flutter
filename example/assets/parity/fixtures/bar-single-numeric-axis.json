@@ -1,0 +1,66 @@
+{
+ "name": "bar-single-numeric-axis",
+ "description": "A single datum on a number XAxis without barSize: the bar fills the band around its tick.",
+ "width": 500,
+ "height": 300,
+ "chart": {
+  "type": "BarChart",
+  "props": {
+   "margin": {
+    "top": 5,
+    "right": 30,
+    "left": 20,
+    "bottom": 5
+   },
+   "data": [
+    {
+     "x": 5,
+     "count": 10
+    }
+   ]
+  },
+  "children": [
+   {
+    "type": "CartesianGrid",
+    "props": {
+     "strokeDasharray": "3 3"
+    }
+   },
+   {
+    "type": "XAxis",
+    "props": {
+     "dataKey": "x",
+     "type": "number",
+     "domain": [
+      0,
+      10
+     ]
+    }
+   },
+   {
+    "type": "YAxis",
+    "props": {}
+   },
+   {
+    "type": "Tooltip",
+    "props": {}
+   },
+   {
+    "type": "Bar",
+    "props": {
+     "dataKey": "count",
+     "fill": "#8884d8"
+    },
+    "children": []
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-bar",
+   "type": "hover",
+   "x": 275,
+   "y": 150
+  }
+ ]
+}

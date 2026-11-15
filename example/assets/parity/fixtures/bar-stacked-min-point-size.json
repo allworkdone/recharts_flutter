@@ -1,0 +1,84 @@
+{
+ "name": "bar-stacked-min-point-size",
+ "description": "Stacked bars with minPointSize: an inflated segment pushes the ones stacked on it outward.",
+ "width": 500,
+ "height": 300,
+ "chart": {
+  "type": "BarChart",
+  "props": {
+   "margin": {
+    "top": 5,
+    "right": 30,
+    "left": 20,
+    "bottom": 5
+   },
+   "data": [
+    {
+     "name": "a",
+     "small": 1,
+     "big": 100
+    },
+    {
+     "name": "b",
+     "small": 50,
+     "big": 2
+    },
+    {
+     "name": "c",
+     "small": 1,
+     "big": 1
+    }
+   ]
+  },
+  "children": [
+   {
+    "type": "CartesianGrid",
+    "props": {
+     "strokeDasharray": "3 3"
+    }
+   },
+   {
+    "type": "XAxis",
+    "props": {
+     "dataKey": "name"
+    }
+   },
+   {
+    "type": "YAxis",
+    "props": {}
+   },
+   {
+    "type": "Tooltip",
+    "props": {}
+   },
+   {
+    "type": "Bar",
+    "props": {
+     "dataKey": "small",
+     "stackId": "s",
+     "minPointSize": 20,
+     "fill": "#8884d8"
+    },
+    "children": []
+   },
+   {
+    "type": "Bar",
+    "props": {
+     "dataKey": "big",
+     "stackId": "s",
+     "minPointSize": 20,
+     "fill": "#82ca9d"
+    },
+    "children": []
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-c",
+   "type": "hover",
+   "x": 405,
+   "y": 150
+  }
+ ]
+}

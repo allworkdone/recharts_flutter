@@ -1,0 +1,206 @@
+{
+ "name": "axis-grid-tick-font-size",
+ "description": "CartesianGrid lines follow the ticks the XAxis keeps with a large tick fontSize.",
+ "width": 700,
+ "height": 400,
+ "chart": {
+  "type": "LineChart",
+  "props": {
+   "margin": {
+    "top": 5,
+    "right": 30,
+    "left": 20,
+    "bottom": 5
+   },
+   "data": [
+    {
+     "name": "FontSizeTick 1",
+     "value": 0
+    },
+    {
+     "name": "FontSizeTick 2",
+     "value": 37
+    },
+    {
+     "name": "FontSizeTick 3",
+     "value": 74
+    },
+    {
+     "name": "FontSizeTick 4",
+     "value": 11
+    },
+    {
+     "name": "FontSizeTick 5",
+     "value": 48
+    },
+    {
+     "name": "FontSizeTick 6",
+     "value": 85
+    },
+    {
+     "name": "FontSizeTick 7",
+     "value": 22
+    },
+    {
+     "name": "FontSizeTick 8",
+     "value": 59
+    },
+    {
+     "name": "FontSizeTick 9",
+     "value": 96
+    },
+    {
+     "name": "FontSizeTick 10",
+     "value": 33
+    },
+    {
+     "name": "FontSizeTick 11",
+     "value": 70
+    },
+    {
+     "name": "FontSizeTick 12",
+     "value": 7
+    },
+    {
+     "name": "FontSizeTick 13",
+     "value": 44
+    },
+    {
+     "name": "FontSizeTick 14",
+     "value": 81
+    },
+    {
+     "name": "FontSizeTick 15",
+     "value": 18
+    },
+    {
+     "name": "FontSizeTick 16",
+     "value": 55
+    },
+    {
+     "name": "FontSizeTick 17",
+     "value": 92
+    },
+    {
+     "name": "FontSizeTick 18",
+     "value": 29
+    },
+    {
+     "name": "FontSizeTick 19",
+     "value": 66
+    },
+    {
+     "name": "FontSizeTick 20",
+     "value": 3
+    },
+    {
+     "name": "FontSizeTick 21",
+     "value": 40
+    },
+    {
+     "name": "FontSizeTick 22",
+     "value": 77
+    },
+    {
+     "name": "FontSizeTick 23",
+     "value": 14
+    },
+    {
+     "name": "FontSizeTick 24",
+     "value": 51
+    },
+    {
+     "name": "FontSizeTick 25",
+     "value": 88
+    },
+    {
+     "name": "FontSizeTick 26",
+     "value": 25
+    },
+    {
+     "name": "FontSizeTick 27",
+     "value": 62
+    },
+    {
+     "name": "FontSizeTick 28",
+     "value": 99
+    },
+    {
+     "name": "FontSizeTick 29",
+     "value": 36
+    },
+    {
+     "name": "FontSizeTick 30",
+     "value": 73
+    },
+    {
+     "name": "FontSizeTick 31",
+     "value": 10
+    },
+    {
+     "name": "FontSizeTick 32",
+     "value": 47
+    },
+    {
+     "name": "FontSizeTick 33",
+     "value": 84
+    },
+    {
+     "name": "FontSizeTick 34",
+     "value": 21
+    },
+    {
+     "name": "FontSizeTick 35",
+     "value": 58
+    },
+    {
+     "name": "FontSizeTick 36",
+     "value": 95
+    },
+    {
+     "name": "FontSizeTick 37",
+     "value": 32
+    },
+    {
+     "name": "FontSizeTick 38",
+     "value": 69
+    },
+    {
+     "name": "FontSizeTick 39",
+     "value": 6
+    },
+    {
+     "name": "FontSizeTick 40",
+     "value": 43
+    }
+   ]
+  },
+  "children": [
+   {
+    "type": "CartesianGrid",
+    "props": {}
+   },
+   {
+    "type": "XAxis",
+    "props": {
+     "dataKey": "name",
+     "tick": {
+      "fontSize": 30
+     }
+    }
+   },
+   {
+    "type": "YAxis",
+    "props": {}
+   },
+   {
+    "type": "Line",
+    "props": {
+     "dataKey": "value",
+     "stroke": "#8884d8"
+    }
+   }
+  ]
+ },
+ "interactions": []
+}

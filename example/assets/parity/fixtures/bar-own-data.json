@@ -1,0 +1,69 @@
+{
+ "name": "bar-own-data",
+ "description": "A Bar with its own data in a BarChart without data; the tooltip reads the (missing) chart data, so it shows the label only.",
+ "width": 500,
+ "height": 300,
+ "chart": {
+  "type": "BarChart",
+  "props": {
+   "margin": {
+    "top": 5,
+    "right": 30,
+    "left": 20,
+    "bottom": 5
+   }
+  },
+  "children": [
+   {
+    "type": "CartesianGrid",
+    "props": {
+     "strokeDasharray": "3 3"
+    }
+   },
+   {
+    "type": "XAxis",
+    "props": {
+     "dataKey": "name"
+    }
+   },
+   {
+    "type": "YAxis",
+    "props": {}
+   },
+   {
+    "type": "Tooltip",
+    "props": {}
+   },
+   {
+    "type": "Bar",
+    "props": {
+     "dataKey": "value",
+     "fill": "#8884d8",
+     "data": [
+      {
+       "name": "A",
+       "value": 10
+      },
+      {
+       "name": "B",
+       "value": 20
+      },
+      {
+       "name": "C",
+       "value": 15
+      }
+     ]
+    },
+    "children": []
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-b",
+   "type": "hover",
+   "x": 275,
+   "y": 150
+  }
+ ]
+}

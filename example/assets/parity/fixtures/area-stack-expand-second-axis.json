@@ -1,0 +1,94 @@
+{
+ "name": "area-stack-expand-second-axis",
+ "description": "stackOffset expand: the stacked left YAxis is [0, 1], the right YAxis of an unstacked Line keeps its data domain.",
+ "width": 500,
+ "height": 300,
+ "chart": {
+  "type": "AreaChart",
+  "props": {
+   "margin": {
+    "top": 5,
+    "right": 30,
+    "left": 20,
+    "bottom": 5
+   },
+   "stackOffset": "expand",
+   "data": [
+    {
+     "name": "a",
+     "uv": 10,
+     "pv": 30,
+     "price": 120
+    },
+    {
+     "name": "b",
+     "uv": 20,
+     "pv": 20,
+     "price": 480
+    },
+    {
+     "name": "c",
+     "uv": 30,
+     "pv": 10,
+     "price": 250
+    }
+   ]
+  },
+  "children": [
+   {
+    "type": "CartesianGrid",
+    "props": {
+     "strokeDasharray": "3 3"
+    }
+   },
+   {
+    "type": "XAxis",
+    "props": {
+     "dataKey": "name"
+    }
+   },
+   {
+    "type": "YAxis",
+    "props": {
+     "yAxisId": "left"
+    }
+   },
+   {
+    "type": "YAxis",
+    "props": {
+     "yAxisId": "right",
+     "orientation": "right"
+    }
+   },
+   {
+    "type": "Area",
+    "props": {
+     "yAxisId": "left",
+     "dataKey": "uv",
+     "stackId": "1",
+     "stroke": "#8884d8",
+     "fill": "#8884d8"
+    }
+   },
+   {
+    "type": "Area",
+    "props": {
+     "yAxisId": "left",
+     "dataKey": "pv",
+     "stackId": "1",
+     "stroke": "#82ca9d",
+     "fill": "#82ca9d"
+    }
+   },
+   {
+    "type": "Line",
+    "props": {
+     "yAxisId": "right",
+     "dataKey": "price",
+     "stroke": "#ff7300"
+    }
+   }
+  ]
+ },
+ "interactions": []
+}

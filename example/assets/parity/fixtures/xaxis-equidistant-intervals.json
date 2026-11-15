@@ -1,0 +1,127 @@
+{
+ "name": "xaxis-equidistant-intervals",
+ "description": "equidistantPreserveStart (top) and equidistantPreserveEnd (bottom) with edge labels that overflow the chart: both move inwards.",
+ "width": 500,
+ "height": 300,
+ "chart": {
+  "type": "LineChart",
+  "props": {
+   "margin": {
+    "top": 5,
+    "right": 5,
+    "left": 5,
+    "bottom": 5
+   },
+   "data": [
+    {
+     "name": "Category 01",
+     "v": 0
+    },
+    {
+     "name": "Category 02",
+     "v": 37
+    },
+    {
+     "name": "Category 03",
+     "v": 74
+    },
+    {
+     "name": "Category 04",
+     "v": 11
+    },
+    {
+     "name": "Category 05",
+     "v": 48
+    },
+    {
+     "name": "Category 06",
+     "v": 85
+    },
+    {
+     "name": "Category 07",
+     "v": 22
+    },
+    {
+     "name": "Category 08",
+     "v": 59
+    },
+    {
+     "name": "Category 09",
+     "v": 96
+    },
+    {
+     "name": "Category 10",
+     "v": 33
+    },
+    {
+     "name": "Category 11",
+     "v": 70
+    },
+    {
+     "name": "Category 12",
+     "v": 7
+    },
+    {
+     "name": "Category 13",
+     "v": 44
+    },
+    {
+     "name": "Category 14",
+     "v": 81
+    },
+    {
+     "name": "Category 15",
+     "v": 18
+    },
+    {
+     "name": "Category 16",
+     "v": 55
+    },
+    {
+     "name": "Category 17",
+     "v": 92
+    },
+    {
+     "name": "Category 18",
+     "v": 29
+    },
+    {
+     "name": "Category 19",
+     "v": 66
+    },
+    {
+     "name": "Category 20",
+     "v": 3
+    }
+   ]
+  },
+  "children": [
+   {
+    "type": "XAxis",
+    "props": {
+     "xAxisId": "top",
+     "dataKey": "name",
+     "orientation": "top",
+     "interval": "equidistantPreserveStart"
+    }
+   },
+   {
+    "type": "XAxis",
+    "props": {
+     "xAxisId": "bottom",
+     "dataKey": "name",
+     "interval": "equidistantPreserveEnd"
+    }
+   },
+   {
+    "type": "Line",
+    "props": {
+     "xAxisId": "top",
+     "dataKey": "v",
+     "stroke": "#8884d8"
+    }
+   }
+  ]
+ },
+ "interactions": []
+}

@@ -1,0 +1,79 @@
+{
+ "name": "bar-datum-colors",
+ "description": "Bars painted with the fill and stroke of their data entries; the tooltip shows the entry fill, else the entry stroke.",
+ "width": 500,
+ "height": 300,
+ "chart": {
+  "type": "BarChart",
+  "props": {
+   "margin": {
+    "top": 5,
+    "right": 30,
+    "left": 20,
+    "bottom": 5
+   },
+   "data": [
+    {
+     "name": "Sun",
+     "mass": 3,
+     "fill": "gold",
+     "stroke": "red"
+    },
+    {
+     "name": "Mercury",
+     "mass": 2,
+     "fill": "silver"
+    },
+    {
+     "name": "Venus",
+     "mass": 4,
+     "stroke": "blue"
+    }
+   ]
+  },
+  "children": [
+   {
+    "type": "CartesianGrid",
+    "props": {
+     "strokeDasharray": "3 3"
+    }
+   },
+   {
+    "type": "XAxis",
+    "props": {
+     "dataKey": "name"
+    }
+   },
+   {
+    "type": "YAxis",
+    "props": {}
+   },
+   {
+    "type": "Tooltip",
+    "props": {}
+   },
+   {
+    "type": "Bar",
+    "props": {
+     "dataKey": "mass",
+     "strokeWidth": 3
+    },
+    "children": []
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-sun",
+   "type": "hover",
+   "x": 145,
+   "y": 150
+  },
+  {
+   "id": "hover-venus",
+   "type": "hover",
+   "x": 405,
+   "y": 150
+  }
+ ]
+}
