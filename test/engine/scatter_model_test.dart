@@ -440,6 +440,44 @@ void main() {
     expect(m.series[1].scatterPoints![2].cx, x.map('Page C')! + x.bandwidth! / 2);
   });
 
+  group('Scatter.spec.tsx with a z value of 0', () {
+    List<List<Object?>> points(List<Object?> data) => [
+          for (final p in model('ScatterChart', 400, 400, [
+            const XAxis(type: AxisDomainType.number, dataKey: 'x'),
+            const YAxis(type: AxisDomainType.number, dataKey: 'y'),
+            const ZAxis(type: AxisDomainType.number, dataKey: 'z', range: [100, 1000]),
+            Scatter(data: data, isAnimationActive: false),
+          ]).series.single.scatterPoints!)
+            [p.size, [for (final e in p.tooltipPayload) if (e.dataKey == 'z') e.value]],
+        ];
+
+    test('should size the bubble by the z scale and put z in the tooltip payload', () {
+      expect(points(const [
+        {'x': 1, 'y': 1, 'z': -10},
+        {'x': 2, 'y': 2, 'z': 0},
+        {'x': 3, 'y': 3, 'z': 10},
+      ]), [
+        [100, [-10]],
+        [550, [0]],
+        [1000, [10]],
+      ]);
+    });
+
+    for (final missing in [null, double.nan]) {
+      test('should keep the smallest size and no z in the tooltip when z is $missing', () {
+        expect(points([
+          const {'x': 1, 'y': 1, 'z': -10},
+          {'x': 2, 'y': 2, 'z': missing},
+          const {'x': 3, 'y': 3, 'z': 10},
+        ]), [
+          [100, [-10]],
+          [100, []],
+          [1000, [10]],
+        ]);
+      });
+    }
+  });
+
   group('Scatter.theme.spec.tsx without a theme: tooltip colors (#7976)', () {
     List<Color?> colors(List<Object?> data, {Color? fill, Color? stroke}) => [
           for (final e in tooltipPayloadOf(

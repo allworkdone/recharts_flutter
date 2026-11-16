@@ -1126,8 +1126,8 @@ List<ScatterPoint>? _scatterPoints(GraphicalItem item, AxisRuntime xAxis, AxisRu
     final x = getValueByDataKey(entry, xDataKey);
     final y = getValueByDataKey(entry, yDataKey);
     final zValue = zDataKey == null ? null : getValueByDataKey(entry, zDataKey);
-    // `getValueByDataKey(...) || '-'`: a falsy z counts as missing.
-    final hasZ = zAxis != null && _truthy(zValue);
+    // a nullish or NaN z is '-', missing; 0 is a value
+    final hasZ = zAxis != null && zValue != null && !(zValue is num && zValue.isNaN);
     TooltipPayloadEntry tooltipEntry(String? name, String? unit, Object? value, Object? dataKey) => TooltipPayloadEntry(
         name: name, unit: unit ?? '', value: value, payload: entry, dataKey: dataKey, type: scatter.tooltipType);
     final zName = zAxis?.settings.name?.isNotEmpty ?? false ? zAxis?.settings.name : zAxis?.settings.dataKey;
