@@ -281,4 +281,91 @@ void main() {
       ]);
     });
   });
+
+  // LabelList.spec.tsx 'in a graphical item clipped by allowDataOverflow'
+  group('LabelList in a graphical item clipped by allowDataOverflow', () {
+    const data = [
+      {'name': 'a', 'value': 50},
+      {'name': 'b', 'value': 150},
+      {'name': 'c', 'value': 100},
+      {'name': 'd', 'value': -20},
+      {'name': 'e', 'value': 0},
+    ];
+    const rangeData = [
+      {'name': 'a', 'range': [20, 50]},
+      {'name': 'b', 'range': [120, 150]},
+      {'name': 'c', 'range': [90, 100]},
+      {'name': 'd', 'range': [80, 130]},
+      {'name': 'e', 'range': [-40, -10]},
+      {'name': 'f', 'range': [100, 120]},
+      {'name': 'g', 'range': [-30, 0]},
+    ];
+    const scatterData = [
+      {'x': 1, 'y': 50},
+      {'x': 2, 'y': 150},
+      {'x': 3, 'y': 100},
+      {'x': 4, 'y': -20},
+      {'x': 5, 'y': 0},
+    ];
+
+    Future<List<Object?>> painted(WidgetTester tester, Widget Function(LabelPainter content) chart) async {
+      final values = <Object?>[];
+      await tester.pumpWidget(Directionality(
+          textDirection: TextDirection.ltr, child: chart((_, props) => values.add('${props.index}:${props.value}'))));
+      return values;
+    }
+
+    testWidgets('Line: all labels without allowDataOverflow; outside the domain skipped, the edges kept', (tester) async {
+      Widget chart(LabelPainter p, bool overflow) => LineChart(width: 400, height: 400, data: data, children: [
+            const XAxis(dataKey: 'name'),
+            YAxis(domain: const [0, 100], allowDataOverflow: overflow),
+            Line(dataKey: 'value', label: LabelList(content: p), isAnimationActive: false),
+          ]);
+      expect(await painted(tester, (p) => chart(p, false)), ['0:50', '1:150', '2:100', '3:-20', '4:0']);
+      expect(await painted(tester, (p) => chart(p, true)), ['0:50', '2:100', '4:0']);
+    });
+
+    testWidgets('Area: outside the domain skipped, the edges kept', (tester) async {
+      expect(
+          await painted(
+              tester,
+              (p) => AreaChart(width: 400, height: 400, data: data, children: [
+                    const XAxis(dataKey: 'name'),
+                    const YAxis(domain: [0, 100], allowDataOverflow: true),
+                    Area(dataKey: 'value', label: LabelList(content: p), isAnimationActive: false),
+                  ])),
+          ['0:50', '2:100', '4:0']);
+    });
+
+    testWidgets('Bar: labels of bars outside the domain skipped, also if they touch its edge', (tester) async {
+      Widget chart(LabelPainter p, bool overflow) => BarChart(width: 400, height: 400, data: rangeData, children: [
+            const XAxis(dataKey: 'name'),
+            YAxis(domain: const [0, 100], allowDataOverflow: overflow),
+            Bar(dataKey: 'range', label: LabelList(content: p), isAnimationActive: false),
+          ]);
+      expect(await painted(tester, (p) => chart(p, false)), ['0:50', '1:150', '2:100', '3:130', '4:-10', '5:120', '6:0']);
+      expect(await painted(tester, (p) => chart(p, true)), ['0:50', '2:100', '3:130']);
+    });
+
+    testWidgets('Scatter: outside the domain skipped, the edges kept, only in the clipped dimension', (tester) async {
+      expect(
+          await painted(
+              tester,
+              (p) => ScatterChart(width: 400, height: 400, children: [
+                    const XAxis(dataKey: 'x', type: AxisDomainType.number),
+                    const YAxis(dataKey: 'y', domain: [0, 100], allowDataOverflow: true),
+                    Scatter(data: scatterData, isAnimationActive: false, children: [LabelList(dataKey: 'y', content: p)]),
+                  ])),
+          ['0:50', '2:100', '4:0']);
+      expect(
+          await painted(
+              tester,
+              (p) => ScatterChart(width: 400, height: 400, children: [
+                    const XAxis(dataKey: 'x', type: AxisDomainType.number, domain: [2, 4], allowDataOverflow: true),
+                    const YAxis(dataKey: 'y'),
+                    Scatter(data: scatterData, isAnimationActive: false, children: [LabelList(dataKey: 'x', content: p)]),
+                  ])),
+          ['1:2', '2:3', '3:4']);
+    });
+  });
 }

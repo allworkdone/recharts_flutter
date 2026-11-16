@@ -317,14 +317,28 @@ void paintFunnelLabelLists(Canvas canvas, FunnelModel f, {required TextStyle bas
   }
 }
 
+/// LabelList's `isClippedAway`: the element of a label (a point, a bar, the
+/// box of a symbol) is outside the item's [clip] area in a clipped dimension.
+/// A point on the edge is inside; a bar that only touches it is not.
+bool labelClippedAway(Rect element, ({Rect area, bool x, bool y})? clip) {
+  if (clip == null) return false;
+  bool inRange(double start, double size, double areaStart, double areaSize) => size == 0
+      ? start >= areaStart && start <= areaStart + areaSize
+      : math.max(start, start + size) > areaStart && math.min(start, start + size) < areaStart + areaSize;
+  return (clip.x && !inRange(element.left, element.width, clip.area.left, clip.area.width)) ||
+      (clip.y && !inRange(element.top, element.height, clip.area.top, clip.area.height));
+}
+
+/// The LabelLists of series [s]; labels of elements outside its [clip] area are skipped, not clipped.
 void paintLabelLists(Canvas canvas, SeriesModel s, Size chartSize,
-    {Rect? viewBox, required TextStyle baseStyle, required TextScaler scaler}) {
+    {Rect? viewBox, ({Rect area, bool x, bool y})? clip, required TextStyle baseStyle, required TextScaler scaler}) {
   final lists = seriesLabelLists(s.item.element);
   if (lists.isEmpty) return;
   final entries = labelListEntries(s, chartSize, viewBox: viewBox);
   for (final list in lists) {
     for (var i = 0; i < entries.length; i++) {
       final e = entries[i];
+      if (labelClippedAway(e.viewBox, clip)) continue;
       paintLabel(canvas, labelOfEntry(list, e, i), e.viewBox,
           parentViewBox: e.parentViewBox, index: i, baseStyle: baseStyle, scaler: scaler);
     }

@@ -304,18 +304,22 @@ class CartesianPainter extends CustomPainter {
 
   // ---------------------------------------------------------------- main
 
-  Rect? _clipFor(GraphicalItem item) {
+  Rect? _clipFor(GraphicalItem item) => _clipAreaOf(item)?.area;
+
+  /// `useGraphicalItemClipArea`: the clip rect, and the dimensions it clips.
+  ({Rect area, bool x, bool y})? _clipAreaOf(GraphicalItem item) {
     final x = _axisSettings(true, item.xAxisId);
     final y = _axisSettings(false, item.yAxisId);
     final needX = x?.allowDataOverflow ?? false, needY = y?.allowDataOverflow ?? false;
     if (!needX && !needY) return null;
     final p = m.offset.plotArea;
-    return Rect.fromLTRB(
+    final area = Rect.fromLTRB(
       needX ? p.left : p.left - p.width / 2,
       needY ? p.top : p.top - p.height / 2,
       needX ? p.right : p.right + p.width / 2,
       needY ? p.bottom : p.bottom + p.height / 2,
     );
+    return (area: area, x: needX, y: needY);
   }
 
   CartesianAxisElement? _axisSettings(bool isX, Object id) {
@@ -757,7 +761,7 @@ class CartesianPainter extends CustomPainter {
                 : frame.lineAnimators[s.item.id];
         if (animator?.isAnimating ?? false) continue;
         paintLabelLists(canvas, s, m.size,
-            viewBox: m.viewBox, baseStyle: frame.textStyle, scaler: frame.textScaler);
+            viewBox: m.viewBox, clip: _clipAreaOf(s.item), baseStyle: frame.textStyle, scaler: frame.textScaler);
       }
     }
   }
