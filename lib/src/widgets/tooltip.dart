@@ -219,6 +219,7 @@ class RenderTooltipBoundingBox extends RenderShiftedBox {
   Duration _elapsed = Duration.zero;
   EasingFunction _easing = (t) => t;
   bool _visible = false;
+  Size? _lastBoxWithSize;
 
   void update(TooltipBoundingBox config) {
     _config = config;
@@ -237,18 +238,22 @@ class RenderTooltipBoundingBox extends RenderShiftedBox {
     final c = child;
     if (c == null) return;
     c.layout(const BoxConstraints(), parentUsesSize: true);
+    // Content that renders nothing (a custom `content` while inactive) measures 0x0: keep positioning
+    // with the last size that had content, so the next show starts from the last position.
+    if (!c.size.isEmpty) _lastBoxWithSize = c.size;
+    final box = c.size.isEmpty ? _lastBoxWithSize ?? c.size : c.size;
     var target = getTooltipTranslate(
       allowEscapeViewBox: _config.allowEscapeViewBox,
       coordinate: _config.coordinate,
       offset: _config.offset,
       position: _config.position,
       reverseDirection: _config.reverseDirection,
-      tooltipBox: c.size,
+      tooltipBox: box,
       viewBox: _config.viewBox,
     );
     // Without a coordinate translate.ts gives TOOLTIP_HIDDEN, but TooltipBoundingBox spreads `visibility`
     // after it: an active tooltip with a payload shows at the wrapper's (0, 0), no offset.
-    if (target == null && _config.coordinate == null && c.size.width > 0 && c.size.height > 0) target = Offset.zero;
+    if (target == null && _config.coordinate == null && !box.isEmpty) target = Offset.zero;
     _visible = target != null && _config.active && _config.hasPayload;
     if (target == null || target == _to) return;
     _to = target;

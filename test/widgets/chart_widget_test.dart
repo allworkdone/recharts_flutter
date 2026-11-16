@@ -102,6 +102,52 @@ void main() {
     expect(box.currentTranslate, box.targetTranslate);
   });
 
+  group('TooltipBoundingBox.spec.tsx: position', () {
+    // viewBox 100x100, offset 0; `size` is the measured content (0x0: content that renders nothing)
+    Future<Offset?> translate(WidgetTester tester, Size size, {Offset coordinate = const Offset(1, 2), bool active = true}) async {
+      await tester.pumpWidget(Directionality(
+        textDirection: TextDirection.ltr,
+        child: TooltipBoundingBox(
+          vsync: const TestVSync(),
+          active: active,
+          hasPayload: true,
+          coordinate: coordinate,
+          viewBox: const Rect.fromLTWH(0, 0, 100, 100),
+          offset: 0,
+          allowEscapeViewBox: (x: false, y: false),
+          reverseDirection: (x: false, y: false),
+          animate: false,
+          animationDuration: 0,
+          animationEasing: 'ease',
+          child: SizedBox.fromSize(size: size),
+        ),
+      ));
+      return tooltipBox(tester).targetTranslate;
+    }
+
+    testWidgets('no transform before the box has a size, then the position once it has one', (tester) async {
+      expect(await translate(tester, Size.zero), isNull);
+      expect(await translate(tester, const Size(10, 10)), const Offset(1, 2));
+    });
+
+    testWidgets('keeps positioning with the last size when the box becomes empty', (tester) async {
+      await translate(tester, const Size(10, 10));
+      expect(await translate(tester, Size.zero, active: false), const Offset(1, 2));
+      // 95 + 10 overflows the viewBox width, so the last size moves the tooltip to the left of the coordinate
+      expect(await translate(tester, Size.zero, coordinate: const Offset(95, 60)), const Offset(85, 60));
+    });
+
+    testWidgets('keeps positioning with the latest size when the content changes size between empty intervals',
+        (tester) async {
+      expect(await translate(tester, const Size(10, 10), coordinate: const Offset(85, 2)), const Offset(85, 2));
+      expect(await translate(tester, Size.zero, coordinate: const Offset(85, 2), active: false), const Offset(85, 2));
+      // 85 + 30 overflows the viewBox width
+      expect(await translate(tester, const Size(30, 10), coordinate: const Offset(85, 2)), const Offset(55, 2));
+      expect(await translate(tester, Size.zero, coordinate: const Offset(85, 2), active: false), const Offset(55, 2));
+      expect(await translate(tester, Size.zero, coordinate: const Offset(85, 60)), const Offset(55, 60));
+    });
+  });
+
   testWidgets('touch: finger down shows, drag scrubs, lift keeps the tooltip', (tester) async {
     await tester.pumpWidget(host(const LineChart(width: 400, height: 300, data: data, children: [
       XAxis(dataKey: 'name'),
