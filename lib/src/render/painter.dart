@@ -380,11 +380,12 @@ class CartesianPainter extends CustomPainter {
       }
     }
     // Lines, reference lines and error bars (z 400), in document order; an
-    // item's error bars mount into the layer before the item's own line.
+    // item's error bars mount into the layer before the item's own line, in
+    // the item's clip.
     for (final c in frame.children) {
       if (c is Bar || c is Scatter || c is Line) {
         final s = _seriesOf(c as CartesianSeries);
-        if (s != null) _paintErrorBars(canvas, s);
+        if (s != null) _withClip(canvas, _clipFor(s.item), () => _paintErrorBars(canvas, s));
       }
       if (c is Line) {
         final s = _seriesOf(c);

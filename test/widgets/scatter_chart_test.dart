@@ -186,4 +186,20 @@ void main() {
     expect(await pixel(tester, image, const Offset(50, 67)), red);
     expect(await pixel(tester, image, const Offset(50, 72)), green);
   });
+
+  // ErrorBar.spec.tsx 'clipping': with allowDataOverflow the whiskers are clipped with their item.
+  testWidgets('ErrorBar is clipped with its item when the axis allows data overflow', (tester) async {
+    await tester.pumpWidget(host(const BarChart(width: 100, height: 100, data: [
+      {'v': 90, 'e': 30},
+    ], children: [
+      YAxis(hide: true, domain: [0, 100], allowDataOverflow: true),
+      Bar(dataKey: 'v', fill: Color(0x00000000), isAnimationActive: false, children: [
+        ErrorBar(dataKey: 'e', stroke: red, strokeWidth: 3, isAnimationActive: false),
+      ]),
+    ])));
+    // the whisker at x 50 spans y -13 (v + e = 120) to 41 (v - e); the plot area starts at y 5
+    final image = await capture(tester);
+    expect(await pixel(tester, image, const Offset(50, 2)), const Color(0x00000000));
+    expect(await pixel(tester, image, const Offset(50, 10)), red);
+  });
 }
