@@ -1,0 +1,75 @@
+{
+ "name": "labellist-radial-path",
+ "description": "RadialBar LabelLists on the textPath arc: insideStart names, end values turned 30 degrees, insideEnd with a startOffset.",
+ "width": 500,
+ "height": 320,
+ "chart": {
+  "type": "RadialBarChart",
+  "props": {
+   "data": [
+    {
+     "name": "Alpha",
+     "uv": 80,
+     "fill": "#8884d8"
+    },
+    {
+     "name": "Beta",
+     "uv": 62,
+     "fill": "#83a6ed"
+    },
+    {
+     "name": "Gamma",
+     "uv": 45,
+     "fill": "#8dd1e1"
+    },
+    {
+     "name": "Delta",
+     "uv": 30,
+     "fill": "#82ca9d"
+    }
+   ],
+   "innerRadius": "25%",
+   "outerRadius": "95%",
+   "barSize": 24
+  },
+  "children": [
+   {
+    "type": "RadialBar",
+    "props": {
+     "dataKey": "uv",
+     "background": true,
+     "isAnimationActive": false
+    },
+    "children": [
+     {
+      "type": "LabelList",
+      "props": {
+       "dataKey": "name",
+       "position": "insideStart",
+       "fill": "#fff"
+      }
+     },
+     {
+      "type": "LabelList",
+      "props": {
+       "dataKey": "uv",
+       "position": "end",
+       "angle": 30,
+       "fill": "#333"
+      }
+     },
+     {
+      "type": "LabelList",
+      "props": {
+       "dataKey": "name",
+       "position": "insideEnd",
+       "startOffset": 6,
+       "fontSize": 10,
+       "fill": "#222"
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

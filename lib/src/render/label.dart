@@ -291,6 +291,7 @@ Label labelOfEntry(LabelList list, LabelListEntry entry, int index) {
     textBreakAll: list.textBreakAll,
     formatter: list.formatter,
     content: list.content,
+    startOffset: list.startOffset,
   );
 }
 

@@ -287,6 +287,7 @@ class Label {
     this.textBreakAll = false,
     this.formatter,
     this.content,
+    this.startOffset,
   });
 
   /// String, num or bool; nothing is drawn when null (unless [content] is set).
@@ -294,7 +295,8 @@ class Label {
   final LabelPosition position;
   final double offset;
 
-  /// Rotation in degrees around the label's anchor point.
+  /// Rotation in degrees around the label's anchor point; a radial label
+  /// (insideStart, insideEnd, end) turns about the center of its text box.
   final double angle;
 
   /// Text fill, default `#808080`.
@@ -309,6 +311,9 @@ class Label {
   final bool textBreakAll;
   final Object? Function(Object? value)? formatter;
   final LabelPainter? content;
+
+  /// Where a radial label starts along its arc: px, or a percent string of the arc length.
+  final Object? startOffset;
 }
 
 /// Input of [LabelList.valueAccessor] (`CartesianLabelListEntry`).
@@ -341,6 +346,7 @@ class LabelList extends RechartsElement {
     this.textBreakAll = false,
     this.formatter,
     this.content,
+    this.startOffset,
   });
 
   /// Reads the label from each entry's payload; overrides [valueAccessor].
@@ -358,6 +364,9 @@ class LabelList extends RechartsElement {
   final bool textBreakAll;
   final Object? Function(Object? value)? formatter;
   final LabelPainter? content;
+
+  /// [Label.startOffset] of each label.
+  final Object? startOffset;
 }
 
 /// Shared props of [XAxis] and [YAxis] (`BaseCartesianAxis` + CartesianAxis props).

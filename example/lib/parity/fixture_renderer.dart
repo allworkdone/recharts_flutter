@@ -746,6 +746,7 @@ Object? _label(Object? v) {
     textAnchor: _enum(TextAnchor.values, p.str('textAnchor')),
     width: p.dbl('width'),
     textBreakAll: p.boolean('textBreakAll') ?? false,
+    startOffset: p.raw['startOffset'],
   );
 }
 
@@ -762,6 +763,7 @@ LabelList? _labelList(Object? v) {
     fill: p.color('fill'),
     fontSize: p.dbl('fontSize'),
     textBreakAll: p.boolean('textBreakAll') ?? false,
+    startOffset: p.raw['startOffset'],
   );
 }
 

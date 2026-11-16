@@ -330,12 +330,11 @@ void paintPolarLabel(Canvas canvas, Label label, PolarViewBox viewBox,
   }
 }
 
-/// `renderRadialLabel`: a raw `<text>`, so no `#808080` default fill.
+/// `renderRadialLabel`: a `<Text textPath>` along the label's arc, with Text's `#808080` default fill.
 void _paintRadialLabel(Canvas canvas, Label label, PolarViewBox viewBox, TextStyle baseStyle, TextScaler scaler, int? index,
     List<Rect>? boxes) {
   final path = radialLabelPath(viewBox, label.offset, label.position);
-  var style = baseStyle.copyWith(color: label.fill ?? const Color(0xFF000000));
-  if (label.fontSize != null) style = style.copyWith(fontSize: label.fontSize);
+  final style = labelTextStyle(label, baseStyle);
   if (label.content != null) {
     final r = viewBox.outerRadius;
     label.content!(
@@ -358,7 +357,15 @@ void _paintRadialLabel(Canvas canvas, Label label, PolarViewBox viewBox, TextSty
   if (label.value == null) return;
   final value = label.formatter == null ? label.value : label.formatter!(label.value);
   if (value == null) return;
-  boxes?.addAll(paintTextOnArc(canvas, jsString(value), viewBox.cx, viewBox.cy, path, style: style, scaler: scaler));
+  paintSvgText(canvas, jsString(value), 0, 0,
+      style: style,
+      scaler: scaler,
+      textPath: radialLabelArc(viewBox.cx, viewBox.cy, path.radius, path.labelAngle, path.direction),
+      startOffset: label.startOffset,
+      textAnchor: label.textAnchor ?? TextAnchor.start,
+      centralBaseline: true,
+      angle: label.angle,
+      boxes: boxes);
 }
 
 /// The glyph cells of a one-line `<Text>` (the box SVG hit tests), placed

@@ -5,6 +5,8 @@
 // the specs' literals.
 
 
+import 'dart:ui' as ui;
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:recharts_flutter/recharts_flutter.dart';
@@ -12,6 +14,7 @@ import 'package:recharts_flutter/src/core/polar_utils.dart';
 import 'package:recharts_flutter/src/engine/pie.dart';
 import 'package:recharts_flutter/src/engine/polar_axis.dart';
 import 'package:recharts_flutter/src/engine/polar_items.dart';
+import 'package:recharts_flutter/src/render/polar_painter.dart' show paintPolarLabel;
 import 'package:recharts_flutter/src/render/polar_scene_painter.dart';
 import 'package:recharts_flutter/src/render/sector.dart';
 
@@ -372,6 +375,21 @@ void main() {
     expect(seen.first.x.isNaN, isTrue);
     expect(seen.first.polarViewBox!.cx, 250);
     expect(seen.first.polarViewBox!.endAngle, near(88.16326530612244));
+  });
+
+  testWidgets('a radial label renders through Text, with its #808080 default fill (recharts 7d92b8009)', (tester) async {
+    await tester.runAsync(() async {
+      final rec = ui.PictureRecorder();
+      paintPolarLabel(ui.Canvas(rec), const Label(value: 'text', position: LabelPosition.insideStart),
+          const PolarViewBox(cx: 100, cy: 100, innerRadius: 40, outerRadius: 80, startAngle: 0, endAngle: 90),
+          baseStyle: const TextStyle(fontSize: 14), scaler: TextScaler.noScaling);
+      final bytes = (await (await rec.endRecording().toImage(200, 200)).toByteData())!;
+      final opaque = {
+        for (var i = 0; i < bytes.lengthInBytes; i += 4)
+          if (bytes.getUint8(i + 3) == 255) bytes.getUint32(i),
+      };
+      expect(opaque, {0x808080FF});
+    });
   });
 }
 

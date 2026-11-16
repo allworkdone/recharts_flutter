@@ -6,7 +6,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:recharts_flutter/src/components.dart' show TextVerticalAnchor;
+import 'package:recharts_flutter/src/components.dart' show TextAnchor, TextVerticalAnchor;
 import 'package:recharts_flutter/src/render/svg_text.dart';
 
 const style = TextStyle(fontSize: 12);
@@ -192,6 +192,96 @@ void main() {
         expect(await lastInkRow(tester, '30px'), base + 20);
         expect(await lastInkRow(tester, '2em'), base + 10);
         expect(await lastInkRow(tester, '1em'), base);
+      });
+    });
+  });
+
+  group('textPath (Text.spec.tsx textPath interactions)', () {
+    // Ahem 10px: every glyph is a 10px square from baseline - 8 to baseline + 2.
+    const ahem = TextStyle(fontSize: 10, color: Color(0xFF000000));
+    final line = Path()
+      ..moveTo(0, 50)
+      ..lineTo(200, 50);
+
+    Future<Rect?> ink(void Function(ui.Canvas c) paint) async {
+      final rec = ui.PictureRecorder();
+      paint(ui.Canvas(rec));
+      final image = await rec.endRecording().toImage(240, 120);
+      final bytes = (await image.toByteData())!;
+      double? l, t, r, b;
+      for (var y = 0; y < 120; y++) {
+        for (var x = 0; x < 240; x++) {
+          if (bytes.getUint8((y * 240 + x) * 4 + 3) < 128) continue; // ignore antialiased edges
+          l = l == null ? x.toDouble() : (x < l ? x.toDouble() : l);
+          r = r == null ? x + 1.0 : (x + 1 > r ? x + 1.0 : r);
+          t ??= y.toDouble();
+          b = y + 1.0;
+        }
+      }
+      return l == null ? null : Rect.fromLTRB(l, t!, r!, b!);
+    }
+
+    testWidgets('a horizontal path lays the text out like straight text; width, breakAll and lineHeight do not apply',
+        (tester) async {
+      await tester.runAsync(() async {
+        final straight = await ink((c) => paintSvgText(c, 'one two', 0, 50, style: ahem));
+        expect(straight!.width, 70);
+        expect(
+            await ink((c) =>
+                paintSvgText(c, 'one two', 0, 0, style: ahem, textPath: line, width: 1, breakAll: true, lineHeight: '2em')),
+            straight);
+      });
+    });
+
+    testWidgets('textAnchor and startOffset place the text along the path; glyphs off the path are not drawn',
+        (tester) async {
+      await tester.runAsync(() async {
+        Future<Rect?> at(Object? startOffset, TextAnchor anchor) =>
+            ink((c) => paintSvgText(c, 'ab', 0, 0, style: ahem, textPath: line, startOffset: startOffset, textAnchor: anchor));
+        Future<Rect?> straight(String text, double x, TextAnchor anchor) =>
+            ink((c) => paintSvgText(c, text, x, 50, style: ahem, textAnchor: anchor));
+        expect(await at(null, TextAnchor.start), await straight('ab', 0, TextAnchor.start));
+        expect(await at(100, TextAnchor.middle), await straight('ab', 100, TextAnchor.middle));
+        expect(await at('50%', TextAnchor.start), await straight('ab', 100, TextAnchor.start));
+        // middle at 0: the midpoint of 'a' is at -5, so only 'b' is drawn.
+        expect(await at(0, TextAnchor.middle), await straight('b', 0, TextAnchor.start));
+        expect(await at(0, TextAnchor.end), isNull);
+      });
+    });
+
+    testWidgets('glyphs turn with the path: a leftward path draws them upside down', (tester) async {
+      await tester.runAsync(() async {
+        final leftward = Path()
+          ..moveTo(200, 50)
+          ..lineTo(0, 50);
+        // Straight text turned half a circle about the path's start.
+        expect(await ink((c) => paintSvgText(c, 'ab', 0, 0, style: ahem, textPath: leftward)),
+            await ink((c) => paintSvgText(c, 'ab', 200, 50, style: ahem, angle: 180)));
+      });
+    });
+
+    testWidgets('dominantBaseline central centers the em box on the path', (tester) async {
+      await tester.runAsync(() async {
+        expect(await ink((c) => paintSvgText(c, 'ab', 0, 0, style: ahem, textPath: line, centralBaseline: true)),
+            const Rect.fromLTRB(0, 45, 20, 55));
+      });
+    });
+
+    testWidgets('angle turns the text about the center of its box (transform-box: fill-box)', (tester) async {
+      await tester.runAsync(() async {
+        final unturned = <Rect>[], turned = <Rect>[];
+        paintSvgText(ui.Canvas(ui.PictureRecorder()), 'ab', 0, 0, style: ahem, textPath: line, startOffset: 100, boxes: unturned);
+        final box = unturned.reduce((a, b) => a.expandToInclude(b));
+        // PathMetrics work in float32.
+        expect([box.left, box.width], [closeTo(100, 1e-4), closeTo(20, 1e-4)]);
+        final inked = await ink(
+            (c) => paintSvgText(c, 'ab', 0, 0, style: ahem, textPath: line, startOffset: 100, angle: 90, boxes: turned));
+        final turnedBox = turned.reduce((a, b) => a.expandToInclude(b));
+        expect([turnedBox.center.dx, turnedBox.center.dy, turnedBox.width, turnedBox.height],
+            [closeTo(box.center.dx, 1e-4), closeTo(box.center.dy, 1e-4), closeTo(box.height, 1e-4), closeTo(20, 1e-4)]);
+        // The ink (10px squares) turns about the same point.
+        expect([inked!.center.dx, inked.center.dy, inked.width, inked.height],
+            [closeTo(box.center.dx, 1), closeTo(box.center.dy, 1), closeTo(10, 1), closeTo(20, 1)]);
       });
     });
   });

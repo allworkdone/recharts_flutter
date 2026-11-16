@@ -1,8 +1,9 @@
 // Port of src/component/Text.tsx (anchors, capHeight-based dy, getWordsByLines
-// with width, breakAll, maxLines and scaleToFit, rotate(angle, x, y)) and a
-// TextPainter-based replacement for getStringSize in src/util/DOMUtils.ts.
+// with width, breakAll, maxLines and scaleToFit, rotate(angle, x, y), textPath)
+// and a TextPainter-based replacement for getStringSize in src/util/DOMUtils.ts.
 
 import 'dart:math' as math;
+import 'dart:ui' show PathMetric, Tangent;
 
 import 'package:flutter/painting.dart';
 import 'package:flutter/foundation.dart';
@@ -158,6 +159,13 @@ double? _lineHeightPx(Object lineHeight, double em) {
 /// Draws `<Text x y textAnchor verticalAnchor angle width lineHeight>` with [style].
 /// [lineHeight] is a number (px) or a CSS length, default '1em' as in Text.tsx.
 /// Lines are measured with [measureStyle] (default [style]).
+///
+/// With [textPath] (`<Text textPath>`) the whole text runs along that path
+/// instead: [startOffset] (px, or 'N%' of the path length) and [textAnchor]
+/// place it, [centralBaseline] is `dominantBaseline="central"`, [angle] turns
+/// it about the center of its box, and [boxes] collects the glyph cells' bounds.
+/// x, y, width, breakAll, maxLines, lineHeight and verticalAnchor are ignored.
+// ponytail: scaleToFit is ignored on a path too; Text.tsx would still scale it.
 void paintSvgText(
   Canvas canvas,
   String text,
@@ -174,7 +182,15 @@ void paintSvgText(
   Object lineHeight = '1em',
   TextStyle? measureStyle,
   TextScaler scaler = TextScaler.noScaling,
+  Path? textPath,
+  Object? startOffset,
+  bool centralBaseline = false,
+  List<Rect>? boxes,
 }) {
+  if (textPath != null) {
+    _paintTextOnPath(canvas, text, textPath, style, scaler, textAnchor, startOffset, centralBaseline, angle, boxes);
+    return;
+  }
   if (!x.isFinite || !y.isFinite) return;
   final wordLines = getWordsByLines(text,
       width: width,
@@ -217,6 +233,103 @@ void paintSvgText(
     tp.paint(canvas, Offset(left, baseline - ascent));
   }
   if (angle != 0 || scale != null) canvas.restore();
+}
+
+/// Text.tsx's `startOffset` of a textPath: px, or a percentage of [pathLength].
+double _startOffsetPx(Object? startOffset, double pathLength) {
+  if (startOffset is num) return startOffset.toDouble();
+  if (startOffset is String) {
+    final n = double.tryParse(RegExp(r'^\s*[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?').stringMatch(startOffset) ?? '');
+    if (n != null) return startOffset.trim().endsWith('%') ? n / 100 * pathLength : n;
+  }
+  return 0;
+}
+
+/// The point and tangent at [distance] along [metrics], walking subpaths in order.
+Tangent? _tangentAt(List<PathMetric> metrics, double distance) {
+  for (final m in metrics) {
+    if (distance <= m.length) return m.getTangentForOffset(distance);
+    distance -= m.length;
+  }
+  return null;
+}
+
+/// Bounds of [rect] turned by [radians] about the origin, then moved to [at].
+Rect _turnedBounds(Rect rect, double radians, Offset at) {
+  final c = math.cos(radians), s = math.sin(radians);
+  final pts = [
+    for (final p in [rect.topLeft, rect.topRight, rect.bottomRight, rect.bottomLeft])
+      Offset(at.dx + p.dx * c - p.dy * s, at.dy + p.dx * s + p.dy * c),
+  ];
+  return Rect.fromLTRB(pts.map((p) => p.dx).reduce(math.min), pts.map((p) => p.dy).reduce(math.min),
+      pts.map((p) => p.dx).reduce(math.max), pts.map((p) => p.dy).reduce(math.max));
+}
+
+/// `<text><textPath>` as Chrome lays it out: each glyph on the path at the
+/// midpoint of its advance, turned to the tangent there; a glyph whose
+/// midpoint falls off the path is not drawn.
+void _paintTextOnPath(Canvas canvas, String text, Path path, TextStyle style, TextScaler scaler, TextAnchor textAnchor,
+    Object? startOffset, bool centralBaseline, double angle, List<Rect>? boxes) {
+  final metrics = path.computeMetrics().toList();
+  final pathLength = metrics.fold(0.0, (sum, m) => sum + m.length);
+  if (!(pathLength > 0) || text.isEmpty) return;
+  final textLength = textPainterFor(text, style, scaler).width;
+  final start = _startOffsetPx(startOffset, pathLength) -
+      switch (textAnchor) {
+        TextAnchor.start => 0,
+        TextAnchor.middle => textLength / 2,
+        TextAnchor.end => textLength,
+      };
+  final units = _codePoints(text);
+  final first = textPainterFor(units.first, style, scaler);
+  final ascent = first.computeDistanceToActualBaseline(TextBaseline.alphabetic);
+  // Blink's glyph cell: the rounded ascent and descent. dominant-baseline: central centers it on the
+  // path, and Chrome draws the glyph from -floor(height / 2) (measured at 9-18px); the default puts the
+  // baseline on the path.
+  final cellAscent = ascent.roundToDouble();
+  final cellHeight = cellAscent + first.computeLineMetrics().first.descent.roundToDouble();
+  final cellTop = centralBaseline ? -cellHeight / 2 : -cellAscent;
+  final paintTop = centralBaseline ? -(cellHeight / 2).floorToDouble() : -ascent;
+  final glyphs = <({String unit, Offset at, double heading, Rect cell})>[];
+  var prefix = '';
+  var advance = 0.0;
+  for (final unit in units) {
+    prefix += unit;
+    final end = textPainterFor(prefix, style, scaler).width;
+    final mid = start + (advance + end) / 2;
+    advance = end;
+    if (mid < 0 || mid > pathLength) continue;
+    final t = _tangentAt(metrics, mid);
+    if (t == null) continue;
+    final tp = textPainterFor(unit, style, scaler);
+    glyphs.add((
+      unit: unit,
+      at: t.position,
+      heading: math.atan2(t.vector.dy, t.vector.dx),
+      cell: Rect.fromLTWH(-tp.width / 2, cellTop, tp.width, cellHeight),
+    ));
+  }
+  if (glyphs.isEmpty) return;
+  var cells = [for (final g in glyphs) _turnedBounds(g.cell, g.heading, g.at)];
+  // CSS rotate(angle) with transform-box: fill-box and transform-origin: center.
+  final pivot = cells.reduce((a, b) => a.expandToInclude(b)).center;
+  final turn = angle * math.pi / 180;
+  if (angle != 0) {
+    canvas.save();
+    canvas.translate(pivot.dx, pivot.dy);
+    canvas.rotate(turn);
+    canvas.translate(-pivot.dx, -pivot.dy);
+    cells = [for (final r in cells) _turnedBounds(r.shift(-pivot), turn, pivot)];
+  }
+  for (final g in glyphs) {
+    canvas.save();
+    canvas.translate(g.at.dx, g.at.dy);
+    canvas.rotate(g.heading);
+    textPainterFor(g.unit, style, scaler).paint(canvas, Offset(g.cell.left, paintTop));
+    canvas.restore();
+  }
+  if (angle != 0) canvas.restore();
+  boxes?.addAll(cells);
 }
 
 /// CSS `line-height: normal` as Blink computes it: rounded ascent + rounded
