@@ -229,6 +229,36 @@ void main() {
       expect(angles(rendered(m.pies.single.sectors!)), [a(0, 300), a(300, 330), a(330, 350), a(350, 0)]);
     });
 
+    const sparseData = [
+      {'name': 'A', 'value': 1},
+      {'name': 'Missing'},
+      {'name': 'B', 'value': 1},
+    ];
+
+    group('missing values with a function dataKey', () {
+      Object? getValue(Object? entry) => (entry as Map)['value'];
+
+      for (final dataKey in <Object>['value', getValue]) {
+        test('does not allocate a minimum-angle slice for dataKey ${dataKey is String ? dataKey : 'getValue'}', () {
+          final m = model([Pie(data: sparseData, dataKey: dataKey, minAngle: 10, isAnimationActive: false)],
+              size: const Size(400, 400));
+          expect(angles(rendered(m.pies.single.sectors!)), [a(0, 180), a(180, 0)]);
+        });
+
+        test('does not allocate padding for missing data with dataKey ${dataKey is String ? dataKey : 'getValue'}', () {
+          final m = model([Pie(data: sparseData, dataKey: dataKey, paddingAngle: 5, isAnimationActive: false)],
+              size: const Size(400, 400));
+          expect(angles(rendered(m.pies.single.sectors!)), [a(0, 175), a(180, 355)]);
+        });
+      }
+    });
+
+    test('a nameKey function that returns nothing names the sector by its index, like a missing key', () {
+      final m = model([Pie(data: sparseData, dataKey: 'value', nameKey: (Object? e) => null, isAnimationActive: false)],
+          size: const Size(400, 400));
+      expect([for (final s in m.pies.single.sectors!) s.name], [0, 1, 2]);
+    });
+
     test('minAngle widens the small sectors', () {
       final m = model([
         pie(const [

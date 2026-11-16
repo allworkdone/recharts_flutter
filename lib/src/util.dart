@@ -107,7 +107,7 @@ bool hasDuplicate(List<Object?> ary) {
 /// Maps and Lists) or a function from the entry to its value.
 Object? getValueByDataKey(Object? obj, Object? dataKey, [Object? defaultValue]) {
   if (obj == null || dataKey == null) return defaultValue;
-  if (dataKey is Function) return (dataKey as dynamic)(obj);
+  if (dataKey is Function) return (dataKey as dynamic)(obj) ?? defaultValue;
   if (dataKey is String || dataKey is num) {
     final v = _lodashGet(obj, dataKey);
     return v ?? defaultValue;
