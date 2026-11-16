@@ -174,6 +174,21 @@ void paintDot(Canvas canvas, DotProps d, List<double>? dash, {Object? fill, doub
   }
 }
 
+/// `getEntrySvgProps` for a Dot: the SVG props of a data entry that paint a
+/// circle. They win over the series props and the `dot` option.
+// ponytail: opacity, strokeOpacity and strokeDasharray of the entry are not read.
+({Color? fill, Color? stroke, double? fillOpacity, double? strokeWidth, double? r}) entryDotStyle(Object? payload) {
+  final e = payload is Map ? payload : null;
+  double? n(String key) => e?[key] is num ? (e![key] as num).toDouble() : null;
+  return (
+    fill: cssFillOf(e?['fill']),
+    stroke: cssStrokeOf(e?['stroke']),
+    fillOpacity: n('fillOpacity'),
+    strokeWidth: n('strokeWidth'),
+    r: n('r'),
+  );
+}
+
 class CartesianPainter extends CustomPainter {
   CartesianPainter(this.layer, this.frame, {this.hover, super.repaint});
 
@@ -534,24 +549,25 @@ class CartesianPainter extends CustomPainter {
     for (var i = 0; i < points.length; i++) {
       final p = points[i];
       if (p.x == null || p.y == null) continue;
-      final dotFill = style?.fill ?? fill;
+      final entry = entryDotStyle(p.payload);
+      final dotFill = entry.fill ?? style?.fill ?? fill;
       final props = DotProps(
         cx: p.x!,
         cy: p.y!,
-        r: style?.r ?? 3,
+        r: entry.r ?? style?.r ?? 3,
         index: i,
         value: p.value,
         payload: p.payload,
         dataKey: series.dataKey,
         fill: solidColor(dotFill),
-        stroke: style?.stroke ?? stroke,
-        strokeWidth: style?.strokeWidth ?? strokeWidth,
+        stroke: entry.stroke ?? style?.stroke ?? stroke,
+        strokeWidth: entry.strokeWidth ?? style?.strokeWidth ?? strokeWidth,
       );
       if (dot is DotPainter) {
         dot(canvas, props);
       } else {
         _paintDot(canvas, props, style?.strokeDasharray ?? dash,
-            fill: dotFill, fillOpacity: style?.fillOpacity ?? 1);
+            fill: dotFill, fillOpacity: entry.fillOpacity ?? style?.fillOpacity ?? 1);
       }
     }
   }
@@ -783,9 +799,9 @@ class CartesianPainter extends CustomPainter {
     }
   }
 
-  /// ActivePoints: the point whose payload is active, filled with the item's
-  /// main color (Line's stroke, Area's `getLegendItemColor`). Range areas also
-  /// mark their baseline.
+  /// ActivePoints: the point whose payload is active, filled with the fill of
+  /// its data entry, else the item's main color (Line's stroke, Area's
+  /// `getLegendItemColor`). Range areas also mark their baseline.
   void _paintActiveDots(Canvas canvas) {
     final h = hover?.value;
     if (h == null || h.activeDataPoints.isEmpty) return;
@@ -810,7 +826,7 @@ class CartesianPainter extends CustomPainter {
           value: p.value,
           payload: p.payload,
           dataKey: el.dataKey,
-          fill: style?.fill ?? el.tooltipColor,
+          fill: style?.fill ?? entryDotStyle(p.payload).fill ?? el.tooltipColor,
           stroke: style?.stroke ?? const Color(0xFFFFFFFF),
           strokeWidth: style?.strokeWidth ?? 2,
         );

@@ -22,7 +22,7 @@ import '../polar_axes.dart';
 import '../polar_components.dart';
 import '../util.dart';
 import 'label.dart';
-import 'painter.dart' show paintDot;
+import 'painter.dart' show entryDotStyle, paintDot;
 import 'polar_painter.dart';
 import 'sector.dart';
 import 'shapes.dart';
@@ -541,23 +541,25 @@ void _paintRadarDots(Canvas canvas, RadarModel r, List<RadarPoint> points) {
   if (!(dot != false || points.length == 1)) return;
   final style = dot is SvgStyle ? dot : null;
   for (final (i, p) in points.indexed) {
+    final entry = entryDotStyle(p.payload);
+    final fill = entry.fill ?? style?.fill ?? radar.fill ?? _svgBlack;
     final props = DotProps(
       cx: p.x,
       cy: p.y,
-      r: style?.r ?? 3,
+      r: entry.r ?? style?.r ?? 3,
       index: i,
       value: p.value,
       payload: p.payload,
       dataKey: radar.dataKey,
-      fill: style?.fill ?? radar.fill ?? _svgBlack,
-      stroke: style?.stroke ?? radar.stroke,
-      strokeWidth: style?.strokeWidth ?? radar.strokeWidth ?? 1,
+      fill: fill,
+      stroke: entry.stroke ?? style?.stroke ?? radar.stroke,
+      strokeWidth: entry.strokeWidth ?? style?.strokeWidth ?? radar.strokeWidth ?? 1,
     );
     if (dot is DotPainter) {
       dot(canvas, props);
     } else {
       paintDot(canvas, props, style?.strokeDasharray ?? radar.strokeDasharray,
-          fill: style?.fill ?? radar.fill ?? _svgBlack, fillOpacity: style?.fillOpacity ?? 1);
+          fill: fill, fillOpacity: entry.fillOpacity ?? style?.fillOpacity ?? 1);
     }
   }
 }
@@ -576,7 +578,7 @@ void _paintRadarActiveDot(Canvas canvas, RadarModel r, PolarHoverState? h) {
     value: p.value,
     payload: p.payload,
     dataKey: radar.dataKey,
-    fill: style?.fill ?? legendItemColor(radar.stroke, radar.fill),
+    fill: style?.fill ?? entryDotStyle(p.payload).fill ?? legendItemColor(radar.stroke, radar.fill),
     stroke: style?.stroke ?? const Color(0xFFFFFFFF),
     strokeWidth: style?.strokeWidth ?? 2,
   );
