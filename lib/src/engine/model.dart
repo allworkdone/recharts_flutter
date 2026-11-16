@@ -1431,12 +1431,13 @@ List<TooltipPayloadEntry> tooltipPayloadOf(CartesianModel m, int? activeIndex,
   if (activeIndex == null) return const [];
   final axisDataKey = m.tooltipAxis.settings.dataKey;
   final activeLabel = activeLabelOf(m, activeIndex);
+  final (sliceStart, sliceEnd) = getBrushSliceIndexes(m.chartData, m.dataStartIndex, m.dataEndIndex);
   final out = <TooltipPayloadEntry>[];
   for (final item in items ?? m.items) {
     final el = item.element;
     final scatterPoints = el is Scatter ? scatterPointsOf(m, item) : null;
     if (el is Scatter && scatterPoints != null) {
-      final sliced = getSliced(scatterPoints, m.dataStartIndex, m.dataEndIndex);
+      final sliced = getSliced(scatterPoints, sliceStart, sliceEnd);
       final point = activeIndex >= 0 && activeIndex < sliced.length ? sliced[activeIndex] : null;
       // getScatterEntryColor: the entry fill, the Scatter fill, the entry stroke, the Scatter stroke (no Cell)
       final entry = point?.payload is Map ? point!.payload as Map : null;
@@ -1459,7 +1460,7 @@ List<TooltipPayloadEntry> tooltipPayloadOf(CartesianModel m, int? activeIndex,
       continue;
     }
     // Bar registers no dataDefinedOnItem: its tooltip reads the chart data.
-    final finalData = getSliced((el is Bar ? null : item.data) ?? m.chartData, m.dataStartIndex, m.dataEndIndex);
+    final finalData = getSliced((el is Bar ? null : item.data) ?? m.chartData, sliceStart, sliceEnd);
     Object? payload;
     if (axisDataKey != null && !itemEventType) {
       payload = finalData.where((e) => getValueByDataKey(e, axisDataKey) == activeLabel).firstOrNull;

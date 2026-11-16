@@ -328,7 +328,8 @@ List<TooltipPayloadEntry> polarTooltipPayload(PolarScene s, List<Object?> chartD
   if (activeIndex == null) return const [];
   final axisDataKey = axis ? s.tooltipAxis.settings.dataKey : null;
   final activeLabel = polarActiveLabel(s, activeIndex);
-  chartData = getSliced(chartData, s.dataStartIndex, s.dataEndIndex);
+  final (sliceStart, sliceEnd) = getBrushSliceIndexes(chartData, s.dataStartIndex, s.dataEndIndex);
+  chartData = getSliced(chartData, sliceStart, sliceEnd);
   Object? at(List<Object?> l) => activeIndex >= 0 && activeIndex < l.length ? l[activeIndex] : null;
   final out = <TooltipPayloadEntry>[];
   for (final item in s.items) {
@@ -353,7 +354,7 @@ List<TooltipPayloadEntry> polarTooltipPayload(PolarScene s, List<Object?> chartD
     } else {
       final b = item.radialBar!;
       // `dataDefinedOnItem` is the sectors, which are already sliced; getSliced slices them again.
-      final sectors = getSliced(s.radialBars.firstWhere((m) => m.id == item.id).sectors, s.dataStartIndex, s.dataEndIndex);
+      final sectors = getSliced(s.radialBars.firstWhere((m) => m.id == item.id).sectors, sliceStart, sliceEnd);
       final sector = axisDataKey != null
           ? sectors.where((e) => getValueByDataKey(e.asPayload, axisDataKey) == activeLabel).firstOrNull
           : activeIndex >= 0 && activeIndex < sectors.length ? sectors[activeIndex] : null;

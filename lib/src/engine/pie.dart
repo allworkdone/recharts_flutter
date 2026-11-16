@@ -452,9 +452,10 @@ Color? activeShapeFill(Pie pie) => pie.activeShape is SectorStyle ? (pie.activeS
 /// data, then the sector at the index.
 List<TooltipPayloadEntry> pieTooltipPayload(PolarModel m, Iterable<PieModel> pies, int? activeIndex) {
   if (activeIndex == null) return const [];
+  final (sliceStart, sliceEnd) = getBrushSliceIndexes(m.chartData, m.dataStartIndex, m.dataEndIndex);
   final out = <TooltipPayloadEntry>[];
   for (final p in pies) {
-    final sectors = getSliced(p.sectors ?? const <PieSector>[], m.dataStartIndex, m.dataEndIndex);
+    final sectors = getSliced(p.sectors ?? const <PieSector>[], sliceStart, sliceEnd);
     if (activeIndex < 0 || activeIndex >= sectors.length) continue;
     final e = sectors[activeIndex].tooltipPayload;
     final fill = activeShapeFill(p.settings);

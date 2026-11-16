@@ -380,7 +380,7 @@ Map<String, StackGroup> combineStackGroups(List<Map<String, Object?>> displayedD
   });
 }
 
-NumberDomain? getDomainOfStackGroups(Map<String, StackGroup>? stackGroups, [int startIndex = 0, int endIndex = 0]) {
+NumberDomain? getDomainOfStackGroups(Map<String, StackGroup>? stackGroups, int startIndex, int endIndex) {
   if (stackGroups == null || stackGroups.isEmpty) return null;
   var result = [double.infinity, double.negativeInfinity];
   for (final group in stackGroups.values) {
@@ -484,9 +484,9 @@ void computeAxisDomain(AxisRuntime axis, ChartContext ctx) {
   final stackedItems = items.where((i) => (i.isBar || i.isArea) && i.stackId != null).toList();
   axis.stackGroups = combineStackGroups(combineDisplayedStackedData(stackedItems, ctx.fullChartData, ctx.tooltipAxis),
       stackedItems, ctx.stackOffset, ctx.reverseStackOrder);
-  final domainOfStackGroups = domainFromUserPreference != null
-      ? null
-      : getDomainOfStackGroups(axis.stackGroups, ctx.dataStartIndex, ctx.dataEndIndex);
+  final (sliceStart, sliceEnd) = getBrushSliceIndexes(ctx.fullChartData, ctx.dataStartIndex, ctx.dataEndIndex);
+  final domainOfStackGroups =
+      domainFromUserPreference != null ? null : getDomainOfStackGroups(axis.stackGroups, sliceStart, sliceEnd);
 
   // combineDomainOfAllAppliedNumericalValuesIncludingErrorValues
   double? lowerEnd, upperEnd;

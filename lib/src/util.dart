@@ -181,9 +181,13 @@ List<T> jsSlice<T>(List<T> a, int start, [int? end]) {
   return s < e ? a.sublist(s, e) : <T>[];
 }
 
-/// `getSliced` (src/util/getSliced.ts): `[0, 0]` means "everything".
-List<T> getSliced<T>(List<T> arr, int startIndex, int endIndex) =>
-    startIndex + endIndex != 0 ? jsSlice(arr, startIndex, endIndex + 1) : arr;
+/// `getSliced` (src/util/getSliced.ts), both ends inclusive.
+List<T> getSliced<T>(List<T> arr, int startIndex, int endIndex) => jsSlice(arr, startIndex, endIndex + 1);
+
+/// `getBrushSliceIndexes` (chartDataSlice.ts): the Brush indexes address the chart data, and their
+/// initial 0, 0 also selects its first entry, so without chart data they slice nothing.
+(int, int) getBrushSliceIndexes(List<Object?> chartData, int dataStartIndex, int dataEndIndex) =>
+    chartData.isEmpty ? (0, 1 << 30) : (dataStartIndex, dataEndIndex);
 
 /// The index a `defaultIndex` activates, as `parseInt` reads it in the payload
 /// lookup: null when [desired] is not finite (Recharts keeps the string and

@@ -1,6 +1,7 @@
 // Brush layout and data slicing, ported from Recharts 3.10.1:
 // test/cartesian/Brush.spec.tsx (expectBrush), Brush.stacked.spec.tsx,
-// test/cartesian/XAxis/XAxis.brush.spec.tsx, test/state/selectors/brushSelectors.spec.tsx.
+// test/cartesian/XAxis/XAxis.brush.spec.tsx, test/state/selectors/brushSelectors.spec.tsx,
+// and from 3.11: test/util/getSliced.spec.ts.
 
 import 'dart:ui';
 
@@ -154,6 +155,53 @@ void main() {
       expect(full.axes.single.runtime.domain, [0, 10000]);
       // stacks of pages E and F only: max(4186, 4989)
       expect(sliced.axes.single.runtime.domain, [0, 4989]);
+    });
+
+    test('Brush.spec.tsx: the selection of the first data point only gives the axis domain of that point', () {
+      const data = [
+        {'value': 10},
+        {'value': 200},
+        {'value': 300},
+        {'value': 400},
+      ];
+      final m = brushModel('BarChart', 400, 300, data, const [YAxis(), Bar(dataKey: 'value', stackId: 'stack'), Brush()],
+          start: 0, end: 0);
+      expect([for (final t in m.axes.single.ticks) (t.value, t.coordinate)], [
+        (0, 255),
+        (3, 192.5),
+        (6, 130),
+        (9, 67.5),
+        (12, 5),
+      ]);
+    });
+
+    test('a chart whose items bring their own data keeps all of it in the stack domain and the tooltip', () {
+      final m = brushModel('AreaChart', 400, 300, const [], end: 0, const [
+        YAxis(),
+        Area(dataKey: 'v', stackId: 's', data: [
+          {'v': 1},
+          {'v': 5},
+        ]),
+      ]);
+      expect(m.axes.single.runtime.domain, [0, 5]);
+      expect(tooltipPayloadOf(m, 1).single.value, 5);
+    });
+  });
+
+  group('getSliced.spec.ts', () {
+    const array = ['a', 'b', 'c', 'd'];
+    test('the elements between the two indexes, inclusive on both ends', () {
+      expect(getSliced(array, 1, 2), ['b', 'c']);
+      expect(getSliced(array, 2, 2), ['c']);
+      expect(getSliced(array, 0, 0), ['a']);
+      expect(getSliced(array, 0, array.length - 1), array);
+      expect(getSliced(array, 2, 1), isEmpty);
+    });
+
+    test('getBrushSliceIndexes: the whole range without chart data', () {
+      final (start, end) = getBrushSliceIndexes(const [], 0, 0);
+      expect(getSliced(array, start, end), array);
+      expect(getBrushSliceIndexes(array, 0, 0), (0, 0));
     });
   });
 
