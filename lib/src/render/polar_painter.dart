@@ -139,10 +139,12 @@ class PolarPainter extends CustomPainter {
         }
       case PolarLayer.labels:
         frame.labelBoxes.clear();
-        for (final p in m.pies) {
-          _paintPieLabels(canvas, p);
-        }
-        paintPolarSceneLabels(canvas, frame);
+        paintLabelLayer(canvas, (canvas) {
+          for (final p in m.pies) {
+            _paintPieLabels(canvas, p);
+          }
+          paintPolarSceneLabels(canvas, frame);
+        });
     }
   }
 
@@ -309,6 +311,7 @@ void paintPolarLabel(Canvas canvas, Label label, PolarViewBox viewBox,
         angle: label.angle,
         style: style,
         index: index,
+        background: label.background,
       ),
     );
     return;
@@ -324,7 +327,9 @@ void paintPolarLabel(Canvas canvas, Label label, PolarViewBox viewBox,
       angle: label.angle,
       breakAll: label.textBreakAll,
       measureStyle: baseStyle,
-      scaler: scaler);
+      scaler: scaler,
+      background: label.background,
+      boxes: boxes);
   if (label.angle == 0) {
     boxes?.add(svgTextBox(text, pos.x, pos.y, style, scaler, textAnchor: textAnchor, verticalAnchor: pos.verticalAnchor));
   }
@@ -350,6 +355,7 @@ void _paintRadialLabel(Canvas canvas, Label label, PolarViewBox viewBox, TextSty
         angle: label.angle,
         style: style,
         index: index,
+        background: label.background,
       ),
     );
     return;
@@ -357,15 +363,25 @@ void _paintRadialLabel(Canvas canvas, Label label, PolarViewBox viewBox, TextSty
   if (label.value == null) return;
   final value = label.formatter == null ? label.value : label.formatter!(label.value);
   if (value == null) return;
+  // A background starts the arc padding.x earlier and the text as much further along it, so the
+  // background's leading edge is not clipped at the start of the path. A percent startOffset stays.
+  final background = label.background;
+  final requested = label.startOffset;
+  final pathPadding = background != null && background != false && (requested == null || requested is num)
+      ? resolveBackgroundPadding(background is TextBackground ? background.padding : null).x
+      : 0.0;
+  final paddingAngle = path.radius > 0 ? pathPadding / path.radius / radian : 0.0;
   paintSvgText(canvas, jsString(value), 0, 0,
       style: style,
       scaler: scaler,
-      textPath: radialLabelArc(viewBox.cx, viewBox.cy, path.radius, path.labelAngle, path.direction),
-      startOffset: label.startOffset,
+      textPath: radialLabelArc(
+          viewBox.cx, viewBox.cy, path.radius, path.labelAngle - (path.direction ? 1 : -1) * paddingAngle, path.direction),
+      startOffset: requested is num ? requested + pathPadding : (requested ?? (pathPadding == 0 ? null : pathPadding)),
       textAnchor: label.textAnchor ?? TextAnchor.start,
       centralBaseline: true,
       angle: label.angle,
-      boxes: boxes);
+      boxes: boxes,
+      background: background);
 }
 
 /// The glyph cells of a one-line `<Text>` (the box SVG hit tests), placed

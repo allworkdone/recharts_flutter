@@ -17,6 +17,7 @@ import 'package:flutter/widgets.dart';
 import '../components.dart';
 import '../util.dart' show getValueByDataKey, jsString;
 import '../render/label.dart' show labelOfEntry, paintLabel;
+import '../render/svg_text.dart' show paintLabelLayer;
 import '../render/sector.dart' show strokeContains;
 import '../render/shapes.dart';
 import '../sankey.dart';
@@ -582,20 +583,23 @@ class _SankeyPainter extends CustomPainter {
         drawStroke(canvas, path, strokePaint(stroke, s?.strokeWidth ?? strokeWidth ?? 1, opacity: s?.strokeOpacity ?? 1), s?.strokeDasharray);
       }
     }
-    for (final list in labelLists) {
-      for (var i = 0; i < model.nodes.length; i++) {
-        final n = model.nodes[i];
-        final payload = n.payload.toMap();
-        final e = LabelListEntry(
-          value: getValueByDataKey(payload, nameKey, ''),
-          payload: payload,
-          viewBox: Rect.fromLTWH(n.x, n.y, n.width, n.height),
-          // getRenderedNodeFill: the node's own fill, else the legacy default.
-          fill: n.style?.fill ?? const Color(0xFF0088FE),
-        );
-        paintLabel(canvas, labelOfEntry(list, e, i), e.viewBox, index: i, baseStyle: baseStyle, scaler: scaler);
+    if (labelLists.isEmpty) return;
+    paintLabelLayer(canvas, (canvas) {
+      for (final list in labelLists) {
+        for (var i = 0; i < model.nodes.length; i++) {
+          final n = model.nodes[i];
+          final payload = n.payload.toMap();
+          final e = LabelListEntry(
+            value: getValueByDataKey(payload, nameKey, ''),
+            payload: payload,
+            viewBox: Rect.fromLTWH(n.x, n.y, n.width, n.height),
+            // getRenderedNodeFill: the node's own fill, else the legacy default.
+            fill: n.style?.fill ?? const Color(0xFF0088FE),
+          );
+          paintLabel(canvas, labelOfEntry(list, e, i), e.viewBox, index: i, baseStyle: baseStyle, scaler: scaler);
+        }
       }
-    }
+    });
   }
 
   @override

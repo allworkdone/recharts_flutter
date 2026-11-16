@@ -1,6 +1,6 @@
 {
  "name": "labellist-radial-path",
- "description": "RadialBar LabelLists on the textPath arc: insideStart names, end values turned 30 degrees, insideEnd with a startOffset.",
+ "description": "RadialBar LabelLists on the textPath arc: insideStart names on a white background, end values turned 30 degrees, insideEnd with a startOffset and an outlined background.",
  "width": 500,
  "height": 320,
  "chart": {
@@ -46,7 +46,8 @@
       "props": {
        "dataKey": "name",
        "position": "insideStart",
-       "fill": "#fff"
+       "fill": "#333",
+       "background": true
       }
      },
      {
@@ -65,7 +66,16 @@
        "position": "insideEnd",
        "startOffset": 6,
        "fontSize": 10,
-       "fill": "#222"
+       "fill": "#222",
+       "background": {
+        "fill": "#fde68a",
+        "stroke": "#92400e",
+        "strokeWidth": 1,
+        "padding": {
+         "x": 3,
+         "y": 1
+        }
+       }
       }
      }
     ]

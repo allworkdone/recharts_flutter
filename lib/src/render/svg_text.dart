@@ -3,12 +3,13 @@
 // and a TextPainter-based replacement for getStringSize in src/util/DOMUtils.ts.
 
 import 'dart:math' as math;
-import 'dart:ui' show PathMetric, Tangent;
+import 'dart:ui' show PathMetric, PictureRecorder, Tangent;
 
 import 'package:flutter/painting.dart';
 import 'package:flutter/foundation.dart';
 
 import '../components.dart';
+import 'shapes.dart' show fillPaint, strokePaint;
 
 /// Replaces TextPainter measurement, e.g. with `(_, _) => Size.zero` to mirror
 /// jsdom, where Recharts' own specs measure every string as 0x0.
@@ -156,6 +157,94 @@ double? _lineHeightPx(Object lineHeight, double em) {
   };
 }
 
+/// Text.tsx's `resolveBackgroundPadding`: [TextBackground.padding] per direction.
+({double x, double y}) resolveBackgroundPadding(Object? padding) {
+  if (padding is num) return (x: padding.toDouble(), y: padding.toDouble());
+  final p = padding is ({num? x, num? y}) ? padding : null;
+  return (x: p?.x?.toDouble() ?? 4, y: p?.y?.toDouble() ?? 2);
+}
+
+/// Text.tsx's `getTextBackgroundRect`: [textBox] grown by the padding, or null for an empty box.
+Rect? getTextBackgroundRect(Rect textBox, Object? padding) {
+  if (textBox.width <= 0 || textBox.height <= 0) return null;
+  final p = resolveBackgroundPadding(padding);
+  return Rect.fromLTRB(textBox.left - p.x, textBox.top - p.y, textBox.right + p.x, textBox.bottom + p.y);
+}
+
+/// Text.tsx's `getTextPathBackgroundGeometry`: the stretch of the path the
+/// background covers and its stroke width, or null when nothing is covered.
+({double start, double length, double strokeWidth})? getTextPathBackgroundGeometry(
+    ({double pathLength, double textLength, double textHeight, double startOffset}) metrics,
+    Object? padding,
+    TextAnchor textAnchor) {
+  final (:pathLength, :textLength, :textHeight, :startOffset) = metrics;
+  if (pathLength <= 0 || textLength <= 0 || textHeight <= 0) return null;
+  final p = resolveBackgroundPadding(padding);
+  final anchorOffset = switch (textAnchor) {
+    TextAnchor.start => 0.0,
+    TextAnchor.middle => textLength / 2,
+    TextAnchor.end => textLength,
+  };
+  final start = (startOffset - anchorOffset - p.x).clamp(0.0, pathLength);
+  final end = (startOffset - anchorOffset + textLength + p.x).clamp(0.0, pathLength);
+  if (end <= start) return null;
+  return (start: start, length: end - start, strokeWidth: textHeight + 2 * p.y);
+}
+
+/// `background` of Text: `true` takes the defaults.
+TextBackground? _background(Object? background) => switch (background) {
+      true => const TextBackground(),
+      TextBackground b => b,
+      _ => null,
+    };
+
+Canvas? _labelBackgroundLayer;
+
+/// Paints a label layer: what [paint] draws goes on top of [canvas], and the
+/// backgrounds [paintSvgText] draws meanwhile go below all of it, as label
+/// backgrounds render in their own zIndex layer under every label text
+/// (src/zIndex/labelBackgroundZIndex.tsx). Text drawn outside a label layer
+/// gets its background right before it.
+void paintLabelLayer(Canvas canvas, void Function(Canvas canvas) paint) {
+  final recorder = PictureRecorder();
+  _labelBackgroundLayer = canvas;
+  try {
+    paint(Canvas(recorder));
+  } finally {
+    _labelBackgroundLayer = null;
+  }
+  final picture = recorder.endRecording();
+  canvas.drawPicture(picture);
+  picture.dispose();
+}
+
+/// Runs [draw] on the label background layer under [canvas]'s current transform, or on [canvas].
+void _onBackgroundLayer(Canvas canvas, void Function(Canvas c) draw) {
+  final layer = _labelBackgroundLayer;
+  if (layer == null) return draw(canvas);
+  layer.save();
+  layer.transform(canvas.getTransform());
+  draw(layer);
+  layer.restore();
+}
+
+/// Blink's glyph cell above and below the baseline: the font's rounded ascent and descent.
+({double ascent, double descent}) _cell(TextPainter tp) => (
+      ascent: tp.computeDistanceToActualBaseline(TextBaseline.alphabetic).roundToDouble(),
+      descent: tp.computeLineMetrics().first.descent.roundToDouble(),
+    );
+
+/// The background `<rect>`: fill, an optional stroke, rx (default 4) clamped like SVG's rx and ry.
+void _paintBackgroundRect(Canvas canvas, Rect rect, TextBackground b) {
+  final rx = b.rx ?? 4;
+  final rrect = RRect.fromRectXY(rect, math.min(rx, rect.width / 2), math.min(rx, rect.height / 2));
+  canvas.drawRRect(rrect, fillPaint(b.fill ?? const Color(0xFFFFFFFF), opacity: b.fillOpacity ?? 1));
+  final strokeWidth = b.strokeWidth ?? 1;
+  if (b.stroke != null && strokeWidth > 0) {
+    canvas.drawRRect(rrect, strokePaint(b.stroke!, strokeWidth, opacity: b.strokeOpacity ?? 1));
+  }
+}
+
 /// Draws `<Text x y textAnchor verticalAnchor angle width lineHeight>` with [style].
 /// [lineHeight] is a number (px) or a CSS length, default '1em' as in Text.tsx.
 /// Lines are measured with [measureStyle] (default [style]).
@@ -165,6 +254,11 @@ double? _lineHeightPx(Object lineHeight, double em) {
 /// place it, [centralBaseline] is `dominantBaseline="central"`, [angle] turns
 /// it about the center of its box, and [boxes] collects the glyph cells' bounds.
 /// x, y, width, breakAll, maxLines, lineHeight and verticalAnchor are ignored.
+///
+/// [background] (`true` or a [TextBackground]) draws a rounded rectangle
+/// around the rendered lines, with the text's transform, or on a path a
+/// round-capped stroke along the stretch the text covers, which [angle] does
+/// not turn. Its unturned bounds go to [boxes] too.
 // ponytail: scaleToFit is ignored on a path too; Text.tsx would still scale it.
 void paintSvgText(
   Canvas canvas,
@@ -186,9 +280,11 @@ void paintSvgText(
   Object? startOffset,
   bool centralBaseline = false,
   List<Rect>? boxes,
+  Object? background,
 }) {
   if (textPath != null) {
-    _paintTextOnPath(canvas, text, textPath, style, scaler, textAnchor, startOffset, centralBaseline, angle, boxes);
+    _paintTextOnPath(canvas, text, textPath, style, scaler, textAnchor, startOffset, centralBaseline, angle, boxes,
+        _background(background));
     return;
   }
   if (!x.isFinite || !y.isFinite) return;
@@ -221,16 +317,33 @@ void paintSvgText(
     canvas.rotate(angle * math.pi / 180);
     canvas.translate(-x, -y);
   }
-  for (var i = 0; i < lines.length; i++) {
-    final tp = textPainterFor(lines[i], style, scaler);
-    final baseline = y + startDy + i * lh;
-    final ascent = tp.computeDistanceToActualBaseline(TextBaseline.alphabetic);
-    final left = switch (textAnchor) {
-      TextAnchor.start => x,
-      TextAnchor.middle => x - tp.width / 2,
-      TextAnchor.end => x - tp.width,
-    };
-    tp.paint(canvas, Offset(left, baseline - ascent));
+  final placed = [
+    for (var i = 0; i < lines.length; i++)
+      if (textPainterFor(lines[i], style, scaler) case final tp)
+        (
+          tp: tp,
+          baseline: y + startDy + i * lh,
+          left: switch (textAnchor) {
+            TextAnchor.start => x,
+            TextAnchor.middle => x - tp.width / 2,
+            TextAnchor.end => x - tp.width,
+          },
+        ),
+  ];
+  final bg = _background(background);
+  if (bg != null) {
+    // getBBox: the lines' glyph cells.
+    final box = placed
+        .map((l) => Rect.fromLTRB(l.left, l.baseline - _cell(l.tp).ascent, l.left + l.tp.width, l.baseline + _cell(l.tp).descent))
+        .reduce((a, b) => a.expandToInclude(b));
+    final rect = getTextBackgroundRect(box, bg.padding);
+    if (rect != null) {
+      _onBackgroundLayer(canvas, (c) => _paintBackgroundRect(c, rect, bg));
+      if (angle == 0 && scale == null) boxes?.add(rect);
+    }
+  }
+  for (final l in placed) {
+    l.tp.paint(canvas, Offset(l.left, l.baseline - l.tp.computeDistanceToActualBaseline(TextBaseline.alphabetic)));
   }
   if (angle != 0 || scale != null) canvas.restore();
 }
@@ -269,12 +382,37 @@ Rect _turnedBounds(Rect rect, double radians, Offset at) {
 /// midpoint of its advance, turned to the tangent there; a glyph whose
 /// midpoint falls off the path is not drawn.
 void _paintTextOnPath(Canvas canvas, String text, Path path, TextStyle style, TextScaler scaler, TextAnchor textAnchor,
-    Object? startOffset, bool centralBaseline, double angle, List<Rect>? boxes) {
+    Object? startOffset, bool centralBaseline, double angle, List<Rect>? boxes, TextBackground? bg) {
   final metrics = path.computeMetrics().toList();
   final pathLength = metrics.fold(0.0, (sum, m) => sum + m.length);
   if (!(pathLength > 0) || text.isEmpty) return;
   final textLength = textPainterFor(text, style, scaler).width;
-  final start = _startOffsetPx(startOffset, pathLength) -
+  final offset = _startOffsetPx(startOffset, pathLength);
+  final band = bg == null
+      ? null
+      : getTextPathBackgroundGeometry(
+          (pathLength: pathLength, textLength: textLength, textHeight: scaler.scale(style.fontSize ?? 14), startOffset: offset),
+          bg.padding,
+          textAnchor);
+  if (bg != null && band != null) {
+    // A dash `length pathLength` offset by -start, which Skia restarts on every subpath.
+    final stretch = Path();
+    for (final m in metrics) {
+      stretch.addPath(m.extractPath(band.start, band.start + band.length), Offset.zero);
+    }
+    final outline = math.max(0.0, bg.strokeWidth ?? 1);
+    final hasOutline = bg.stroke != null && outline > 0;
+    _onBackgroundLayer(canvas, (c) {
+      if (hasOutline) {
+        c.drawPath(stretch,
+            strokePaint(bg.stroke!, band.strokeWidth + 2 * outline, opacity: bg.strokeOpacity ?? 1)..strokeCap = StrokeCap.round);
+      }
+      c.drawPath(stretch,
+          strokePaint(bg.fill ?? const Color(0xFFFFFFFF), band.strokeWidth, opacity: bg.fillOpacity ?? 1)..strokeCap = StrokeCap.round);
+    });
+    boxes?.add(stretch.getBounds().inflate(band.strokeWidth / 2 + (hasOutline ? outline : 0)));
+  }
+  final start = offset -
       switch (textAnchor) {
         TextAnchor.start => 0,
         TextAnchor.middle => textLength / 2,

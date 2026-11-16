@@ -250,6 +250,7 @@ class LabelProps {
     required this.style,
     this.index,
     this.polarViewBox,
+    this.background,
   });
 
   /// The position computed for [position], before anchoring (NaN for the radial
@@ -268,6 +269,9 @@ class LabelProps {
 
   /// Entry index inside a [LabelList].
   final int? index;
+
+  /// The label's [Label.background]; custom content draws its own.
+  final Object? background;
 }
 
 typedef LabelPainter = void Function(Canvas canvas, LabelProps props);
@@ -288,6 +292,7 @@ class Label {
     this.formatter,
     this.content,
     this.startOffset,
+    this.background,
   });
 
   /// String, num or bool; nothing is drawn when null (unless [content] is set).
@@ -314,6 +319,33 @@ class Label {
 
   /// Where a radial label starts along its arc: px, or a percent string of the arc length.
   final Object? startOffset;
+
+  /// `true` or a [TextBackground] draws a background behind the text; every
+  /// label background lies below every label text.
+  final Object? background;
+}
+
+/// `TextBackgroundProps` (src/component/Text.tsx): what [Label.background]
+/// draws, a rounded rectangle around straight text, or a round-capped stroke
+/// along the path under a radial label.
+class TextBackground {
+  const TextBackground({this.fill, this.fillOpacity, this.stroke, this.strokeWidth, this.strokeOpacity, this.rx, this.padding});
+
+  /// Default white.
+  final Color? fill;
+  final double? fillOpacity;
+
+  /// An outline around the background, [strokeWidth] (default 1) wide.
+  final Color? stroke;
+  final double? strokeWidth;
+  final double? strokeOpacity;
+
+  /// Corner radius of the rectangle, default 4.
+  final double? rx;
+
+  /// Space between the text and the edge: a num for every side, or
+  /// `(x: 6, y: 3)` (null takes the default); default `(x: 4, y: 2)`.
+  final Object? padding;
 }
 
 /// Input of [LabelList.valueAccessor] (`CartesianLabelListEntry`).
@@ -347,6 +379,7 @@ class LabelList extends RechartsElement {
     this.formatter,
     this.content,
     this.startOffset,
+    this.background,
   });
 
   /// Reads the label from each entry's payload; overrides [valueAccessor].
@@ -367,6 +400,9 @@ class LabelList extends RechartsElement {
 
   /// [Label.startOffset] of each label.
   final Object? startOffset;
+
+  /// [Label.background] of each label.
+  final Object? background;
 }
 
 /// Shared props of [XAxis] and [YAxis] (`BaseCartesianAxis` + CartesianAxis props).

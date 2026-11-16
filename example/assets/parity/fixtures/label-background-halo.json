@@ -1,0 +1,145 @@
+{
+ "name": "label-background-halo",
+ "description": "Label and LabelList backgrounds: inside and top LabelLists, an axis label and an angled axis label with backgrounds, and a ReferenceLine label whose background sits below the bar labels it overlaps.",
+ "width": 600,
+ "height": 320,
+ "chart": {
+  "type": "BarChart",
+  "props": {
+   "data": [
+    {
+     "name": "Page A",
+     "uv": 4000,
+     "pv": 2400
+    },
+    {
+     "name": "Page B",
+     "uv": 3000,
+     "pv": 1398
+    },
+    {
+     "name": "Page C",
+     "uv": 2000,
+     "pv": 5800
+    },
+    {
+     "name": "Page D",
+     "uv": 2780,
+     "pv": 3908
+    },
+    {
+     "name": "Page E",
+     "uv": 1890,
+     "pv": 4800
+    }
+   ],
+   "margin": {
+    "top": 20,
+    "right": 30,
+    "left": 20,
+    "bottom": 20
+   }
+  },
+  "children": [
+   {
+    "type": "CartesianGrid",
+    "props": {
+     "strokeDasharray": "3 3"
+    }
+   },
+   {
+    "type": "XAxis",
+    "props": {
+     "dataKey": "name",
+     "label": {
+      "value": "Pages",
+      "position": "insideBottomRight",
+      "offset": 0,
+      "background": {
+       "fill": "#fde68a",
+       "stroke": "#b45309",
+       "strokeWidth": 1,
+       "rx": 3,
+       "padding": {
+        "x": 6,
+        "y": 3
+       }
+      }
+     }
+    }
+   },
+   {
+    "type": "YAxis",
+    "props": {
+     "label": {
+      "value": "Visits",
+      "angle": -90,
+      "position": "insideLeft",
+      "background": {
+       "fill": "#e0f2fe",
+       "rx": 0
+      }
+     }
+    }
+   },
+   {
+    "type": "ReferenceLine",
+    "props": {
+     "y": 4300,
+     "stroke": "#ef4444",
+     "label": {
+      "value": "Target 4300",
+      "position": "insideTopLeft",
+      "fill": "#b91c1c",
+      "background": {
+       "fill": "#fee2e2",
+       "padding": 8
+      }
+     }
+    }
+   },
+   {
+    "type": "Bar",
+    "props": {
+     "dataKey": "uv",
+     "fill": "#8884d8",
+     "isAnimationActive": false
+    },
+    "children": [
+     {
+      "type": "LabelList",
+      "props": {
+       "dataKey": "uv",
+       "position": "inside",
+       "fill": "#333",
+       "background": true
+      }
+     }
+    ]
+   },
+   {
+    "type": "Bar",
+    "props": {
+     "dataKey": "pv",
+     "fill": "#82ca9d",
+     "isAnimationActive": false
+    },
+    "children": [
+     {
+      "type": "LabelList",
+      "props": {
+       "dataKey": "pv",
+       "position": "top",
+       "fill": "#fff",
+       "background": {
+        "fill": "#333",
+        "fillOpacity": 0.8,
+        "padding": 2
+       }
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

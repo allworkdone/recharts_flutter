@@ -747,6 +747,7 @@ Object? _label(Object? v) {
     width: p.dbl('width'),
     textBreakAll: p.boolean('textBreakAll') ?? false,
     startOffset: p.raw['startOffset'],
+    background: _textBackground(p.raw['background']),
   );
 }
 
@@ -764,6 +765,23 @@ LabelList? _labelList(Object? v) {
     fontSize: p.dbl('fontSize'),
     textBreakAll: p.boolean('textBreakAll') ?? false,
     startOffset: p.raw['startOffset'],
+    background: _textBackground(p.raw['background']),
+  );
+}
+
+/// `background` of a Label or LabelList: a bool or TextBackgroundProps.
+Object? _textBackground(Object? v) {
+  if (v is! Map) return v;
+  final p = _Props(v.cast<String, dynamic>());
+  final padding = p.raw['padding'];
+  return TextBackground(
+    fill: p.color('fill'),
+    fillOpacity: p.dbl('fillOpacity'),
+    stroke: p.color('stroke'),
+    strokeWidth: p.dbl('strokeWidth'),
+    strokeOpacity: p.dbl('strokeOpacity'),
+    rx: p.dbl('rx'),
+    padding: padding is Map ? (x: padding['x'] as num?, y: padding['y'] as num?) : padding,
   );
 }
 

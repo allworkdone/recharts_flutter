@@ -4,6 +4,8 @@
 // cartesianAxisSlice.spec.ts. The chart specs run in jsdom, where text
 // measures 0x0 unless getBoundingClientRect is mocked.
 
+import 'dart:ui' show PictureRecorder;
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:recharts_flutter/recharts_flutter.dart';
@@ -367,5 +369,14 @@ void main() {
                   ])),
           ['1:2', '2:3', '3:4']);
     });
+  });
+
+  test('custom content gets the background setting and draws its own (Label.background.spec.tsx)', () {
+    final seen = <LabelProps>[];
+    const background = TextBackground(fill: Color(0xFFFFD700));
+    paintLabel(Canvas(PictureRecorder()), Label(value: 'text', background: background, content: (_, p) => seen.add(p)),
+        const Rect.fromLTWH(50, 50, 200, 200),
+        baseStyle: const TextStyle(fontSize: 12), scaler: TextScaler.noScaling);
+    expect(seen.single.background, same(background));
   });
 }

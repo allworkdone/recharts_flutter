@@ -217,7 +217,7 @@ class CartesianPainter extends CustomPainter {
         _paintActiveDots(canvas);
         _paintActiveScatterPoints(canvas);
       case ChartLayer.labels:
-        _paintLabels(canvas);
+        paintLabelLayer(canvas, _paintLabels);
     }
   }
 

@@ -6,7 +6,10 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:recharts_flutter/src/components.dart' show TextAnchor, TextVerticalAnchor;
+import 'package:recharts_flutter/src/components.dart'
+    show Label, LabelPosition, TextAnchor, TextBackground, TextVerticalAnchor;
+import 'package:recharts_flutter/src/core/polar_utils.dart' show PolarViewBox;
+import 'package:recharts_flutter/src/render/polar_painter.dart' show paintPolarLabel;
 import 'package:recharts_flutter/src/render/svg_text.dart';
 
 const style = TextStyle(fontSize: 12);
@@ -283,6 +286,138 @@ void main() {
         expect([inked!.center.dx, inked.center.dy, inked.width, inked.height],
             [closeTo(box.center.dx, 1), closeTo(box.center.dy, 1), closeTo(10, 1), closeTo(20, 1)]);
       });
+    });
+  });
+
+  group('background (Text.background.spec.tsx, Label.background.spec.tsx)', () {
+    test('resolveBackgroundPadding', () {
+      expect(resolveBackgroundPadding(null), (x: 4, y: 2));
+      expect(resolveBackgroundPadding(7), (x: 7, y: 7));
+      expect(resolveBackgroundPadding(0), (x: 0, y: 0));
+      expect(resolveBackgroundPadding((x: 10, y: null)), (x: 10, y: 2));
+      expect(resolveBackgroundPadding((x: null, y: 10)), (x: 4, y: 10));
+      expect(resolveBackgroundPadding((x: null, y: null)), (x: 4, y: 2));
+    });
+
+    test('getTextBackgroundRect', () {
+      const textBox = Rect.fromLTWH(10, 20, 50, 14);
+      expect(getTextBackgroundRect(textBox, (x: 3, y: 1)), const Rect.fromLTWH(7, 19, 56, 16));
+      expect(getTextBackgroundRect(textBox, null), const Rect.fromLTWH(6, 18, 58, 18));
+      expect(getTextBackgroundRect(const Rect.fromLTWH(1, 2, 0, 0), 3), isNull);
+      expect(getTextBackgroundRect(const Rect.fromLTWH(1, 2, 10, 0), 3), isNull);
+      expect(getTextBackgroundRect(const Rect.fromLTWH(1, 2, 0, 10), 3), isNull);
+    });
+
+    test('getTextPathBackgroundGeometry', () {
+      const metrics = (pathLength: 200.0, textLength: 40.0, textHeight: 14.0, startOffset: 50.0);
+      expect(getTextPathBackgroundGeometry(metrics, (x: 4, y: 2), TextAnchor.start), (start: 46, length: 48, strokeWidth: 18));
+      expect(getTextPathBackgroundGeometry(metrics, 0, TextAnchor.middle), (start: 30, length: 40, strokeWidth: 14));
+      expect(getTextPathBackgroundGeometry(metrics, 0, TextAnchor.end), (start: 10, length: 40, strokeWidth: 14));
+      expect(
+          getTextPathBackgroundGeometry(
+              (pathLength: 200.0, textLength: 40.0, textHeight: 14.0, startOffset: 0.0), (x: 4, y: 2), TextAnchor.start),
+          (start: 0, length: 44, strokeWidth: 18));
+    });
+
+    // FlutterTest 10px: ascent 7.5 and descent 2.5, so the glyph cell is 8 above and 3 below the baseline.
+    const ahem = TextStyle(fontSize: 10, color: Color(0xFF000000));
+    const red = Color(0xFFFF0000);
+
+    Future<Rect?> inkOf(void Function(ui.Canvas c) paint, {int? rgba}) async {
+      final rec = ui.PictureRecorder();
+      paint(ui.Canvas(rec));
+      final image = await rec.endRecording().toImage(240, 120);
+      final bytes = (await image.toByteData())!;
+      double? l, t, r, b;
+      for (var y = 0; y < 120; y++) {
+        for (var x = 0; x < 240; x++) {
+          final i = (y * 240 + x) * 4;
+          if (bytes.getUint8(i + 3) < 128 || (rgba != null && bytes.getUint32(i) != rgba)) continue;
+          l = l == null || x < l ? x.toDouble() : l;
+          r = r == null || x + 1 > r ? x + 1.0 : r;
+          t ??= y.toDouble();
+          b = y + 1.0;
+        }
+      }
+      return l == null ? null : Rect.fromLTRB(l, t!, r!, b!);
+    }
+
+    testWidgets('a rectangle around the glyph cells, with the padding, fill and rx of the background object', (tester) async {
+      await tester.runAsync(() async {
+        final boxes = <Rect>[];
+        expect(
+            await inkOf((c) => paintSvgText(c, 'ab', 10, 20,
+                style: ahem, background: const TextBackground(fill: red, rx: 0, padding: (x: 1, y: 3)), boxes: boxes),
+                rgba: 0xFF0000FF),
+            const Rect.fromLTRB(9, 9, 31, 26));
+        expect(boxes, [const Rect.fromLTRB(9, 9, 31, 26)]);
+      });
+    });
+
+    testWidgets('the rectangle gets the text transform inside a label layer too', (tester) async {
+      await tester.runAsync(() async {
+        // The cell 100..120 x 42..53 turned 90 degrees about (100, 50).
+        expect(
+            await inkOf((c) => paintLabelLayer(c, (c) => paintSvgText(c, 'ab', 100, 50,
+                style: ahem, angle: 90, background: const TextBackground(fill: red, rx: 0, padding: 0)))),
+            const Rect.fromLTRB(97, 50, 108, 70));
+      });
+    });
+
+    testWidgets('label backgrounds go below every label text: two overlapping labels keep both texts', (tester) async {
+      await tester.runAsync(() async {
+        void first(ui.Canvas c) => paintSvgText(c, 'ab', 10, 20, style: ahem.copyWith(color: const Color(0xFF0000FF)));
+        void second(ui.Canvas c) => paintSvgText(c, 'b', 40, 20, style: ahem, background: const TextBackground(fill: red, padding: 30));
+        final firstText = await inkOf(first, rgba: 0x0000FFFF);
+        expect(firstText, isNotNull);
+        // On its own, the second label's background covers the first text; in a label layer it does not.
+        expect(await inkOf((c) => [first(c), second(c)], rgba: 0x0000FFFF), isNull);
+        expect(await inkOf((c) => paintLabelLayer(c, (c) => [first(c), second(c)]), rgba: 0x0000FFFF), firstText);
+      });
+    });
+
+    testWidgets('on a path: a round-capped stroke over the stretch the text covers, and its outline', (tester) async {
+      await tester.runAsync(() async {
+        final line = Path()
+          ..moveTo(0, 50)
+          ..lineTo(200, 50);
+        // 'ab' covers 50..70; padding (4, 2) and 14px stroke caps reach 50 - 4 - 7 = 39 and 70 + 4 + 7 = 81,
+        // where the caps cover less than half of the last pixel column.
+        expect(
+            await inkOf((c) => paintSvgText(c, 'ab', 0, 0,
+                style: ahem, textPath: line, startOffset: 50, background: const TextBackground(fill: red)),
+                rgba: 0xFF0000FF),
+            const Rect.fromLTRB(40, 43, 80, 57));
+        expect(
+            await inkOf((c) => paintSvgText(c, 'ab', 0, 0,
+                style: ahem,
+                textPath: line,
+                startOffset: 50,
+                angle: 90,
+                background: const TextBackground(fill: red, stroke: Color(0xFF00FF00), strokeWidth: 2)),
+                rgba: 0x00FF00FF),
+            // The outline is 2 * 2 wider; angle turns the text, not the background.
+            const Rect.fromLTRB(38, 41, 82, 59));
+      });
+    });
+
+    test('a radial label background starts the arc padding.x earlier and leaves the text in place', () {
+      List<Rect> boxes(Object? background) {
+        final out = <Rect>[];
+        paintPolarLabel(ui.Canvas(ui.PictureRecorder()),
+            Label(value: 'text', position: LabelPosition.insideStart, startOffset: 20, background: background),
+            const PolarViewBox(cx: 50, cy: 50, innerRadius: 20, outerRadius: 80, startAngle: 0, endAngle: 90),
+            baseStyle: ahem, scaler: TextScaler.noScaling, boxes: out);
+        return out;
+      }
+
+      final plain = boxes(null), padded = boxes(const TextBackground(padding: (x: 6, y: null)));
+      // The background's bounds come first, then the same glyph cells.
+      expect(padded.length, plain.length + 1);
+      for (var i = 0; i < plain.length; i++) {
+        // PathMetrics measure the two arcs in float32.
+        expect([padded[i + 1].left, padded[i + 1].top], [closeTo(plain[i].left, 0.1), closeTo(plain[i].top, 0.1)]);
+      }
     });
   });
 }
