@@ -896,12 +896,20 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
       // Driven by another chart: unmounting this one no longer clears the others.
       _sentActiveSync = false;
       final vb = m.viewBox;
-      final scaled = coordinate == null
+      var scaled = coordinate == null
           ? null
           : Offset(
               vb.left + (sourceViewBox.width != 0 ? (coordinate.dx - sourceViewBox.left) / sourceViewBox.width : 0) * vb.width,
               vb.top + (sourceViewBox.height != 0 ? (coordinate.dy - sourceViewBox.top) / sourceViewBox.height : 0) * vb.height,
             );
+      // Scaling assumes both charts put an index at the same relative position, but a LineChart puts
+      // points on the plot edges and a BarChart in the middle of each band: snap to this chart's tick.
+      final tick = m.tooltipTicks.where((t) => t.index == index).firstOrNull;
+      if (scaled != null && tick != null) {
+        scaled = m.layout == ChartLayout.horizontal
+            ? Offset(tick.coordinate, scaled.dy)
+            : Offset(scaled.dx, tick.coordinate);
+      }
       _sync = _Interaction(active: true, index: index, coordinate: scaled, dataKey: dataKey);
     }
     _refreshView();

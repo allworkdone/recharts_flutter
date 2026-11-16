@@ -492,4 +492,47 @@ void main() {
       expect(b.visible, isTrue);
     });
   });
+
+  group('Tooltip.sync.spec.tsx: cursor alignment between charts with different scales', () {
+    // A 400x300 LineChart above a BarChart; the cursor rectangle follows the coordinate along the tooltip axis.
+    Future<void> expectSameCursor(WidgetTester tester, ChartLayout layout, Offset hover) async {
+      final line = Probe(), bar = Probe();
+      final vertical = layout == ChartLayout.vertical;
+      final axes = vertical
+          ? const [XAxis(type: AxisDomainType.number), YAxis(dataKey: 'name', type: AxisDomainType.category)]
+          : const [XAxis(dataKey: 'name')];
+      await tester.pumpWidget(host(Column(mainAxisSize: MainAxisSize.min, children: [
+        LineChart(width: 400, height: 300, layout: layout, data: pageData, syncId: 'alignment', children: [
+          ...axes,
+          const Line(dataKey: 'uv'),
+          Tooltip(content: line.build),
+        ]),
+        BarChart(width: 400, height: 300, layout: layout, data: pageData, syncId: 'alignment', children: [
+          ...axes,
+          const Bar(dataKey: 'uv'),
+          Tooltip(content: bar.build),
+        ]),
+      ])));
+      double along(Offset c) => vertical ? c.dy : c.dx;
+      final mouse = await mouseAt(tester, const Offset(799, 599));
+      await mouse.moveTo(hover + const Offset(0, 300));
+      await tester.pump();
+      expect(bar.props!.label, 'Page D');
+      final direct = along(bar.props!.coordinate!);
+      await mouse.moveTo(const Offset(799, 599));
+      await tester.pump();
+
+      await mouse.moveTo(hover);
+      await tester.pump();
+      expect(bar.visible, isTrue);
+      expect(bar.props!.label, 'Page D');
+      expect(along(bar.props!.coordinate!), direct);
+    }
+
+    testWidgets('the BarChart cursor is where hovering it directly puts it, synchronised from a LineChart',
+        (tester) => expectSameCursor(tester, ChartLayout.horizontal, const Offset(230, 100)));
+
+    testWidgets('the same in vertical charts',
+        (tester) => expectSameCursor(tester, ChartLayout.vertical, const Offset(200, 150)));
+  });
 }
