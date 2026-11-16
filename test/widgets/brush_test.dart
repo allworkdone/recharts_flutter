@@ -569,5 +569,31 @@ void main() {
     expect(find.semantics.byLabel('Min value: A, Max value: N'), findsExactly(2));
     handle.dispose();
   });
+
+  group('noUndefinedInDom.spec.tsx: Brush traveller labels', () {
+    const labelData = [
+      {'label': 'a', 'value': 5},
+      {'label': 'b', 'value': 3},
+    ];
+
+    testWidgets('use the dataKey value when the data has no name field', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(host(const LineChart(width: 300, height: 200, data: labelData, children: [
+        XAxis(dataKey: 'label'),
+        Line(dataKey: 'value', isAnimationActive: false),
+        Brush(dataKey: 'label'),
+      ])));
+      expect(find.semantics.byLabel('Min value: a, Max value: b'), findsExactly(2));
+      handle.dispose();
+    });
+
+    testWidgets('are left out when there is no name to show', (tester) async {
+      await tester.pumpWidget(host(const LineChart(width: 300, height: 200, data: labelData, children: [
+        Line(dataKey: 'value', isAnimationActive: false),
+        Brush(),
+      ])));
+      expect(brushState(tester).ariaLabel, isNull);
+    });
+  });
 }
 

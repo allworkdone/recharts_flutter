@@ -490,15 +490,18 @@ class BrushLayerState extends State<BrushLayer> {
     ];
   }
 
-  /// `getAriaLabel`: reads `name` from the entries, whatever the dataKey.
-  String get ariaLabel {
+  /// `getAriaLabel`: the entries' `name`, else their dataKey value; no label when an end has neither.
+  String? get ariaLabel {
     if (_props.ariaLabel != null && _props.ariaLabel!.isNotEmpty) return _props.ariaLabel!;
-    String nameAt(int i) {
+    String? textAt(int i) {
       final d = i >= 0 && i < widget.data.length ? widget.data[i] : null;
-      return d is Map && d['name'] is String ? d['name'] as String : 'undefined';
+      if (d is Map && d['name'] is String) return d['name'] as String;
+      final value = _props.dataKey == null ? null : getValueByDataKey(d, _props.dataKey);
+      return value == null ? null : jsString(value);
     }
 
-    return 'Min value: ${nameAt(widget.startIndex)}, Max value: ${nameAt(widget.endIndex)}';
+    final start = textAt(widget.startIndex), end = textAt(widget.endIndex);
+    return start == null || end == null ? null : 'Min value: $start, Max value: $end';
   }
 }
 
