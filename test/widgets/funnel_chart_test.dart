@@ -17,9 +17,10 @@ const data = [
 ];
 
 void main() {
-  Widget chart(Probe probe, {Object? activeShape}) => host(FunnelChart(width: 500, height: 500, children: [
+  Widget chart(Probe probe, {Object? activeShape, Object? defaultIndex}) =>
+      host(FunnelChart(width: 500, height: 500, children: [
         Funnel(dataKey: 'value', data: data, isAnimationActive: false, activeShape: activeShape),
-        Tooltip(isAnimationActive: false, content: probe.build),
+        Tooltip(isAnimationActive: false, content: probe.build, defaultIndex: defaultIndex),
       ]));
 
   testWidgets('hovering a trapezoid shows its row; leaving hides it', (tester) async {
@@ -52,5 +53,15 @@ void main() {
     image = await capture(tester);
     expect(await pixel(tester, image, const Offset(250, 250)), const Color(0xFFFF0000));
     expect(await pixel(tester, image, const Offset(250, 150)), const Color(0xFF808080));
+  });
+
+  // Funnel.spec.tsx 'should render active shape for the Tooltip defaultIndex'
+  testWidgets('Tooltip defaultIndex draws the activeShape over that trapezoid', (tester) async {
+    final probe = Probe();
+    await tester.pumpWidget(chart(probe, activeShape: const SvgStyle(fill: Color(0xFFFF0000)), defaultIndex: 1));
+    expect(probe.rows, ['b : 80']);
+    final image = await capture(tester);
+    expect(await pixel(tester, image, const Offset(250, 150)), const Color(0xFFFF0000));
+    expect(await pixel(tester, image, const Offset(250, 250)), const Color(0xFF808080));
   });
 }
