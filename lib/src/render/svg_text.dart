@@ -65,12 +65,15 @@ class _Line {
 /// `calculateWordWidths`: [style] stands in for the measurement span's CSS
 /// (the page font plus Text's `style` prop, not its `fontSize` attribute).
 (List<(String, double)>, double) _wordWidths(String text, bool breakAll, TextStyle style, TextScaler scaler) {
-  final words = breakAll ? text.split('') : text.split(_breakingSpaces);
+  final words = breakAll ? _codePoints(text) : text.split(_breakingSpaces);
   return (
     [for (final w in words) (w, measureText(w, style, scaler).width)],
     breakAll ? 0.0 : measureText('\u00A0', style, scaler).width,
   );
 }
+
+/// `Array.from(text)`: code points, so a surrogate pair stays one character.
+List<String> _codePoints(String text) => [for (final r in text.runes) String.fromCharCode(r)];
 
 List<_Line> _calculate(List<(String, double)> words, double? lineWidth, double spaceWidth, bool scaleToFit) {
   final result = <_Line>[];
@@ -108,16 +111,17 @@ List<TextLineWords> getWordsByLines(
   bool overflows(List<_Line> r) => r.length > maxLines || (width != null && _longest(r) > width);
   if (!overflows(original)) return out(original);
 
+  final chars = _codePoints(text);
   (bool, List<_Line>) checkOverflow(int index) {
     // JS `text.slice(0, index)`: a negative index counts from the end.
-    final end = index < 0 ? math.max(text.length + index, 0) : math.min(index, text.length);
-    final r = _calculate(_wordWidths('${text.substring(0, end)}…', breakAll, style, scaler).$1, width, spaceWidth, false);
+    final end = index < 0 ? math.max(chars.length + index, 0) : math.min(index, chars.length);
+    final r = _calculate(_wordWidths('${chars.sublist(0, end).join()}…', breakAll, style, scaler).$1, width, spaceWidth, false);
     return (overflows(r), r);
   }
 
-  var start = 0, end = text.length - 1, iterations = 0;
+  var start = 0, end = chars.length - 1, iterations = 0;
   List<_Line>? trimmed;
-  while (start <= end && iterations <= text.length - 1) {
+  while (start <= end && iterations <= chars.length - 1) {
     final middle = ((start + end) / 2).floor();
     final (prevOverflows, result) = checkOverflow(middle - 1);
     final (middleOverflows, _) = checkOverflow(middle);

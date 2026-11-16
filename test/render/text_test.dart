@@ -11,8 +11,8 @@ import 'package:recharts_flutter/src/render/svg_text.dart';
 
 const style = TextStyle(fontSize: 12);
 
-List<TextLineWords> lines(String text, {double? width, bool scaleToFit = false, int? maxLines}) =>
-    getWordsByLines(text, width: width, scaleToFit: scaleToFit, maxLines: maxLines, style: style);
+List<TextLineWords> lines(String text, {double? width, bool scaleToFit = false, int? maxLines, bool breakAll = false}) =>
+    getWordsByLines(text, width: width, scaleToFit: scaleToFit, maxLines: maxLines, breakAll: breakAll, style: style);
 
 /// Records compare their List fields by identity; compare `[...words, width]` instead.
 List<List<Object?>> flat(List<TextLineWords> lines) => [for (final l in lines) [...l.words, l.width]];
@@ -43,6 +43,20 @@ void main() {
         Perferendis quos veritatis quasi pariatur!''';
       expect(lines(text, width: 200, maxLines: 2), hasLength(2));
     });
+
+    const codePointCases = {
+      'emoji': ('😀😃', ['😀', '😃']),
+      'Japanese hiragana': ('あいう', ['あ', 'い', 'う']),
+      'Japanese katakana': ('アイウ', ['ア', 'イ', 'ウ']),
+      'Chinese Han characters': ('中文汉', ['中', '文', '汉']),
+      'supplementary Han characters': ('𠮷𠀀', ['𠮷', '𠀀']),
+      'mixed kana, Han and emoji': ('あ中😀', ['あ', '中', '😀']),
+    };
+    for (final MapEntry(key: name, value: (text, expected)) in codePointCases.entries) {
+      test('wraps $name on code-point boundaries with breakAll', () {
+        expect([for (final l in lines(text, width: 25, breakAll: true)) l.words.join()], expected);
+      });
+    }
 
     test('renders nothing for empty content with breakAll and maxLines', () {
       // null and undefined children are a String here; '' with breakAll splits into no words.
@@ -90,6 +104,18 @@ void main() {
         ['Ma…', 7],
       ]);
     });
+  });
+
+  group('breakAll truncated by maxLines', () {
+    // The spec's getStringSize: 10px for '…' and lone surrogates, 25px for every other code point.
+    setUp(() => debugTextMeasurerOverride = (text, _) => Size(
+        text.runes.fold(0.0, (sum, r) => sum + (r == 0x2026 || (r >= 0xD800 && r <= 0xDFFF) ? 10 : 25)), 17));
+    const cases = {'emoji': ('😀😃😄', '😀…'), 'supplementary Han': ('𠮷𠀀𠮷', '𠮷…'), 'mixed kana and emoji': ('あ😀い', 'あ…')};
+    for (final MapEntry(key: name, value: (text, expected)) in cases.entries) {
+      test('keeps $name intact', () {
+        expect([for (final l in lines(text, width: 50, maxLines: 1, breakAll: true)) l.words.join()], [expected]);
+      });
+    }
   });
 
   test('scaleToFit=true keeps one line; Text scales it by width / line width', () {
