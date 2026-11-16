@@ -104,7 +104,7 @@ List<TextLineWords> getWordsByLines(
   final (words, spaceWidth) = _wordWidths(text, breakAll, style, scaler);
   List<TextLineWords> out(List<_Line> lines) => [for (final l in lines) (words: l.words, width: l.width)];
   final original = _calculate(words, width, spaceWidth, scaleToFit);
-  if (maxLines == null || scaleToFit) return out(original);
+  if (maxLines == null || scaleToFit || original.isEmpty) return out(original);
   bool overflows(List<_Line> r) => r.length > maxLines || (width != null && _longest(r) > width);
   if (!overflows(original)) return out(original);
 

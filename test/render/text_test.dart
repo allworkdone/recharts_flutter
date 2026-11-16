@@ -44,6 +44,11 @@ void main() {
       expect(lines(text, width: 200, maxLines: 2), hasLength(2));
     });
 
+    test('renders nothing for empty content with breakAll and maxLines', () {
+      // null and undefined children are a String here; '' with breakAll splits into no words.
+      expect(getWordsByLines('', width: 300, maxLines: 1, breakAll: true, style: style), isEmpty);
+    });
+
     test('adds an ellipsis at the end of the truncated line', () {
       const text = '''Sit totam suscipit aliquid suscipit eius, cupiditate Aut excepturi ipsum ut suscipit
         facilis debitis Provident impedit a distinctio neque quaerat Optio quo quibusdam possimus
