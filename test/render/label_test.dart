@@ -379,4 +379,13 @@ void main() {
         baseStyle: const TextStyle(fontSize: 12), scaler: TextScaler.noScaling);
     expect(seen.single.background, same(background));
   });
+
+  test('custom content gets the halo setting (Label.halo.spec.tsx)', () {
+    final seen = <LabelProps>[];
+    const halo = TextHalo(stroke: Color(0xFFFFD700));
+    paintLabel(Canvas(PictureRecorder()), Label(value: 'text', halo: halo, content: (_, p) => seen.add(p)),
+        const Rect.fromLTWH(50, 50, 200, 200),
+        baseStyle: const TextStyle(fontSize: 12), scaler: TextScaler.noScaling);
+    expect(seen.single.halo, same(halo));
+  });
 }

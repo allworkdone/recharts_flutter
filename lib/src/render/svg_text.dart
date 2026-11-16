@@ -191,6 +191,37 @@ Rect? getTextBackgroundRect(Rect textBox, Object? padding) {
   return (start: start, length: end - start, strokeWidth: textHeight + 2 * p.y);
 }
 
+/// `halo` of Text: `true` takes the defaults.
+TextHalo? _halo(Object? halo) => switch (halo) {
+      true => const TextHalo(),
+      TextHalo h => h,
+      _ => null,
+    };
+
+final _haloPaints = <(Color, double, StrokeJoin), Paint>{};
+
+/// [style] stroking the letters as [halo] says; one Paint per look, so the painters stay cached.
+TextStyle _haloStyle(TextStyle style, TextHalo halo) {
+  final stroke = halo.stroke ?? const Color(0xFFFFFFFF);
+  final key = (
+    halo.strokeOpacity == null ? stroke : stroke.withValues(alpha: stroke.a * halo.strokeOpacity!),
+    halo.strokeWidth ?? 3,
+    halo.strokeLinejoin ?? StrokeJoin.round,
+  );
+  return style.copyWith(
+      foreground: _haloPaints[key] ??= Paint()
+        ..style = PaintingStyle.stroke
+        ..color = key.$1
+        ..strokeWidth = key.$2
+        ..strokeJoin = key.$3);
+}
+
+/// Paints [text] at [at], over its halo first (`paint-order: stroke fill`).
+void _paintRun(Canvas canvas, String text, Offset at, TextStyle style, TextStyle? haloStyle, TextScaler scaler) {
+  if (haloStyle != null) textPainterFor(text, haloStyle, scaler).paint(canvas, at);
+  textPainterFor(text, style, scaler).paint(canvas, at);
+}
+
 /// `background` of Text: `true` takes the defaults.
 TextBackground? _background(Object? background) => switch (background) {
       true => const TextBackground(),
@@ -258,7 +289,9 @@ void _paintBackgroundRect(Canvas canvas, Rect rect, TextBackground b) {
 /// [background] (`true` or a [TextBackground]) draws a rounded rectangle
 /// around the rendered lines, with the text's transform, or on a path a
 /// round-capped stroke along the stretch the text covers, which [angle] does
-/// not turn. Its unturned bounds go to [boxes] too.
+/// not turn. Its unturned bounds go to [boxes] too. [halo] (`true` or a
+/// [TextHalo]) strokes the letters under their fill, line by line or glyph
+/// by glyph on a path.
 // ponytail: scaleToFit is ignored on a path too; Text.tsx would still scale it.
 void paintSvgText(
   Canvas canvas,
@@ -281,10 +314,13 @@ void paintSvgText(
   bool centralBaseline = false,
   List<Rect>? boxes,
   Object? background,
+  Object? halo,
 }) {
+  final h = _halo(halo);
+  final haloStyle = h == null ? null : _haloStyle(style, h);
   if (textPath != null) {
     _paintTextOnPath(canvas, text, textPath, style, scaler, textAnchor, startOffset, centralBaseline, angle, boxes,
-        _background(background));
+        _background(background), haloStyle);
     return;
   }
   if (!x.isFinite || !y.isFinite) return;
@@ -317,25 +353,28 @@ void paintSvgText(
     canvas.rotate(angle * math.pi / 180);
     canvas.translate(-x, -y);
   }
+  // Painters are looked up again on use: a cache clear may dispose one held across lookups.
   final placed = [
     for (var i = 0; i < lines.length; i++)
-      if (textPainterFor(lines[i], style, scaler) case final tp)
+      if (textPainterFor(lines[i], style, scaler).width case final width)
         (
-          tp: tp,
+          text: lines[i],
+          width: width,
           baseline: y + startDy + i * lh,
           left: switch (textAnchor) {
             TextAnchor.start => x,
-            TextAnchor.middle => x - tp.width / 2,
-            TextAnchor.end => x - tp.width,
+            TextAnchor.middle => x - width / 2,
+            TextAnchor.end => x - width,
           },
         ),
   ];
   final bg = _background(background);
   if (bg != null) {
     // getBBox: the lines' glyph cells.
-    final box = placed
-        .map((l) => Rect.fromLTRB(l.left, l.baseline - _cell(l.tp).ascent, l.left + l.tp.width, l.baseline + _cell(l.tp).descent))
-        .reduce((a, b) => a.expandToInclude(b));
+    final box = placed.map((l) {
+      final cell = _cell(textPainterFor(l.text, style, scaler));
+      return Rect.fromLTRB(l.left, l.baseline - cell.ascent, l.left + l.width, l.baseline + cell.descent);
+    }).reduce((a, b) => a.expandToInclude(b));
     final rect = getTextBackgroundRect(box, bg.padding);
     if (rect != null) {
       _onBackgroundLayer(canvas, (c) => _paintBackgroundRect(c, rect, bg));
@@ -343,7 +382,8 @@ void paintSvgText(
     }
   }
   for (final l in placed) {
-    l.tp.paint(canvas, Offset(l.left, l.baseline - l.tp.computeDistanceToActualBaseline(TextBaseline.alphabetic)));
+    final ascent = textPainterFor(l.text, style, scaler).computeDistanceToActualBaseline(TextBaseline.alphabetic);
+    _paintRun(canvas, l.text, Offset(l.left, l.baseline - ascent), style, haloStyle, scaler);
   }
   if (angle != 0 || scale != null) canvas.restore();
 }
@@ -382,7 +422,7 @@ Rect _turnedBounds(Rect rect, double radians, Offset at) {
 /// midpoint of its advance, turned to the tangent there; a glyph whose
 /// midpoint falls off the path is not drawn.
 void _paintTextOnPath(Canvas canvas, String text, Path path, TextStyle style, TextScaler scaler, TextAnchor textAnchor,
-    Object? startOffset, bool centralBaseline, double angle, List<Rect>? boxes, TextBackground? bg) {
+    Object? startOffset, bool centralBaseline, double angle, List<Rect>? boxes, TextBackground? bg, TextStyle? haloStyle) {
   final metrics = path.computeMetrics().toList();
   final pathLength = metrics.fold(0.0, (sum, m) => sum + m.length);
   if (!(pathLength > 0) || text.isEmpty) return;
@@ -463,7 +503,7 @@ void _paintTextOnPath(Canvas canvas, String text, Path path, TextStyle style, Te
     canvas.save();
     canvas.translate(g.at.dx, g.at.dy);
     canvas.rotate(g.heading);
-    textPainterFor(g.unit, style, scaler).paint(canvas, Offset(g.cell.left, paintTop));
+    _paintRun(canvas, g.unit, Offset(g.cell.left, paintTop), style, haloStyle, scaler);
     canvas.restore();
   }
   if (angle != 0) canvas.restore();

@@ -748,6 +748,7 @@ Object? _label(Object? v) {
     textBreakAll: p.boolean('textBreakAll') ?? false,
     startOffset: p.raw['startOffset'],
     background: _textBackground(p.raw['background']),
+    halo: _textHalo(p.raw['halo']),
   );
 }
 
@@ -766,6 +767,7 @@ LabelList? _labelList(Object? v) {
     textBreakAll: p.boolean('textBreakAll') ?? false,
     startOffset: p.raw['startOffset'],
     background: _textBackground(p.raw['background']),
+    halo: _textHalo(p.raw['halo']),
   );
 }
 
@@ -782,6 +784,18 @@ Object? _textBackground(Object? v) {
     strokeOpacity: p.dbl('strokeOpacity'),
     rx: p.dbl('rx'),
     padding: padding is Map ? (x: padding['x'] as num?, y: padding['y'] as num?) : padding,
+  );
+}
+
+/// `halo` of a Label or LabelList: a bool or TextHaloProps.
+Object? _textHalo(Object? v) {
+  if (v is! Map) return v;
+  final p = _Props(v.cast<String, dynamic>());
+  return TextHalo(
+    stroke: p.color('stroke'),
+    strokeWidth: p.dbl('strokeWidth'),
+    strokeOpacity: p.dbl('strokeOpacity'),
+    strokeLinejoin: _enum(StrokeJoin.values, p.str('strokeLinejoin')),
   );
 }
 

@@ -312,6 +312,7 @@ void paintPolarLabel(Canvas canvas, Label label, PolarViewBox viewBox,
         style: style,
         index: index,
         background: label.background,
+        halo: label.halo,
       ),
     );
     return;
@@ -329,6 +330,7 @@ void paintPolarLabel(Canvas canvas, Label label, PolarViewBox viewBox,
       measureStyle: baseStyle,
       scaler: scaler,
       background: label.background,
+      halo: label.halo,
       boxes: boxes);
   if (label.angle == 0) {
     boxes?.add(svgTextBox(text, pos.x, pos.y, style, scaler, textAnchor: textAnchor, verticalAnchor: pos.verticalAnchor));
@@ -356,6 +358,7 @@ void _paintRadialLabel(Canvas canvas, Label label, PolarViewBox viewBox, TextSty
         style: style,
         index: index,
         background: label.background,
+        halo: label.halo,
       ),
     );
     return;
@@ -381,7 +384,8 @@ void _paintRadialLabel(Canvas canvas, Label label, PolarViewBox viewBox, TextSty
       centralBaseline: true,
       angle: label.angle,
       boxes: boxes,
-      background: background);
+      background: background,
+      halo: label.halo);
 }
 
 /// The glyph cells of a one-line `<Text>` (the box SVG hit tests), placed

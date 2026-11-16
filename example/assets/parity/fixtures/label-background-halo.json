@@ -1,6 +1,6 @@
 {
  "name": "label-background-halo",
- "description": "Label and LabelList backgrounds: inside and top LabelLists, an axis label and an angled axis label with backgrounds, and a ReferenceLine label whose background sits below the bar labels it overlaps.",
+ "description": "Label and LabelList backgrounds and halos: an inside LabelList with a background, a top LabelList with a halo across the grid, an insideBottom one wrapped on two lines over a translucent background, axis labels (one angled) with backgrounds, and a ReferenceLine label whose background sits below the bar labels it overlaps.",
  "width": 600,
  "height": 320,
  "chart": {
@@ -85,10 +85,10 @@
    {
     "type": "ReferenceLine",
     "props": {
-     "y": 4300,
+     "y": 3150,
      "stroke": "#ef4444",
      "label": {
-      "value": "Target 4300",
+      "value": "Target 3150",
       "position": "insideTopLeft",
       "fill": "#b91c1c",
       "background": {
@@ -130,10 +130,23 @@
       "props": {
        "dataKey": "pv",
        "position": "top",
-       "fill": "#fff",
+       "fill": "#333",
+       "halo": {
+        "stroke": "#fff",
+        "strokeWidth": 4
+       }
+      }
+     },
+     {
+      "type": "LabelList",
+      "props": {
+       "dataKey": "name",
+       "position": "insideBottom",
+       "fill": "#333",
+       "fontSize": 14,
        "background": {
-        "fill": "#333",
-        "fillOpacity": 0.8,
+        "fill": "#fff",
+        "fillOpacity": 0.7,
         "padding": 2
        }
       }

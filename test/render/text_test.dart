@@ -7,7 +7,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:recharts_flutter/src/components.dart'
-    show Label, LabelPosition, TextAnchor, TextBackground, TextVerticalAnchor;
+    show Label, LabelPosition, TextAnchor, TextBackground, TextHalo, TextVerticalAnchor;
 import 'package:recharts_flutter/src/core/polar_utils.dart' show PolarViewBox;
 import 'package:recharts_flutter/src/render/polar_painter.dart' show paintPolarLabel;
 import 'package:recharts_flutter/src/render/svg_text.dart';
@@ -418,6 +418,68 @@ void main() {
         // PathMetrics measure the two arcs in float32.
         expect([padded[i + 1].left, padded[i + 1].top], [closeTo(plain[i].left, 0.1), closeTo(plain[i].top, 0.1)]);
       }
+    });
+  });
+
+  group('halo (Text.halo.spec.tsx)', () {
+    const ahem = TextStyle(fontSize: 10, color: Color(0xFF000000));
+    final line = Path()
+      ..moveTo(0, 50)
+      ..lineTo(200, 50);
+
+    /// Bounds of the pixels of [rgba], or of every pixel at least half covered.
+    Future<Rect?> inkOf(void Function(ui.Canvas c) paint, {int? rgba}) async {
+      final rec = ui.PictureRecorder();
+      paint(ui.Canvas(rec));
+      final bytes = (await (await rec.endRecording().toImage(240, 120)).toByteData())!;
+      double? l, t, r, b;
+      for (var y = 0; y < 120; y++) {
+        for (var x = 0; x < 240; x++) {
+          final i = (y * 240 + x) * 4;
+          if (bytes.getUint8(i + 3) < 128 || (rgba != null && bytes.getUint32(i) != rgba)) continue;
+          l = l == null || x < l ? x.toDouble() : l;
+          r = r == null || x + 1 > r ? x + 1.0 : r;
+          t ??= y.toDouble();
+          b = y + 1.0;
+        }
+      }
+      return l == null ? null : Rect.fromLTRB(l, t!, r!, b!);
+    }
+
+    /// [halo] reaches about [width] / 2 past [plain] on every side (whole pixels at least half covered).
+    void expectGrown(Rect? halo, Rect plain, double width) {
+      final sides = [plain.left - halo!.left, plain.top - halo.top, halo.right - plain.right, halo.bottom - plain.bottom];
+      expect(sides, everyElement(inInclusiveRange(width / 2 - 0.5, width / 2 + 1)));
+    }
+
+    testWidgets('no halo by default; true strokes the letters white, 3 wide, under the fill', (tester) async {
+      await tester.runAsync(() async {
+        void text(ui.Canvas c, Object? halo) => paintSvgText(c, 'ab', 20, 50, style: ahem, halo: halo);
+        expect(await inkOf((c) => text(c, null), rgba: 0xFFFFFFFF), isNull);
+        expect(await inkOf((c) => text(c, false), rgba: 0xFFFFFFFF), isNull);
+        final plain = (await inkOf((c) => text(c, null)))!;
+        // 1.5px of stroke around the letters; the fill stays black on top.
+        expectGrown(await inkOf((c) => text(c, true)), plain, 3);
+        expect(await inkOf((c) => text(c, true), rgba: 0xFFFFFFFF), isNotNull);
+        expect(await inkOf((c) => text(c, true), rgba: 0x000000FF), await inkOf((c) => text(c, null), rgba: 0x000000FF));
+      });
+    });
+
+    testWidgets('stroke and strokeWidth from the halo object', (tester) async {
+      await tester.runAsync(() async {
+        final plain = (await inkOf((c) => paintSvgText(c, 'ab', 20, 50, style: ahem)))!;
+        void gold(ui.Canvas c) => paintSvgText(c, 'ab', 20, 50,
+            style: ahem, halo: const TextHalo(stroke: Color(0xFFFFD700), strokeWidth: 5, strokeLinejoin: StrokeJoin.miter));
+        expectGrown(await inkOf(gold), plain, 5);
+        expect(await inkOf(gold, rgba: 0xFFD700FF), isNotNull);
+      });
+    });
+
+    testWidgets('text on a path gets the halo too', (tester) async {
+      await tester.runAsync(() async {
+        expect(await inkOf((c) => paintSvgText(c, 'ab', 0, 0, style: ahem, textPath: line, halo: true), rgba: 0xFFFFFFFF),
+            isNotNull);
+      });
     });
   });
 }

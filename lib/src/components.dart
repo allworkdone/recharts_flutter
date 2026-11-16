@@ -251,6 +251,7 @@ class LabelProps {
     this.index,
     this.polarViewBox,
     this.background,
+    this.halo,
   });
 
   /// The position computed for [position], before anchoring (NaN for the radial
@@ -270,8 +271,8 @@ class LabelProps {
   /// Entry index inside a [LabelList].
   final int? index;
 
-  /// The label's [Label.background]; custom content draws its own.
-  final Object? background;
+  /// The label's [Label.background] and [Label.halo]; custom content draws its own.
+  final Object? background, halo;
 }
 
 typedef LabelPainter = void Function(Canvas canvas, LabelProps props);
@@ -293,6 +294,7 @@ class Label {
     this.content,
     this.startOffset,
     this.background,
+    this.halo,
   });
 
   /// String, num or bool; nothing is drawn when null (unless [content] is set).
@@ -323,6 +325,25 @@ class Label {
   /// `true` or a [TextBackground] draws a background behind the text; every
   /// label background lies below every label text.
   final Object? background;
+
+  /// `true` or a [TextHalo] outlines the letters, a lighter alternative to [background].
+  final Object? halo;
+}
+
+/// `TextHaloProps` (src/component/Text.tsx): the stroke [Label.halo] draws
+/// around the letters, under their fill.
+class TextHalo {
+  const TextHalo({this.stroke, this.strokeWidth, this.strokeOpacity, this.strokeLinejoin});
+
+  /// Default white.
+  final Color? stroke;
+
+  /// Default 3.
+  final double? strokeWidth;
+  final double? strokeOpacity;
+
+  /// Default round.
+  final StrokeJoin? strokeLinejoin;
 }
 
 /// `TextBackgroundProps` (src/component/Text.tsx): what [Label.background]
@@ -380,6 +401,7 @@ class LabelList extends RechartsElement {
     this.content,
     this.startOffset,
     this.background,
+    this.halo,
   });
 
   /// Reads the label from each entry's payload; overrides [valueAccessor].
@@ -403,6 +425,9 @@ class LabelList extends RechartsElement {
 
   /// [Label.background] of each label.
   final Object? background;
+
+  /// [Label.halo] of each label.
+  final Object? halo;
 }
 
 /// Shared props of [XAxis] and [YAxis] (`BaseCartesianAxis` + CartesianAxis props).

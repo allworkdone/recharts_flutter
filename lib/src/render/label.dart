@@ -198,6 +198,7 @@ void paintLabel(Canvas canvas, Label? label, Rect viewBox,
         style: style,
         index: index,
         background: label.background,
+        halo: label.halo,
       ),
     );
     return;
@@ -214,7 +215,8 @@ void paintLabel(Canvas canvas, Label? label, Rect viewBox,
       // getStringSize measures in the page font, not the fontSize attribute.
       measureStyle: baseStyle,
       scaler: scaler,
-      background: label.background);
+      background: label.background,
+      halo: label.halo);
 }
 
 // ---------------------------------------------------------------- LabelList
@@ -295,6 +297,7 @@ Label labelOfEntry(LabelList list, LabelListEntry entry, int index) {
     content: list.content,
     startOffset: list.startOffset,
     background: list.background,
+    halo: list.halo,
   );
 }
 
