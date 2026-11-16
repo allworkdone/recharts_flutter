@@ -1,4 +1,4 @@
-// Coordinates ported from Recharts 3.10.1 specs: getCartesianPosition.spec.ts,
+// Coordinates ported from Recharts 3.11.0-canary.9 specs: getCartesianPosition.spec.ts,
 // YAxis.label.spec.tsx, Bar.spec.tsx ('label'), Line.animation.spec.tsx
 // (expectedUvLabels), YAxis.spec.tsx ('dynamically calculated width') and
 // cartesianAxisSlice.spec.ts. The chart specs run in jsdom, where text

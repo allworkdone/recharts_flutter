@@ -1,4 +1,4 @@
-// Brush layout and data slicing, ported from Recharts 3.10.1:
+// Brush layout and data slicing, ported from Recharts 3.11.0-canary.9:
 // test/cartesian/Brush.spec.tsx (expectBrush), Brush.stacked.spec.tsx,
 // test/cartesian/XAxis/XAxis.brush.spec.tsx, test/state/selectors/brushSelectors.spec.tsx,
 // and from 3.11: test/util/getSliced.spec.ts.

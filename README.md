@@ -1,7 +1,12 @@
 # recharts_flutter
 
-Recharts 3.10.1 ported to Flutter, with Recharts' own layout, tick, animation and
+Recharts 3.11.0-canary.9 ported to Flutter, with Recharts' own layout, tick, animation and
 interaction logic, drawn with `CustomPainter` and no chart dependencies.
+
+3.11 is not a stable Recharts release yet. Its themes, fill objects (gradient and
+pattern `fill` props) and zoom are not ported yet. Its other fixes and features
+are, apart from a few small gaps named in the commit messages, so charts that
+don't use those three render as canary.9 does.
 
 | Family | Charts | Components |
 |---|---|---|

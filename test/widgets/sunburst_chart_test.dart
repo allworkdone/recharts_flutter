@@ -1,4 +1,4 @@
-// SunburstChart, ported from Recharts 3.10.1 test/chart/SunburstChart.spec.tsx
+// SunburstChart, ported from Recharts 3.11.0-canary.9 test/chart/SunburstChart.spec.tsx
 // (exampleSunburstData from test/_data.ts): sector fills in order, hover and
 // click callbacks with the node and its tooltipIndex, the item tooltip state
 // (hover at {x: 583.33.., y: 250} on a 1000x500 chart; click state surviving

@@ -1,4 +1,4 @@
-// PolarGrid cases of Recharts 3.10.1 test/polar/PolarGrid.spec.tsx for a
+// PolarGrid cases of Recharts 3.11.0-canary.9 test/polar/PolarGrid.spec.tsx for a
 // RadialBarChart: explicit axes (lines, polygons, circles, radialLines) and
 // several axes with ids. Values are the spec's literals.
 

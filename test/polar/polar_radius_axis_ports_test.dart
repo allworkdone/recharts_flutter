@@ -1,4 +1,4 @@
-// PolarRadiusAxis cases of Recharts 3.10.1 test/polar/PolarRadiusAxis.spec.tsx
+// PolarRadiusAxis cases of Recharts 3.11.0-canary.9 test/polar/PolarRadiusAxis.spec.tsx
 // (RadarChart and RadialBarChart): tick text positions, domains and scale
 // types, empty data and empty dataKey. Values are the spec's literals.
 

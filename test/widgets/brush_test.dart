@@ -1,4 +1,4 @@
-// Brush interaction, ported from Recharts 3.10.1 test/cartesian/Brush.spec.tsx
+// Brush interaction, ported from Recharts 3.11.0-canary.9 test/cartesian/Brush.spec.tsx
 // (traveller geometry, drag snapping, texts, keyboard, controlled indexes) plus
 // Flutter-side input checks (touch, scroll views, leave timer, animation).
 

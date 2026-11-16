@@ -1,5 +1,5 @@
 // Pie geometry, legend, tooltip and animation steps, ported from Recharts
-// 3.10.1 test/polar/Pie/Pie.spec.tsx, Pie.animation.spec.tsx and
+// 3.11.0-canary.9 test/polar/Pie/Pie.spec.tsx, Pie.animation.spec.tsx and
 // test/chart/PieChart.spec.tsx. Sectors are compared the way the specs read
 // them: the rendered `d` attribute (after the animation step, which rounds
 // each sector's angle to 4 decimals), and angles recovered from its points

@@ -1,5 +1,5 @@
 // Polar axes, grid, Radar and RadialBar, with the expectations of Recharts
-// 3.10.1 test/polar/PolarGrid.spec.tsx, PolarAngleAxis/PolarAngleAxis.spec.tsx,
+// 3.11.0-canary.9 test/polar/PolarGrid.spec.tsx, PolarAngleAxis/PolarAngleAxis.spec.tsx,
 // PolarRadiusAxis.spec.tsx, Radar.animation.spec.tsx, RadialBar/RadialBar.spec.tsx
 // and the polar cases of component/Tooltip/Tooltip.payload.spec.tsx. Their
 // jsdom layout measures every string as 0x0; none of these numbers depend on text.

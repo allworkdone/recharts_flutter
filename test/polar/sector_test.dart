@@ -1,4 +1,4 @@
-// Polar math and the Sector shape, ported from Recharts 3.10.1
+// Polar math and the Sector shape, ported from Recharts 3.11.0-canary.9
 // test/util/PolarUtils.spec.ts and test/shape/Sector.spec.tsx (+ snapshots).
 
 import 'dart:math' as math;

@@ -1,4 +1,4 @@
-// Expectations ported from Recharts 3.10.1 Funnel.spec.tsx, Funnel.animation.spec.tsx and
+// Expectations ported from Recharts 3.11.0-canary.9 Funnel.spec.tsx, Funnel.animation.spec.tsx and
 // FunnelChart.spec.tsx. The chart specs read SVG attributes in jsdom (no text is measured
 // by a funnel, so nothing needs mocking); paths are compared as `getTrapezoidPath` strings.
 

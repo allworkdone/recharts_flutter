@@ -1,4 +1,4 @@
-// Area geometry ported from Recharts 3.10.1 specs: test/cartesian/Area.spec.tsx,
+// Area geometry ported from Recharts 3.11.0-canary.9 specs: test/cartesian/Area.spec.tsx,
 // test/chart/AreaChart.spec.tsx, AreaChart.stacked.spec.tsx,
 // test/state/selectors/areaSelectors.spec.tsx and the reveal/interpolation
 // cases of test/cartesian/Area.animation.spec.tsx. Those specs measure text as

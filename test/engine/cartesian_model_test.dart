@@ -1,4 +1,4 @@
-// Coordinates ported from Recharts 3.10.1 specs. Those specs run in jsdom where
+// Coordinates ported from Recharts 3.11.0-canary.9 specs. Those specs run in jsdom where
 // getStringSize measures every string as 0x0, so text is measured as zero here
 // too unless a spec mocks it (getTicks.spec.ts: width = text.length, height = 12).
 

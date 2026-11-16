@@ -1,4 +1,4 @@
-// Radar and RadialBar behaviors of Recharts 3.10.1: RadialBar.spec.tsx (configured
+// Radar and RadialBar behaviors of Recharts 3.11.0-canary.9: RadialBar.spec.tsx (configured
 // axes, RingsWithTypes, mouse handlers), RadialBarChart.spec.tsx (activeShape,
 // background path), RadarChart.spec.tsx (dots, labels, onClick), Radar.spec.tsx
 // (polygon events) and Tooltip.visibility.spec.tsx (tooltip position). Values are

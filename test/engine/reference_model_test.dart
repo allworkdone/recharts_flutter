@@ -1,4 +1,4 @@
-// Expectations ported from Recharts 3.10.1 ReferenceArea.spec.tsx and ReferenceDot.spec.tsx.
+// Expectations ported from Recharts 3.11.0-canary.9 ReferenceArea.spec.tsx and ReferenceDot.spec.tsx.
 // The specs render in jsdom where text measures 0x0 and a YAxis keeps its default width of
 // 60, which is what `measureFor: Size.zero` reproduces.
 

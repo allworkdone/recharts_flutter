@@ -1,5 +1,5 @@
 // Tooltip `shared={false}` (tooltip event type 'item') and Bar `activeBar`,
-// ported from Recharts 3.10.1 test/component/Tooltip/tooltipEventType.spec.tsx,
+// ported from Recharts 3.11.0-canary.9 test/component/Tooltip/tooltipEventType.spec.tsx,
 // Tooltip.payload.spec.tsx, test/state/selectors/selectActiveTooltipIndex.spec.tsx,
 // test/cartesian/Bar/Bar.spec.tsx ("mouse interactions in stacked bar") and
 // test/chart/BarChart.spec.tsx (activeBar), plus touch, keyboard and syncId

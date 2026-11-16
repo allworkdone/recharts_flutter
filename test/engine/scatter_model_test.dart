@@ -1,4 +1,4 @@
-// Scatter, ZAxis and ErrorBar geometry ported from Recharts 3.10.1 specs:
+// Scatter, ZAxis and ErrorBar geometry ported from Recharts 3.11.0-canary.9 specs:
 // test/cartesian/Scatter.spec.tsx, Scatter.animation.spec.tsx, ErrorBar.spec.tsx
 // and test/chart/ScatterChart.spec.tsx. jsdom measures text as 0x0, so text
 // is measured as zero; the one Legend case passes the 50px its spec mocks.

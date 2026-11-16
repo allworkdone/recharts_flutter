@@ -1,4 +1,4 @@
-// PieChart interactions, ported from Recharts 3.10.1 test/polar/Pie/Pie.spec.tsx
+// PieChart interactions, ported from Recharts 3.11.0-canary.9 test/polar/Pie/Pie.spec.tsx
 // ('Tooltip integration', activeShape / inactiveShape, 'keyboard
 // interaction'), Pie-TwoLevelPieChart.spec.tsx and PieChart.spec.tsx, plus
 // the entrance timing of Pie.animation.spec.tsx (animationBegin 400) and

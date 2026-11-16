@@ -1,4 +1,4 @@
-// ScatterChart interaction, ported from Recharts 3.10.1 test/chart/ScatterChart.spec.tsx
+// ScatterChart interaction, ported from Recharts 3.11.0-canary.9 test/chart/ScatterChart.spec.tsx
 // ("Tooltip integration", "customized active shape") and test/cartesian/Scatter.spec.tsx
 // ("Multiple Scatter components tooltip filtering"), with Recharts' 10x10 mocked
 // tooltip box, plus pixel checks of the cross cursor, ErrorBar and its animation.
