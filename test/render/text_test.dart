@@ -354,6 +354,14 @@ void main() {
       });
     });
 
+    testWidgets('no rectangle when the text has no size', (tester) async {
+      await tester.runAsync(() async {
+        final boxes = <Rect>[];
+        expect(await inkOf((c) => paintSvgText(c, '', 10, 20, style: ahem, background: true, boxes: boxes)), isNull);
+        expect(boxes, isEmpty);
+      });
+    });
+
     testWidgets('the rectangle gets the text transform inside a label layer too', (tester) async {
       await tester.runAsync(() async {
         // The cell 100..120 x 42..53 turned 90 degrees about (100, 50).

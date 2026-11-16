@@ -262,7 +262,8 @@ void _onBackgroundLayer(Canvas canvas, void Function(Canvas c) draw) {
 /// Blink's glyph cell above and below the baseline: the font's rounded ascent and descent.
 ({double ascent, double descent}) _cell(TextPainter tp) => (
       ascent: tp.computeDistanceToActualBaseline(TextBaseline.alphabetic).roundToDouble(),
-      descent: tp.computeLineMetrics().first.descent.roundToDouble(),
+      // An empty line has no line metrics.
+      descent: (tp.computeLineMetrics().firstOrNull?.descent ?? 0).roundToDouble(),
     );
 
 /// The background `<rect>`: fill, an optional stroke, rx (default 4) clamped like SVG's rx and ry.
