@@ -448,9 +448,17 @@ void computeAxisDomain(AxisRuntime axis, ChartContext ctx) {
   final graphicalItemsData = [for (final i in items) ...?i.data];
   axis.displayedData = graphicalItemsData.isNotEmpty ? graphicalItemsData : ctx.chartData;
 
-  // combineAllAppliedValues
+  // combineAllAppliedValues. On the value axis (decided by the layout alone)
+  // the dataKey of an item wins over the axis dataKey; elsewhere the axis wins.
+  final isValueAxis = !axis.isCategorical;
+  Object? dataKeyOf(GraphicalItem i) => isValueAxis ? i.dataKey ?? s.dataKey : s.dataKey ?? i.dataKey;
   List<Object?> applied;
-  if (s.dataKey != null) {
+  if (isValueAxis && items.any((i) => i.dataKey != null)) {
+    applied = [
+      for (final dataKey in {for (final i in items) dataKeyOf(i)})
+        for (final e in axis.displayedData) getValueByDataKey(e, dataKey),
+    ];
+  } else if (s.dataKey != null) {
     applied = [for (final e in axis.displayedData) getValueByDataKey(e, s.dataKey)];
   } else if (items.isNotEmpty) {
     applied = [
@@ -496,7 +504,7 @@ void computeAxisDomain(AxisRuntime axis, ChartContext ctx) {
         if (errorBarDirection(e, layout) == direction) e,
     ];
     for (final entry in item.data ?? ctx.chartData) {
-      final value = getValueByDataKey(entry, s.dataKey ?? item.dataKey);
+      final value = getValueByDataKey(entry, dataKeyOf(item));
       final errorDomain = getErrorDomainByDataKey(entry, value, errorBars);
       if (errorDomain.length >= 2) take([errorDomain.reduce(math.min), errorDomain.reduce(math.max)]);
       take(makeDomain(value));

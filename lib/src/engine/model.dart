@@ -1111,14 +1111,16 @@ List<ScatterPoint>? _scatterPoints(GraphicalItem item, AxisRuntime xAxis, AxisRu
   final scatter = item.element as Scatter;
   final displayed = (item.data != null && item.data!.isNotEmpty) ? item.data! : chartData;
   final xs = xAxis.settings, ys = yAxis.settings;
-  final xDataKey = xs.dataKey ?? scatter.dataKey, yDataKey = ys.dataKey ?? scatter.dataKey;
+  // getDataKeyOnAxis: the Scatter dataKey wins on the value axis, the axis dataKey on the other one.
+  Object? dataKeyOn(AxisRuntime a) => a.isCategorical ? a.settings.dataKey ?? scatter.dataKey : scatter.dataKey ?? a.settings.dataKey;
+  final xDataKey = dataKeyOn(xAxis), yDataKey = dataKeyOn(yAxis);
   final zDataKey = zAxis?.settings.dataKey;
   final defaultZ = (zAxis?.settings.range ?? implicitZAxis.range).firstOrNull;
   final xBandSize = xAxis.scale!.bandwidth ?? 0, yBandSize = yAxis.scale!.bandwidth ?? 0;
   final cells = scatter.cells;
-  // `name: isNullish(axis.dataKey) ? scatter.name : axis.name || String(axis.dataKey)`, then parseName.
-  String? nameOf(CartesianAxisElement a) {
-    final name = a.dataKey == null ? scatter.name : (a.name?.isNotEmpty ?? false ? a.name : jsString(a.dataKey));
+  // `name: isNullish(axis.dataKey) ? scatter.name : axis.name || String(dataKey)`, then parseName.
+  String? nameOf(CartesianAxisElement a, Object? dataKey) {
+    final name = a.dataKey == null ? scatter.name : (a.name?.isNotEmpty ?? false ? a.name : jsString(dataKey));
     return name is String || name is num ? jsString(name) : null;
   }
 
@@ -1134,8 +1136,8 @@ List<ScatterPoint>? _scatterPoints(GraphicalItem item, AxisRuntime xAxis, AxisRu
         name: name, unit: unit ?? '', value: value, payload: entry, dataKey: dataKey, type: scatter.tooltipType);
     final zName = zAxis?.settings.name?.isNotEmpty ?? false ? zAxis?.settings.name : zAxis?.settings.dataKey;
     final tooltipPayload = [
-      tooltipEntry(nameOf(xs), xs.unit, x, xDataKey),
-      tooltipEntry(nameOf(ys), ys.unit, y, yDataKey),
+      tooltipEntry(nameOf(xs, xDataKey), xs.unit, x, xDataKey),
+      tooltipEntry(nameOf(ys, yDataKey), ys.unit, y, yDataKey),
       if (hasZ)
         tooltipEntry(zName is String || zName is num ? jsString(zName) : null, zAxis.settings.unit, zValue, zDataKey),
     ];

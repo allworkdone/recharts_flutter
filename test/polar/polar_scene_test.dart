@@ -64,6 +64,16 @@ PolarModel radialBarModel(List<Object?> data, List<RechartsElement> children, {S
 Matcher near(double v) => closeTo(v, 1e-9);
 
 void main() {
+  // effectiveDataKeySelectors.spec.tsx
+  test('the radius axis domain comes from the Radar dataKey, not the PolarRadiusAxis dataKey', () {
+    final m = radarModel(pageData, const [
+      PolarAngleAxis(dataKey: 'name'),
+      PolarRadiusAxis(dataKey: 'uv'),
+      Radar(dataKey: 'pv'),
+    ], size: const Size(400, 400));
+    expect(m.scene!.radiusAxes.values.single.domain, [0, 9800]);
+  });
+
   group("stackOffset='expand' only applies to an axis with stacked items", () {
     // PolarAngleAxis.spec.tsx
     for (final (stackId, expected) in [('1', <num>[0, 1]), (null, <num>[0, 9800])]) {

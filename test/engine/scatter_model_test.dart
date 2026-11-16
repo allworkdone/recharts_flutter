@@ -440,6 +440,42 @@ void main() {
     expect(m.series[1].scatterPoints![2].cx, x.map('Page C')! + x.bandwidth! / 2);
   });
 
+  // effectiveDataKeySelectors.spec.tsx 'Scatter dataKey'
+  group('Scatter dataKey on the value axis', () {
+    const data = [
+      {'x': 10, 'y': 100, 'other': 400},
+      {'x': 20, 'y': 200, 'other': 300},
+      {'x': 30, 'y': 300, 'other': 200},
+    ];
+    CartesianModel chart(Scatter s) => model('ScatterChart', 400, 300, [
+          const XAxis(dataKey: 'x', type: AxisDomainType.number),
+          const YAxis(dataKey: 'y', type: AxisDomainType.number),
+          s,
+        ]);
+    List<List<double?>> centers(CartesianModel m) => [for (final p in m.series.single.scatterPoints!) [p.cx, p.cy]];
+
+    test('should read both coordinates from the axes when Scatter has no dataKey', () {
+      expect(centers(chart(const Scatter(data: data, isAnimationActive: false))), [
+        [168.125, 178.33333333333334],
+        [271.25, 91.66666666666667],
+        [374.375, 5],
+      ]);
+    });
+
+    test('should read the value axis from the Scatter dataKey, and keep the other axis', () {
+      expect(centers(chart(const Scatter(data: data, dataKey: 'other', isAnimationActive: false))), [
+        [168.125, 5],
+        [271.25, 70],
+        [374.375, 135],
+      ]);
+    });
+
+    test('should compute the value axis domain from the Scatter dataKey', () {
+      final m = chart(const Scatter(data: data, dataKey: 'other'));
+      expect(m.axes.firstWhere((a) => !a.runtime.isX).runtime.domain, [0, 400]);
+    });
+  });
+
   group('Scatter.spec.tsx with a z value of 0', () {
     List<List<Object?>> points(List<Object?> data) => [
           for (final p in model('ScatterChart', 400, 400, [

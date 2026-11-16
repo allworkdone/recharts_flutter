@@ -354,6 +354,32 @@ void main() {
     test('should connect the line across a null value when connectNulls is true', () => expect(moveCount(true), 1));
   });
 
+  group('effectiveDataKeySelectors.spec.tsx: the graphical item dataKey wins over the value axis dataKey', () {
+    test('should render both Lines when the YAxis has a dataKey too', () {
+      List<List<Offset?>> lines(YAxis y) => [
+            for (final s in model('LineChart', 400, 300, pageData, [
+              const XAxis(dataKey: 'name'),
+              y,
+              const Line(dataKey: 'uv'),
+              const Line(dataKey: 'pv'),
+            ]).series)
+              pointOffsets(s.points!),
+          ];
+      expect(lines(const YAxis(dataKey: 'uv')), lines(const YAxis()));
+    });
+
+    test('should compute the cartesian axis domain from the graphical item dataKey', () {
+      final m = model('LineChart', 400, 300, pageData, const [XAxis(dataKey: 'name'), YAxis(dataKey: 'uv'), Line(dataKey: 'pv')]);
+      expect(m.axes.firstWhere((a) => !a.runtime.isX).runtime.domain, [0, 9800]);
+    });
+
+    test('should keep the dataKey of the other axis', () {
+      final m = model('LineChart', 400, 300, pageData,
+          const [XAxis(dataKey: 'pv', type: AxisDomainType.number), YAxis(), Line(dataKey: 'uv')]);
+      expect(m.axes.firstWhere((a) => a.runtime.isX).runtime.domain, [0, 9800]);
+    });
+  });
+
   group('XAxis.dataKey.spec.tsx', () {
     test('renders array indexes when dataKey is not specified', () {
       final m = model('LineChart', 400, 400, pageData, const [XAxis()]);

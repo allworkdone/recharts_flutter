@@ -230,8 +230,16 @@ PolarAxisRuntime computePolarAxis(PolarAxisSettings s, bool isAngle, RechartsEle
   ];
   // Polar items carry no data of their own: the whole chart data.
   final displayedData = ctx.chartData;
+  // On the value axis the dataKey of an item wins over the axis dataKey (getDataKeyOnAxis).
+  final isValueAxis = !isCategorical;
+  Object? dataKeyOf(PolarItem i) => isValueAxis ? i.dataKey ?? s.dataKey : s.dataKey ?? i.dataKey;
   final List<Object?> applied;
-  if (s.dataKey != null) {
+  if (isValueAxis && items.any((i) => i.dataKey != null)) {
+    applied = [
+      for (final dataKey in {for (final i in items) dataKeyOf(i)})
+        for (final e in displayedData) getValueByDataKey(e, dataKey),
+    ];
+  } else if (s.dataKey != null) {
     applied = [for (final e in displayedData) getValueByDataKey(e, s.dataKey)];
   } else if (items.isNotEmpty) {
     applied = [
@@ -255,7 +263,7 @@ PolarAxisRuntime computePolarAxis(PolarAxisSettings s, bool isAngle, RechartsEle
 
   for (final item in items) {
     for (final entry in ctx.chartData) {
-      take(makeDomain(getValueByDataKey(entry, s.dataKey ?? item.dataKey)));
+      take(makeDomain(getValueByDataKey(entry, dataKeyOf(item))));
     }
   }
   if (s.dataKey != null && items.isEmpty) {
