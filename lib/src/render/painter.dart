@@ -522,12 +522,12 @@ class CartesianPainter extends CustomPainter {
   }
 
   /// Dots.tsx with the series' svg props as base props (Line: fill `#fff`;
-  /// Area: its fill and fillOpacity).
+  /// Area: its fill), and `fillOpacity: 1` over them.
   void _paintDots(Canvas canvas, CartesianSeries series, List<LinePoint> points) {
-    final (dot, fill, fillOpacity, stroke, strokeWidth, dash) = switch (series) {
-      Area a => (a.dot, a.fill, a.fillOpacity, a.stroke, a.strokeWidth, a.strokeDasharray),
-      Line l => (l.dot, l.fill, 1.0, l.stroke, l.strokeWidth, l.strokeDasharray),
-      _ => (false, null, 1.0, null, 1.0, null),
+    final (dot, fill, stroke, strokeWidth, dash) = switch (series) {
+      Area a => (a.dot, a.fill, a.stroke, a.strokeWidth, a.strokeDasharray),
+      Line l => (l.dot, l.fill, l.stroke, l.strokeWidth, l.strokeDasharray),
+      _ => (false, null, null, 1.0, null),
     };
     if (!(dot != false || points.length == 1)) return;
     final style = dot is SvgStyle ? dot : null;
@@ -551,7 +551,7 @@ class CartesianPainter extends CustomPainter {
         dot(canvas, props);
       } else {
         _paintDot(canvas, props, style?.strokeDasharray ?? dash,
-            fill: dotFill, fillOpacity: style?.fillOpacity ?? fillOpacity);
+            fill: dotFill, fillOpacity: style?.fillOpacity ?? 1);
       }
     }
   }

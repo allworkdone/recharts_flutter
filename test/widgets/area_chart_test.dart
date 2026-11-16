@@ -64,6 +64,21 @@ void main() {
     expect(c.a, closeTo(0.6, 0.01));
   });
 
+  // Area.theme.spec.tsx 'should not apply the theme fillOpacity to dots' / 'explicit dot fillOpacity override',
+  // without a theme: the dots take the Area's fill but not its fillOpacity.
+  testWidgets('dots are opaque unless the dot option sets a fillOpacity', (tester) async {
+    await tester.pumpWidget(host(small(const [
+      Area(dataKey: 'uv', stroke: null, fill: red, dot: true, isAnimationActive: false),
+    ])));
+    expect(await pixels(tester, const [Offset(35, 15)]), [red]);
+
+    await tester.pumpWidget(host(small(const [
+      Area(dataKey: 'uv', stroke: null, fill: red, dot: SvgStyle(fillOpacity: 0.4), isAnimationActive: false),
+    ])));
+    // 0.4 over the area's 0.6
+    expect((await pixels(tester, const [Offset(35, 15)])).single.a, closeTo(0.76, 0.01));
+  });
+
   testWidgets('an Area outside AreaChart and ComposedChart draws nothing', (tester) async {
     await tester.pumpWidget(host(const LineChart(width: 100, height: 50, data: data, children: [
       Area(dataKey: 'uv', stroke: null, fill: red, fillOpacity: 1, isAnimationActive: false),

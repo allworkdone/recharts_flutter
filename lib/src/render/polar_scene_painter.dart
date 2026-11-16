@@ -557,7 +557,7 @@ void _paintRadarDots(Canvas canvas, RadarModel r, List<RadarPoint> points) {
       dot(canvas, props);
     } else {
       paintDot(canvas, props, style?.strokeDasharray ?? radar.strokeDasharray,
-          fill: style?.fill ?? radar.fill ?? _svgBlack, fillOpacity: style?.fillOpacity ?? radar.fillOpacity ?? 1);
+          fill: style?.fill ?? radar.fill ?? _svgBlack, fillOpacity: style?.fillOpacity ?? 1);
     }
   }
 }
