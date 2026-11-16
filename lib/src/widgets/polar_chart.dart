@@ -490,36 +490,42 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
       _setFocusTarget(order[next]);
       return KeyEventResult.handled;
     }
-    return _keyDownAction(key);
+    _keyDownAction(key);
+    // RechartsWrapper.onKeyDown consumes the default (page scroll) of the keys the accessibility layer
+    // owns, when they were aimed at the svg itself: not at a Pie's group or a widget inside the chart.
+    final owned = key == LogicalKeyboardKey.arrowLeft ||
+        key == LogicalKeyboardKey.arrowRight ||
+        key == LogicalKeyboardKey.enter;
+    final onSvg = _focusTarget == -1 && _focusNode.hasPrimaryFocus;
+    return owned && widget.accessibilityLayer && onSvg ? KeyEventResult.handled : KeyEventResult.ignored;
   }
 
   /// `keyDownAction`: ArrowLeft/ArrowRight move the tooltip, Enter toggles it.
-  KeyEventResult _keyDownAction(LogicalKeyboardKey key) {
+  void _keyDownAction(LogicalKeyboardKey key) {
     final m = _model;
-    if (!widget.accessibilityLayer || m == null) return KeyEventResult.ignored;
+    if (!widget.accessibilityLayer || m == null) return;
     final right = key == LogicalKeyboardKey.arrowRight;
-    if (!right && key != LogicalKeyboardKey.arrowLeft && key != LogicalKeyboardKey.enter) return KeyEventResult.ignored;
+    if (!right && key != LogicalKeyboardKey.arrowLeft && key != LogicalKeyboardKey.enter) return;
     final currentIndex = _activeIndex(m, _keyboard.index) ?? -1;
     final displayed = m.tooltipDisplayedData;
     if (key == LogicalKeyboardKey.enter) {
-      if (currentIndex < 0) return KeyEventResult.ignored;
+      if (currentIndex < 0) return;
       _keyboard = _keyboardAt(m, _keyboard.index!, active: !_keyboard.active);
     } else {
       // Polar charts are 'left-to-right'.
       final movement = right ? 1 : -1;
       int nextIndex;
       if (currentIndex < 0) {
-        if (displayed.isEmpty) return KeyEventResult.ignored;
+        if (displayed.isEmpty) return;
         nextIndex = movement > 0 ? 0 : displayed.length - 1;
       } else {
         nextIndex = currentIndex + movement;
-        if (displayed.isEmpty || nextIndex >= displayed.length || nextIndex < 0) return KeyEventResult.ignored;
+        if (displayed.isEmpty || nextIndex >= displayed.length || nextIndex < 0) return;
       }
       _keyboard = _keyboardAt(m, nextIndex);
     }
     _refreshView();
     _broadcastSync();
-    return KeyEventResult.ignored;
   }
 
   void _focusFromPointer() {

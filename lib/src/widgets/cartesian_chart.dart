@@ -673,19 +673,26 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
       _brushKey.currentState?.handleTravellerMoveKeyboard(key == LogicalKeyboardKey.arrowRight ? 1 : -1, traveller);
       return KeyEventResult.handled;
     }
-    return _keyDownAction(key);
+    _keyDownAction(key);
+    // RechartsWrapper.onKeyDown consumes the default (page scroll) of the keys the accessibility layer
+    // owns, when they were aimed at the svg itself: not at a traveller or a widget inside the chart.
+    final owned = key == LogicalKeyboardKey.arrowLeft ||
+        key == LogicalKeyboardKey.arrowRight ||
+        key == LogicalKeyboardKey.enter;
+    final onSvg = _focusTarget != null && traveller == null && _focusNode.hasPrimaryFocus;
+    return owned && widget.accessibilityLayer && onSvg ? KeyEventResult.handled : KeyEventResult.ignored;
   }
 
   /// `keyDownAction`: ArrowLeft/ArrowRight move the tooltip, Enter toggles it.
-  KeyEventResult _keyDownAction(LogicalKeyboardKey key) {
+  void _keyDownAction(LogicalKeyboardKey key) {
     final m = _model;
-    if (!widget.accessibilityLayer || m == null) return KeyEventResult.ignored;
+    if (!widget.accessibilityLayer || m == null) return;
     final right = key == LogicalKeyboardKey.arrowRight;
-    if (!right && key != LogicalKeyboardKey.arrowLeft && key != LogicalKeyboardKey.enter) return KeyEventResult.ignored;
+    if (!right && key != LogicalKeyboardKey.arrowLeft && key != LogicalKeyboardKey.enter) return;
     final currentIndex = combineActiveTooltipIndex(m, _keyboard.index) ?? -1;
     final isOutsideDomain = currentIndex < 0;
     if (key == LogicalKeyboardKey.enter) {
-      if (isOutsideDomain) return KeyEventResult.ignored;
+      if (isOutsideDomain) return;
       _keyboard = _Interaction(
           active: !_keyboard.active, index: _keyboard.index, coordinate: _coordinateForIndex(m, _keyboard.index!));
     } else {
@@ -701,18 +708,16 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
             ? List.generate(displayed.length, (i) => i)
             : List.generate(displayed.length, (i) => displayed.length - 1 - i);
         nextIndex = candidates.where((i) => combineActiveTooltipIndex(m, i) != null).firstOrNull ?? -1;
-        if (nextIndex < 0) return KeyEventResult.ignored;
+        if (nextIndex < 0) return;
       } else {
         nextIndex = currentIndex + movement;
         final dataLength = m.tooltipTicks.isNotEmpty ? m.tooltipTicks.length : displayed.length;
-        if (dataLength == 0 || nextIndex >= dataLength || nextIndex < 0) return KeyEventResult.ignored;
+        if (dataLength == 0 || nextIndex >= dataLength || nextIndex < 0) return;
       }
       _keyboard = _Interaction(active: true, index: nextIndex, coordinate: _coordinateForIndex(m, nextIndex));
     }
     _refreshView();
     _broadcastSync();
-    // React does not preventDefault here: the key still reaches the page.
-    return KeyEventResult.ignored;
   }
 
   /// A mouse down (or a tap) focuses the Brush traveller under it, else the

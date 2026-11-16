@@ -90,7 +90,8 @@ void main() {
     await tester.pump();
     expect(probe.props!.label, 'Page A');
     expect(probe.rows, ['uv : 400']);
-    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    // AccessibilityLayer.spec.tsx: the key's default (page scroll) is consumed
+    expect(await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight), isTrue);
     await tester.pump();
     expect(probe.props!.label, 'Page B');
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);

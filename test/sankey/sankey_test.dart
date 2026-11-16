@@ -907,14 +907,15 @@ void main() {
       expect(probe.props!.payload, hasLength(1));
       expect([probe.props!.payload.single.name, probe.props!.payload.single.value], ['S', null]);
 
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      // The surface consumes the default of Enter and the arrows (AccessibilityLayer.spec.tsx).
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.enter), isTrue);
       await tester.pump();
       expect(probe.props!.active, isFalse);
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pump();
       expect(probe.props!.active, isTrue);
       // Arrows return early.
-      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight), isTrue);
       await tester.pump();
       expect(probe.props!.active, isTrue);
 

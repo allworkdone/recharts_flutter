@@ -11,7 +11,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart' show kTouchSlop, PointerDeviceKind;
-import 'package:flutter/services.dart' show KeyDownEvent, LogicalKeyboardKey;
+import 'package:flutter/services.dart' show KeyDownEvent, KeyRepeatEvent, LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
 
 import '../components.dart';
@@ -325,12 +325,17 @@ class _SankeyState extends State<Sankey> with TickerProviderStateMixin {
 
   /// `keyDownAction`: Enter toggles; arrows return early (no tooltip data).
   KeyEventResult _onKey(FocusNode _, KeyEvent e) {
-    if (e is! KeyDownEvent || !widget.accessibilityLayer) return KeyEventResult.ignored;
-    if (e.logicalKey == LogicalKeyboardKey.enter && _keyboardIndexSet) {
+    if ((e is! KeyDownEvent && e is! KeyRepeatEvent) || !widget.accessibilityLayer) return KeyEventResult.ignored;
+    final key = e.logicalKey;
+    if (e is KeyDownEvent && key == LogicalKeyboardKey.enter && _keyboardIndexSet) {
       _keyboard = _keyboard.active ? _keyboard.inactive() : const _Interaction(active: true);
       _refreshView();
     }
-    return KeyEventResult.ignored;
+    // RechartsWrapper.onKeyDown consumes the default (page scroll) of these keys on the focused surface.
+    final owned = key == LogicalKeyboardKey.arrowLeft ||
+        key == LogicalKeyboardKey.arrowRight ||
+        key == LogicalKeyboardKey.enter;
+    return owned && _focusNode.hasPrimaryFocus ? KeyEventResult.handled : KeyEventResult.ignored;
   }
 
   // -------------------------------------------------------------- input

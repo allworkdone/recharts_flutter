@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:recharts_flutter/recharts_flutter.dart';
@@ -145,6 +146,62 @@ void main() {
       expect(await translate(tester, const Size(30, 10), coordinate: const Offset(85, 2)), const Offset(55, 2));
       expect(await translate(tester, Size.zero, coordinate: const Offset(85, 2), active: false), const Offset(55, 2));
       expect(await translate(tester, Size.zero, coordinate: const Offset(85, 60)), const Offset(55, 60));
+    });
+  });
+
+  group('AccessibilityLayer.spec.tsx: keyboard default consumed while the accessibility layer owns the key', () {
+    Widget area({bool accessibilityLayer = true, List<RechartsElement> extra = const []}) => host(AreaChart(
+          width: 100,
+          height: 50,
+          data: data,
+          accessibilityLayer: accessibilityLayer,
+          children: [
+            const Area(type: CurveType.monotone, dataKey: 'uv', stroke: Color(0xFFFF7300), fill: Color(0xFFFF7300)),
+            const Tooltip(),
+            const XAxis(dataKey: 'name'),
+            const YAxis(),
+            ...extra,
+          ],
+        ));
+
+    // A mouse down focuses the chart's svg.
+    Future<void> focusChart(WidgetTester tester) async {
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.down(const Offset(80, 20));
+      await mouse.up();
+      await tester.pump();
+    }
+
+    testWidgets('ArrowLeft, ArrowRight and Enter are consumed so the page does not scroll', (tester) async {
+      await tester.pumpWidget(area());
+      await focusChart(tester);
+      for (final key in [LogicalKeyboardKey.arrowLeft, LogicalKeyboardKey.arrowRight, LogicalKeyboardKey.enter]) {
+        expect(await tester.sendKeyEvent(key), isTrue, reason: '$key');
+      }
+    });
+
+    testWidgets('other keys are left alone', (tester) async {
+      await tester.pumpWidget(area());
+      await focusChart(tester);
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.keyA), isFalse);
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.tab), isFalse);
+    });
+
+    testWidgets('nothing is consumed when the accessibility layer is off', (tester) async {
+      await tester.pumpWidget(area(accessibilityLayer: false));
+      await focusChart(tester);
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight), isFalse);
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.enter), isFalse);
+    });
+
+    testWidgets('a focused widget inside the chart keeps the keys', (tester) async {
+      final button = FocusNode();
+      addTearDown(button.dispose);
+      await tester.pumpWidget(area(extra: [Legend(content: (_) => Focus(focusNode: button, child: const SizedBox(width: 20, height: 10)))]));
+      button.requestFocus();
+      await tester.pump();
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.enter), isFalse);
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight), isFalse);
     });
   });
 

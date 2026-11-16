@@ -303,8 +303,8 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
     await tester.pump();
     expect(s.brushTexts.last.text, '5');
-    // Enter is not handled by the traveller and bubbles to the chart
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    // Enter is not handled by the traveller and bubbles to the chart, which leaves its default alone
+    expect(await tester.sendKeyEvent(LogicalKeyboardKey.enter), isFalse);
     await tester.pump();
     expect(find.text('0'), findsOneWidget);
   });
