@@ -716,6 +716,55 @@ void main() {
       ]);
     });
   });
+
+  group('Tooltip.multipleDataArrays.spec.tsx: when a series has no point at the hovered label', () {
+    // 'label: tooltip rows, active dots' where the pointer at (x, 100) lands
+    List<String> hover(CartesianModel m, List<double> xs) => [
+          for (final x in xs)
+            () {
+              final i = activePropsFromPointer(m, Offset(x, 100))!.activeIndex;
+              final payload = tooltipPayloadOf(m, i);
+              final rows = [for (final e in payload) if (e.value != null) '${e.name} : ${e.value}'];
+              return '${activeLabelOf(m, i)}: ${rows.join(', ')}, ${{for (final e in payload) ?e.payload}.length} dots';
+            }(),
+        ];
+
+    test('leaves the series out of the tooltip and draws no active dot for it on a number axis', () {
+      final m = model('ComposedChart', 500, 300, const [], [
+        const XAxis(dataKey: 'x', type: AxisDomainType.number),
+        const YAxis(),
+        Line(dataKey: 'value', name: 'A', data: [for (final x in [0, 1, 2, 3, 4, 5]) {'x': x, 'value': x + 1}]),
+        Line(dataKey: 'value', name: 'B', data: [for (final x in [3, 4, 5]) {'x': x, 'value': x + 2}]),
+      ]);
+      expect(hover(m, [65, 118.75, 172.5, 226.25]), [
+        '0: A : 1, 1 dots',
+        '1: A : 2, 1 dots',
+        '2: A : 3, 1 dots',
+        '3: A : 4, B : 5, 2 dots',
+      ]);
+    });
+
+    test('leaves the series out of the tooltip on a category axis with allowDuplicatedCategory=false', () {
+      final m = model('ComposedChart', 500, 300, const [], const [
+        XAxis(dataKey: 'name', allowDuplicatedCategory: false),
+        YAxis(),
+        Line(dataKey: 'value', name: 'A', data: [
+          {'name': 'a', 'value': 1},
+          {'name': 'b', 'value': 2},
+          {'name': 'c', 'value': 3},
+          {'name': 'd', 'value': 4},
+        ]),
+        Line(dataKey: 'value', name: 'B', data: [
+          {'name': 'c', 'value': 10},
+          {'name': 'd', 'value': 20},
+        ]),
+      ]);
+      expect(hover(m, [118.75, 333.75]), [
+        'a: A : 1, 1 dots',
+        'c: A : 3, B : 10, 2 dots',
+      ]);
+    });
+  });
 }
 
 class _MoveCounter implements PathSink {

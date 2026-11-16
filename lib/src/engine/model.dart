@@ -1463,7 +1463,6 @@ List<TooltipPayloadEntry> tooltipPayloadOf(CartesianModel m, int? activeIndex,
     Object? payload;
     if (axisDataKey != null && !itemEventType) {
       payload = finalData.where((e) => getValueByDataKey(e, axisDataKey) == activeLabel).firstOrNull;
-      payload ??= activeIndex >= 0 && activeIndex < finalData.length ? finalData[activeIndex] : null;
     } else {
       payload = activeIndex >= 0 && activeIndex < finalData.length ? finalData[activeIndex] : null;
     }

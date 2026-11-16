@@ -335,11 +335,9 @@ List<TooltipPayloadEntry> polarTooltipPayload(PolarScene s, List<Object?> chartD
     if (ids != null && !ids.contains(item.id)) continue;
     if (item.isRadar) {
       final r = item.radar!;
-      Object? payload;
-      if (axisDataKey != null) {
-        payload = chartData.where((e) => getValueByDataKey(e, axisDataKey) == activeLabel).firstOrNull;
-      }
-      payload ??= at(chartData);
+      final payload = axisDataKey != null
+          ? chartData.where((e) => getValueByDataKey(e, axisDataKey) == activeLabel).firstOrNull
+          : at(chartData);
       out.add(TooltipPayloadEntry(
         dataKey: r.dataKey,
         name: tooltipNameProp(r.name, r.dataKey),
@@ -356,11 +354,9 @@ List<TooltipPayloadEntry> polarTooltipPayload(PolarScene s, List<Object?> chartD
       final b = item.radialBar!;
       // `dataDefinedOnItem` is the sectors, which are already sliced; getSliced slices them again.
       final sectors = getSliced(s.radialBars.firstWhere((m) => m.id == item.id).sectors, s.dataStartIndex, s.dataEndIndex);
-      var sector = activeIndex >= 0 && activeIndex < sectors.length ? sectors[activeIndex] : null;
-      // `dataDefinedOnItem` is the sectors, searched by index (tooltipAxis dataKey ignored for objects)
-      if (axisDataKey != null && sector != null) {
-        sector = sectors.where((e) => getValueByDataKey(e.asPayload, axisDataKey) == activeLabel).firstOrNull ?? sector;
-      }
+      final sector = axisDataKey != null
+          ? sectors.where((e) => getValueByDataKey(e.asPayload, axisDataKey) == activeLabel).firstOrNull
+          : activeIndex >= 0 && activeIndex < sectors.length ? sectors[activeIndex] : null;
       final payload = sector?.asPayload;
       out.add(TooltipPayloadEntry(
         dataKey: b.dataKey,
