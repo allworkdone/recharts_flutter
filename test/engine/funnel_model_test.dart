@@ -91,8 +91,53 @@ void main() {
       expect(t[1].fill, const Color(0xFF808080));
       final m = computeCartesianModel(
           chartName: 'FunnelChart', size: const Size(500, 300), data: const [], children: [f], measureFor: (_) => (_) => Size.zero);
-      final e = funnelTooltipEntry(m.funnels.single, const [], 2)!;
+      final e = funnelTooltipEntry(m.funnels.single, 2)!;
       expect([e.name, e.value, e.dataKey, e.color, e.unit], ['c', 50, 'value', const Color(0xFF808080), '']);
+    });
+  });
+
+  // Funnel.theme.spec.tsx 'Funnel Tooltip and Legend entry colors (issue #7975)' without a theme,
+  // Tooltip.payload.spec.tsx 'FunnelChart with name' / 'with nameKey'.
+  group('tooltip and legend entries', () {
+    FunnelModel funnel(Funnel f) => computeCartesianModel(
+            chartName: 'FunnelChart', size: const Size(500, 500), data: const [], children: [f], measureFor: (_) => (_) => Size.zero)
+        .funnels
+        .single;
+
+    test('the tooltip shows the rendered Funnel fill, not a datum stroke or color', () {
+      final f = funnel(const Funnel(dataKey: 'value', fill: Color(0xFF123456), data: [
+        {'value': 100, 'name': 'first', 'stroke': '#00ff00', 'color': '#0000ff'},
+        {'value': 80, 'name': 'second'},
+      ]));
+      expect(funnelTooltipEntry(f, 0)!.color, const Color(0xFF123456));
+    });
+
+    test('the tooltip and the legend use the entry fill when the entry defines it', () {
+      const f = Funnel(dataKey: 'value', data: [
+        {'value': 100, 'name': 'first', 'fill': '#ff0000'},
+        ...funnelData,
+      ]);
+      expect(funnelTooltipEntry(funnel(f), 0)!.color, const Color(0xFFFF0000));
+      expect([for (final p in funnelLegendPayload(f, const [])) p.color].take(2),
+          [const Color(0xFFFF0000), const Color(0xFF808080)]);
+    });
+
+    test('a per-entry legend payload with the legacy colors', () {
+      final payload = legendPayloadOf(const [], const Legend(itemSorter: null),
+          funnels: funnelLegendPayload(const Funnel(dataKey: 'value', data: funnelData), const []));
+      expect([for (final p in payload) (p.value, p.color, p.type)], [
+        for (final n in ['a', 'b', 'c', 'd', 'e']) (n, const Color(0xFF808080), LegendType.rect),
+      ]);
+      expect(funnelLegendPayload(const Funnel(dataKey: 'value', data: funnelData, hide: true), const []), isEmpty);
+    });
+
+    test('the name prop stands in for a missing nameKey, which else names the row by its index', () {
+      const missing = Funnel(dataKey: 'uv', nameKey: 'does not exist in the data', data: pageData);
+      expect(funnelTooltipEntry(funnel(missing), 0)!.name, '0');
+      const named = Funnel(dataKey: 'uv', nameKey: 'does not exist in the data', name: 'Named', data: pageData);
+      expect(funnelTooltipEntry(funnel(named), 0)!.name, 'Named');
+      const withKey = Funnel(dataKey: 'uv', nameKey: 'pv', name: 'ignored', data: pageData);
+      expect([funnelTooltipEntry(funnel(withKey), 0)!.name, funnelTooltipEntry(funnel(withKey), 0)!.value], ['2400', 400]);
     });
   });
 

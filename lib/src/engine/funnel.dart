@@ -282,23 +282,37 @@ List<FunnelTrapezoid> interpolateFunnelTrapezoids(List<AnimationItem<FunnelTrape
   ].nonNulls.toList();
 }
 
-/// The tooltip row of funnel [f] at data [index] (the 'item' event type reads by index).
-TooltipPayloadEntry? funnelTooltipEntry(FunnelModel f, List<Object?> chartData, int index) {
-  final s = f.settings;
-  final data = s.data != null && s.data!.isNotEmpty ? s.data! : chartData;
-  final payload = index >= 0 && index < data.length ? data[index] : null;
-  final nameValue = getValueByDataKey(payload, s.nameKey);
+/// The tooltip row of funnel [f] at data [index] (the 'item' event type reads
+/// the trapezoids' tooltip payloads by index): the trapezoid's name (the datum
+/// name, else the `name` prop, else the index) and the color it is filled with.
+// ponytail: the payload is the datum, not the merged entry Recharts passes.
+TooltipPayloadEntry? funnelTooltipEntry(FunnelModel f, int index) {
+  if (index < 0 || index >= f.trapezoids.length) return null;
+  final s = f.settings, t = f.trapezoids[index];
+  final hasDatumName = getValueByDataKey(t.payload, s.nameKey) != null;
   return TooltipPayloadEntry(
     dataKey: s.dataKey,
-    name: nameValue != null ? jsString(nameValue) : (s.name != null ? jsString(s.name) : null),
-    value: getValueByDataKey(payload, s.dataKey),
-    payload: payload,
-    color: s.fill,
-    fill: s.fill,
+    name: hasDatumName || s.name == null ? t.name : jsString(s.name),
+    value: getValueByDataKey(t.payload, s.dataKey),
+    payload: t.payload,
+    color: t.fill,
+    fill: t.fill,
     stroke: s.stroke,
     unit: '',
     hide: s.hide,
     type: s.tooltipType,
     formatter: s.formatter,
   );
+}
+
+/// `selectFunnelLegend`: one entry per trapezoid, in its fill, none for a
+/// hidden funnel. Names and fills don't depend on the plot area, so this runs
+/// before the legend takes its space.
+List<LegendPayload> funnelLegendPayload(Funnel f, List<Object?> chartData) {
+  if (f.hide) return const [];
+  const anywhere = ChartOffset(top: 0, right: 0, bottom: 0, left: 0, width: 0, height: 0);
+  return [
+    for (final t in computeFunnelTrapezoids(f, chartData, anywhere))
+      LegendPayload(value: t.name, type: f.legendType, color: t.fill, dataKey: f.dataKey),
+  ];
 }

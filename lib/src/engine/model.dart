@@ -316,8 +316,10 @@ List<GraphicalItem> collectItems(List<RechartsElement> children, {String prefix 
 /// `computeLegendPayloadFromBarData` / `computeLegendPayloadFromAreaData` +
 /// `selectLegendPayload` (sorted by Legend `itemSorter`). The color is the
 /// tooltip color: Line's stroke, Bar's fill, Area's `getLegendItemColor`.
-List<LegendPayload> legendPayloadOf(List<GraphicalItem> items, Legend legend) {
+/// A FunnelChart passes the entries of its [funnels].
+List<LegendPayload> legendPayloadOf(List<GraphicalItem> items, Legend legend, {List<LegendPayload> funnels = const []}) {
   final payload = [
+    ...funnels,
     for (final i in items)
       LegendPayload(
         value: i.element.name != null ? jsString(i.element.name) : (i.dataKey is String ? i.dataKey as String : null),

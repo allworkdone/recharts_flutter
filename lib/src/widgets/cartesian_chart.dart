@@ -540,7 +540,7 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
     final funnels = id == null ? [m.funnels.first] : m.funnels.where((f) => f.id == id);
     return [
       for (final f in funnels)
-        if (!f.settings.hide) ?funnelTooltipEntry(f, m.chartData, activeIndex),
+        ?funnelTooltipEntry(f, activeIndex),
     ];
   }
 
@@ -1074,7 +1074,7 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
     LegendLayout? legendLayout;
     var legendSize = Size.zero;
     if (legend != null) {
-      final payload = legendPayloadOf(items, legend);
+      final payload = _legendPayload(items, legend);
       if (legend.content == null) {
         legendLayout = computeLegendLayout(
             legend: legend,
@@ -1281,9 +1281,14 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
     return changed;
   }
 
+  List<LegendPayload> _legendPayload(List<GraphicalItem> items, Legend legend) => legendPayloadOf(items, legend,
+      funnels: widget.chartName != 'FunnelChart'
+          ? const []
+          : [for (final f in _modelChildren.whereType<Funnel>()) ...funnelLegendPayload(f, widget.data)]);
+
   Widget _buildLegend(Legend legend, LegendLayout? layout, Size size, TextScaler scaler) => legendLayer(legend,
       layout: layout,
-      payload: layout != null ? const [] : legendPayloadOf(collectItems(widget.children), legend),
+      payload: layout != null ? const [] : _legendPayload(collectItems(widget.children), legend),
       chartSize: size,
       margin: widget.margin,
       scaler: scaler,
