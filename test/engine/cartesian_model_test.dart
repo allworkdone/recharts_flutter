@@ -324,6 +324,36 @@ void main() {
     });
   });
 
+  group('Line.spec.tsx: null values in vertical layout', () {
+    const nullData = [
+      {'name': 'Page A', 'uv': 400},
+      {'name': 'Page B', 'uv': 300},
+      {'name': 'Page C', 'uv': null},
+      {'name': 'Page D', 'uv': 278},
+      {'name': 'Page E', 'uv': 189},
+    ];
+    int moveCount(bool connectNulls) {
+      final m = model(
+          'LineChart',
+          400,
+          400,
+          nullData,
+          [
+            const XAxis(type: AxisDomainType.number),
+            const YAxis(dataKey: 'name', type: AxisDomainType.category),
+            Line(dataKey: 'uv', connectNulls: connectNulls),
+          ],
+          layout: ChartLayout.vertical);
+      final sink = _MoveCounter();
+      drawLine(sink, pointOffsets(m.series.single.points!), CurveType.linear,
+          layout: m.layout, connectNulls: connectNulls);
+      return sink.moves;
+    }
+
+    test('should break the line at a null value when connectNulls is false', () => expect(moveCount(false), 2));
+    test('should connect the line across a null value when connectNulls is true', () => expect(moveCount(true), 1));
+  });
+
   group('XAxis.dataKey.spec.tsx', () {
     test('renders array indexes when dataKey is not specified', () {
       final m = model('LineChart', 400, 400, pageData, const [XAxis()]);
@@ -660,4 +690,16 @@ void main() {
       ]);
     });
   });
+}
+
+class _MoveCounter implements PathSink {
+  int moves = 0;
+  @override
+  void moveTo(double x, double y) => moves++;
+  @override
+  void lineTo(double x, double y) {}
+  @override
+  void bezierCurveTo(double x1, double y1, double x2, double y2, double x, double y) {}
+  @override
+  void closePath() {}
 }

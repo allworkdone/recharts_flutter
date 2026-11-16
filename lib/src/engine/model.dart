@@ -1082,7 +1082,6 @@ List<LinePoint>? _linePoints(
     } else {
       final x = value == null ? null : xAxis.scale!.map(value);
       final y = _cateCoordinateOfLine(yAxis, yTicks, bandSize, entry, index);
-      if (x == null || y == null) continue;
       points.add(LinePoint(x, y, value, entry));
     }
   }
