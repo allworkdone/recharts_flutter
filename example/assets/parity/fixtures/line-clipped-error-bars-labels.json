@@ -1,0 +1,109 @@
+{
+ "name": "line-clipped-error-bars-labels",
+ "description": "With allowDataOverflow, ErrorBars are clipped with their Line and the labels of points outside the domain are skipped (recharts #8054, #8051); Area dots take the fill and stroke of their data entry and are opaque (recharts #7969, #7745).",
+ "width": 500,
+ "height": 300,
+ "chart": {
+  "type": "ComposedChart",
+  "props": {
+   "data": [
+    {
+     "name": "a",
+     "value": 50,
+     "err": 30,
+     "area": 20
+    },
+    {
+     "name": "b",
+     "value": 150,
+     "err": 20,
+     "area": 40,
+     "fill": "#ff0000",
+     "stroke": "#0000ff"
+    },
+    {
+     "name": "c",
+     "value": 100,
+     "err": 15,
+     "area": 30
+    },
+    {
+     "name": "d",
+     "value": -20,
+     "err": 10,
+     "area": 60
+    },
+    {
+     "name": "e",
+     "value": 0,
+     "err": 25,
+     "area": 50
+    }
+   ],
+   "margin": {
+    "top": 20,
+    "right": 30,
+    "left": 20,
+    "bottom": 5
+   }
+  },
+  "children": [
+   {
+    "type": "XAxis",
+    "props": {
+     "dataKey": "name"
+    }
+   },
+   {
+    "type": "YAxis",
+    "props": {
+     "domain": [
+      0,
+      100
+     ],
+     "allowDataOverflow": true
+    }
+   },
+   {
+    "type": "Tooltip",
+    "props": {}
+   },
+   {
+    "type": "Area",
+    "props": {
+     "dataKey": "area",
+     "dot": true,
+     "stroke": "#8884d8",
+     "fill": "#8884d8",
+     "isAnimationActive": false
+    }
+   },
+   {
+    "type": "Line",
+    "props": {
+     "dataKey": "value",
+     "label": true,
+     "isAnimationActive": false
+    },
+    "children": [
+     {
+      "type": "ErrorBar",
+      "props": {
+       "dataKey": "err",
+       "stroke": "red",
+       "isAnimationActive": false
+      }
+     }
+    ]
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-b",
+   "type": "hover",
+   "x": 175,
+   "y": 150
+  }
+ ]
+}

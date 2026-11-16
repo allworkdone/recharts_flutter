@@ -1,0 +1,87 @@
+{
+ "name": "radar-legend-symbols",
+ "description": "A Radar's legend icon follows its dot symbol, drawn with the dot fill and stroke (recharts #8080).",
+ "width": 500,
+ "height": 300,
+ "chart": {
+  "type": "RadarChart",
+  "props": {
+   "data": [
+    {
+     "subject": "Math",
+     "A": 120,
+     "B": 110
+    },
+    {
+     "subject": "Chinese",
+     "A": 98,
+     "B": 130
+    },
+    {
+     "subject": "English",
+     "A": 86,
+     "B": 130
+    },
+    {
+     "subject": "Geography",
+     "A": 99,
+     "B": 100
+    },
+    {
+     "subject": "Physics",
+     "A": 85,
+     "B": 90
+    },
+    {
+     "subject": "History",
+     "A": 65,
+     "B": 85
+    }
+   ]
+  },
+  "children": [
+   {
+    "type": "PolarGrid",
+    "props": {}
+   },
+   {
+    "type": "PolarAngleAxis",
+    "props": {
+     "dataKey": "subject"
+    }
+   },
+   {
+    "type": "Legend",
+    "props": {}
+   },
+   {
+    "type": "Radar",
+    "props": {
+     "name": "Mike",
+     "dataKey": "A",
+     "stroke": "#8884d8",
+     "fill": "#8884d8",
+     "fillOpacity": 0.6,
+     "dot": "star",
+     "isAnimationActive": false
+    }
+   },
+   {
+    "type": "Radar",
+    "props": {
+     "name": "Lily",
+     "dataKey": "B",
+     "stroke": "#82ca9d",
+     "fill": "#82ca9d",
+     "fillOpacity": 0.6,
+     "dot": {
+      "symbol": "triangle",
+      "fill": "#ffc658"
+     },
+     "isAnimationActive": false
+    }
+   }
+  ]
+ },
+ "interactions": []
+}
