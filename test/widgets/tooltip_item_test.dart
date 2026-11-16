@@ -3,7 +3,7 @@
 // Tooltip.payload.spec.tsx, test/state/selectors/selectActiveTooltipIndex.spec.tsx,
 // test/cartesian/Bar/Bar.spec.tsx ("mouse interactions in stacked bar") and
 // test/chart/BarChart.spec.tsx (activeBar), plus touch, keyboard and syncId
-// checks against tooltipSlice.ts / touchEventsMiddleware.ts.
+// checks against tooltipSlice.ts / touchEventsMiddleware.ts, and test/component/Tooltip/Tooltip.sync.spec.tsx.
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
@@ -430,5 +430,66 @@ void main() {
     await tester.pump();
     expect(a.visible, isFalse);
     expect(b.visible, isFalse);
+  });
+
+  group('Tooltip.sync.spec.tsx: when a synchronised chart unmounts', () {
+    // Three 200x150 LineCharts; points at x = 5, 43, 81, ... An unmounted chart leaves its slot empty.
+    String shown(Probe p) => '${p.props!.label}: ${p.rows.join(', ')}';
+    Widget charts(List<Probe?> probes, {bool activeA = false}) => host(Column(mainAxisSize: MainAxisSize.min, children: [
+          for (final (i, probe) in probes.indexed)
+            probe == null
+                ? const SizedBox(width: 200, height: 150)
+                : LineChart(width: 200, height: 150, data: pageData, syncId: 'unmount-sync', children: [
+                    const XAxis(dataKey: 'name'),
+                    const Line(dataKey: 'uv', isAnimationActive: false),
+                    Tooltip(active: i == 0 && activeA ? true : null, content: probe.build),
+                  ]),
+        ]));
+
+    testWidgets('hides the tooltip in the other charts when the hovered chart unmounts', (tester) async {
+      final a = Probe(), b = Probe(), c = Probe();
+      await tester.pumpWidget(charts([a, b, c]));
+      final mouse = await mouseAt(tester, const Offset(399, 599));
+      await mouse.moveTo(const Offset(85, 50));
+      await tester.pump();
+      expect(shown(b), 'Page C: uv : 300');
+
+      // the pointer is still over chart A when it goes away, so it never gets a mouseleave
+      await tester.pumpWidget(charts([null, b, c]));
+      await tester.pump();
+      expect(b.visible, isFalse);
+      expect(c.visible, isFalse);
+    });
+
+    testWidgets('keeps the synchronised tooltip when a chart that only receives it unmounts', (tester) async {
+      final a = Probe(), b = Probe(), c = Probe();
+      await tester.pumpWidget(charts([a, b, c]));
+      final mouse = await mouseAt(tester, const Offset(399, 599));
+      await mouse.moveTo(const Offset(85, 50));
+      await tester.pump();
+
+      await tester.pumpWidget(charts([a, null, c]));
+      await tester.pump();
+      expect(shown(a), 'Page C: uv : 300');
+      expect(shown(c), 'Page C: uv : 300');
+    });
+
+    testWidgets('keeps the tooltip of the current source when a chart that sent one earlier unmounts', (tester) async {
+      final a = Probe(), b = Probe(), c = Probe();
+      await tester.pumpWidget(charts([a, b, c], activeA: true));
+      final mouse = await mouseAt(tester, const Offset(399, 599));
+      await mouse.moveTo(const Offset(85, 50));
+      await tester.pump();
+      await mouse.moveTo(const Offset(399, 50));
+      await tester.pump();
+      await mouse.moveTo(const Offset(45, 350));
+      await tester.pump();
+      expect(shown(b), 'Page B: uv : 300');
+
+      await tester.pumpWidget(charts([null, b, c], activeA: true));
+      await tester.pump();
+      expect(shown(b), 'Page B: uv : 300');
+      expect(b.visible, isTrue);
+    });
   });
 }

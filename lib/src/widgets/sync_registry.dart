@@ -6,6 +6,8 @@
 
 import 'dart:ui';
 
+import 'package:flutter/scheduler.dart';
+
 import '../engine/polar_scene.dart' show PolarCoordinate;
 
 /// A chart taking part in `syncId`.
@@ -28,9 +30,19 @@ final Map<Object, Set<TooltipSyncPeer>> _groups = {};
 
 void joinSyncGroup(Object id, TooltipSyncPeer peer) => _groups.putIfAbsent(id, () => {}).add(peer);
 
-void leaveSyncGroup(Object id, TooltipSyncPeer peer) {
+/// The others keep the tooltip a chart sent them until an inactive event, and unmounting under the
+/// pointer fires no mouseleave: a chart whose last event was active ([sentActive]) sends one, after
+/// the frame (the cleanup of useTooltipChartSynchronisation).
+void leaveSyncGroup(Object id, TooltipSyncPeer peer, {bool sentActive = false}) {
+  final others = sentActive ? syncPeers(id, peer) : const <TooltipSyncPeer>[];
   _groups[id]?.remove(peer);
   if (_groups[id]?.isEmpty ?? false) _groups.remove(id);
+  if (others.isEmpty) return;
+  SchedulerBinding.instance.addPostFrameCallback((_) {
+    for (final p in others) {
+      if (p.mounted) p.receiveTooltipSync(false, null, null, null, Rect.zero, null);
+    }
+  });
 }
 
 /// The other charts of group [id].

@@ -228,6 +228,9 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
   Size? _customLegendSize;
   Offset? _downPosition;
   Object? _registeredSyncId;
+
+  /// Whether this chart's last tooltip sync event was active.
+  bool _sentActiveSync = false;
   int _dataStart = 0;
   int? _dataEnd;
 
@@ -272,8 +275,9 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
   void _unregisterSync() {
     final id = _registeredSyncId;
     if (id == null) return;
-    leaveSyncGroup(id, this);
+    leaveSyncGroup(id, this, sentActive: _sentActiveSync);
     _registeredSyncId = null;
+    _sentActiveSync = false;
   }
 
   // -------------------------------------------------------------- tooltip state
@@ -715,6 +719,7 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
     final m = _model;
     if (id == null || m == null || m.tooltipSettings == null) return;
     final v = _view.value;
+    _sentActiveSync = v.active;
     for (final other in syncPeers(id, this)) {
       other.receiveTooltipSync(v.active, v.activeIndex, v.coordinate, v.activeDataKey, m.viewBox, v.polarCoordinate);
     }
@@ -739,6 +744,8 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
     if (!active) {
       _sync = const _Interaction();
     } else {
+      // Driven by another chart: unmounting this one no longer clears the others.
+      _sentActiveSync = false;
       final vb = m.viewBox;
       final scaled = coordinate == null
           ? null

@@ -370,6 +370,9 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
   Offset? _downPosition;
   Object? _registeredSyncId;
 
+  /// Whether this chart's last tooltip sync event was active.
+  bool _sentActiveSync = false;
+
   // chartDataSlice: the slice of `data` the chart renders, set by the Brush.
   int _dataStartIndex = 0;
   int _dataEndIndex = 0;
@@ -426,8 +429,9 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
   void _unregisterSync() {
     final id = _registeredSyncId;
     if (id == null) return;
-    leaveSyncGroup(id, this);
+    leaveSyncGroup(id, this, sentActive: _sentActiveSync);
     _registeredSyncId = null;
+    _sentActiveSync = false;
   }
 
   // -------------------------------------------------------------- brush
@@ -875,6 +879,7 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
     final m = _model;
     if (id == null || m == null || m.tooltipSettings == null) return;
     final v = _view.value;
+    _sentActiveSync = v.active;
     for (final other in syncPeers(id, this)) {
       other.receiveTooltipSync(v.active, v.activeIndex, v.coordinate, v.activeDataKey, m.viewBox, null);
     }
@@ -888,6 +893,8 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
     if (!active) {
       _sync = const _Interaction();
     } else {
+      // Driven by another chart: unmounting this one no longer clears the others.
+      _sentActiveSync = false;
       final vb = m.viewBox;
       final scaled = coordinate == null
           ? null
