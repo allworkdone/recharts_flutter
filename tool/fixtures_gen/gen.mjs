@@ -1,4 +1,4 @@
-// Writes expected outputs of the real Recharts 3.10.1 / d3 code into
+// Writes expected outputs of the real Recharts 3.11.0-canary.9 / d3 code into
 // test/core/fixtures/*.json for the Dart ports in lib/src/core/.
 //
 // Regenerate (from the repo root):

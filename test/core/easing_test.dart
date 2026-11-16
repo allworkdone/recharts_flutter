@@ -51,6 +51,15 @@ void main() {
     m.expectNone();
   });
 
+  test('easing.named.spec.ts: ease-out and ease-in-out match their explicit CSS control points', () {
+    for (final (name, p) in [('ease-out', [0.0, 0.0, 0.58, 1.0]), ('ease-in-out', [0.42, 0.0, 0.58, 1.0])]) {
+      final named = configBezierNamed(name), explicit = configBezier(p[0], p[1], p[2], p[3]);
+      for (final t in [0.1, 0.25, 0.5, 0.75, 0.9]) {
+        expect(named(t), closeTo(explicit(t), 1e-8), reason: '$name($t)');
+      }
+    }
+  });
+
   test('createEasingFunction passes functions through and rejects other input', () {
     double f(double t) => t * t;
     expect(createEasingFunction(f), same(f));
