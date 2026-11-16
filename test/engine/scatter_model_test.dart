@@ -10,6 +10,7 @@ import 'package:recharts_flutter/src/animation.dart';
 import 'package:recharts_flutter/src/components.dart';
 import 'package:recharts_flutter/src/core/curve.dart';
 import 'package:recharts_flutter/src/core/symbols.dart';
+import 'package:recharts_flutter/src/engine/axis.dart' show getErrorDomainByDataKey;
 import 'package:recharts_flutter/src/engine/model.dart';
 import 'package:recharts_flutter/src/render/label.dart';
 import 'package:recharts_flutter/src/render/painter.dart';
@@ -555,6 +556,108 @@ void main() {
         ], dataKey: 'value'),
       ], data: boxPlotData);
       expect(m.axes.single.runtime.domain, [0, 39]);
+    });
+
+    group('with numeric strings in the data', () {
+      const numbers = [
+        {'name': 'a', 'uv': 10, 'err': 2},
+        {'name': 'b', 'uv': 20, 'err': [4, 1]},
+      ];
+      const numericStrings = [
+        {'name': 'a', 'uv': '10', 'err': '2'},
+        {'name': 'b', 'uv': '20', 'err': ['4', '1']},
+      ];
+      for (final (name, data) in [('numbers', numbers), ('numeric strings', numericStrings)]) {
+        test('should draw the same whiskers on a Line for $name', () {
+          final m = model('LineChart', 400, 300, const [
+            XAxis(dataKey: 'name'),
+            YAxis(domain: [0, 30]),
+            Line(dataKey: 'uv', isAnimationActive: false, children: [ErrorBar(dataKey: 'err', isAnimationActive: false)]),
+          ], data: data);
+          // a: 10 - 2 to 10 + 2, b: 20 - 4 to 20 + 1
+          expect(errorBarLines(m), [
+            [60, 70, 161, 161],
+            [65, 65, 195.66666666666669, 161],
+            [60, 70, 195.66666666666669, 195.66666666666669],
+            [390, 400, 83.00000000000001, 83.00000000000001],
+            [395, 395, 126.33333333333334, 83.00000000000001],
+            [390, 400, 126.33333333333334, 126.33333333333334],
+          ]);
+        });
+
+        test('should draw the same whiskers on a vertical Bar for $name', () {
+          final m = model('BarChart', 400, 300, const [
+            XAxis(type: AxisDomainType.number, domain: [0, 30]),
+            YAxis(type: AxisDomainType.category, dataKey: 'name'),
+            Bar(dataKey: 'uv', isAnimationActive: false, children: [ErrorBar(dataKey: 'err', isAnimationActive: false)]),
+          ], data: data, layout: ChartLayout.vertical);
+          expect(errorBarLines(m), [
+            [197, 197, 75, 65],
+            [153, 197, 70, 70],
+            [153, 153, 75, 65],
+            [296, 296, 205, 195],
+            [241, 296, 200, 200],
+            [241, 241, 205, 195],
+          ]);
+        });
+      }
+
+      for (final (name, data) in [
+        ('numbers', const [{'name': 'a', 'uv': 10, 'err': 50}]),
+        ('numeric strings', const [{'name': 'a', 'uv': '10', 'err': '50'}]),
+      ]) {
+        test('should extend the YAxis domain by the error values for $name', () {
+          final m = model('LineChart', 400, 300, const [
+            XAxis(dataKey: 'name'),
+            YAxis(),
+            Line(dataKey: 'uv', isAnimationActive: false, children: [ErrorBar(dataKey: 'err', isAnimationActive: false)]),
+          ], data: data);
+          // 10 - 50 and 10 + 50
+          expect(m.axes.firstWhere((a) => !a.runtime.isX).runtime.domain, [-40, 60]);
+        });
+      }
+
+      for (final (name, zero) in [('a number', 0), ('a numeric string', '0')]) {
+        test('should draw no whisker for a zero error given as $name', () {
+          final m = model('LineChart', 400, 300, const [
+            XAxis(dataKey: 'name'),
+            YAxis(domain: [0, 30]),
+            Line(dataKey: 'uv', isAnimationActive: false, children: [ErrorBar(dataKey: 'err', isAnimationActive: false)]),
+          ], data: [
+            {'name': 'a', 'uv': 10, 'err': zero},
+            const {'name': 'b', 'uv': 20, 'err': 2},
+          ]);
+          // only b: 20 - 2 to 20 + 2
+          expect(errorBarLines(m), [
+            [390, 400, 74.33333333333336, 74.33333333333336],
+            [395, 395, 109, 74.33333333333336],
+            [390, 400, 109, 109],
+          ]);
+        });
+      }
+    });
+
+    // errorValue.spec.ts
+    test('getErrorDomainByDataKey reads numeric strings as numbers, the same as the data value', () {
+      const entry = {
+        'val': '2',
+        'errX': '3',
+        'errY': ['11', '13'],
+      };
+      const errorBars = [
+        ErrorBar(dataKey: 'errX', direction: ErrorBarDirection.x),
+        ErrorBar(dataKey: 'errY', direction: ErrorBarDirection.y),
+      ];
+      expect(getErrorDomainByDataKey(entry, '2', errorBars), [-1, 5, -9, 15]);
+    });
+
+    test('getErrorDomainByDataKey reads a ranged value of numeric strings by its larger end', () {
+      const entry = {
+        'val': ['1', '5'],
+        'errY': '3',
+      };
+      expect(getErrorDomainByDataKey(entry, ['1', '5'], const [ErrorBar(dataKey: 'errY', direction: ErrorBarDirection.y)]),
+          [2, 8]);
     });
   });
 }

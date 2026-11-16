@@ -90,7 +90,8 @@ AxisDomainType evaluatedAxisType(ChartLayout layout, CartesianAxisElement axis) 
 bool isWellFormedNumberDomain(Object? v) =>
     v is List && v.length == 2 && isWellBehavedNumber(v[0]) && isWellBehavedNumber(v[1]);
 
-double? _makeNumber(Object? val) {
+/// `makeNumber`: a number, numeric string or Date as a finite number.
+double? makeNumber(Object? val) {
   if (isNumOrStr(val) || val is DateTime) {
     final n = jsNumber(val);
     if (n.isFinite) return n;
@@ -100,15 +101,15 @@ double? _makeNumber(Object? val) {
 
 NumberDomain? makeDomain(Object? val) {
   if (val is List) {
-    final a = val.isNotEmpty ? _makeNumber(val[0]) : null;
-    final b = val.length > 1 ? _makeNumber(val[1]) : null;
+    final a = val.isNotEmpty ? makeNumber(val[0]) : null;
+    final b = val.length > 1 ? makeNumber(val[1]) : null;
     return a != null && b != null ? [a, b] : null;
   }
-  final n = _makeNumber(val);
+  final n = makeNumber(val);
   return n == null ? null : [n, n];
 }
 
-List<double> onlyAllowNumbers(Iterable<Object?> data) => [for (final v in data) ?_makeNumber(v)];
+List<double> onlyAllowNumbers(Iterable<Object?> data) => [for (final v in data) ?makeNumber(v)];
 
 NumberDomain? mergeDomains(List<List<double>?> domains) {
   final all = domains.whereType<List<double>>().expand((d) => d).toList();
@@ -220,10 +221,8 @@ ErrorBarDirection errorBarDirection(ErrorBar bar, ChartLayout layout) =>
 /// the highest number of a range value.
 List<double> getErrorDomainByDataKey(Object? entry, Object? appliedValue, List<ErrorBar> errorBars) {
   if (errorBars.isEmpty) return const [];
-  double? v;
-  if (appliedValue is num && !appliedValue.isNaN) {
-    v = appliedValue.toDouble();
-  } else if (appliedValue is List) {
+  var v = makeNumber(appliedValue);
+  if (v == null && appliedValue is List) {
     final nums = onlyAllowNumbers(appliedValue);
     if (nums.isNotEmpty) v = nums.reduce(math.max);
   }
@@ -231,9 +230,9 @@ List<double> getErrorDomainByDataKey(Object? entry, Object? appliedValue, List<E
   final out = <double>[];
   for (final eb in errorBars) {
     final errorValue = getValueByDataKey(entry, eb.dataKey);
-    final low = errorValue is List ? errorValue.firstOrNull : errorValue;
-    final high = errorValue is List ? errorValue.elementAtOrNull(1) : errorValue;
-    if (isWellBehavedNumber(low) && isWellBehavedNumber(high)) out.addAll([v - (low as num), v + (high as num)]);
+    final low = makeNumber(errorValue is List ? errorValue.firstOrNull : errorValue);
+    final high = makeNumber(errorValue is List ? errorValue.elementAtOrNull(1) : errorValue);
+    if (low != null && high != null) out.addAll([v - low, v + high]);
   }
   return out;
 }

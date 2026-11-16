@@ -1190,20 +1190,22 @@ List<ErrorBarLine> _errorBarLinesOf(ErrorBar bar, ErrorBarDirection direction,
   final x = d.x, y = d.y;
   final errorVal = getValueByDataKey(d.payload, bar.dataKey);
   if (!_truthy(errorVal) || x == null || y == null) return const [];
-  final Object? low, high;
+  final double? low, high;
   if (errorVal is List) {
-    low = errorVal.firstOrNull;
-    high = errorVal.elementAtOrNull(1);
-    if (low == null || high == null) return const [];
+    low = makeNumber(errorVal.firstOrNull);
+    high = makeNumber(errorVal.elementAtOrNull(1));
   } else {
-    low = high = errorVal;
+    low = high = makeNumber(errorVal);
+    // a string '0' draws nothing, like a numeric 0
+    if (low == 0) return const [];
   }
+  final value = makeNumber(direction == ErrorBarDirection.x ? d.valueX : d.valueY);
+  if (low == null || high == null || value == null) return const [];
   final origin = Offset(x + offset, y + offset);
   final List<(Offset, Offset)> coords;
   if (direction == ErrorBarDirection.x) {
-    final value = jsNumber(d.valueX);
     final yMid = y + offset, yMin = yMid + bar.width, yMax = yMid - bar.width;
-    final xMin = xScale.map(value - jsNumber(low)), xMax = xScale.map(value + jsNumber(high));
+    final xMin = xScale.map(value - low), xMax = xScale.map(value + high);
     if (xMin == null || xMax == null) return const [];
     coords = [
       (Offset(xMax, yMin), Offset(xMax, yMax)),
@@ -1211,9 +1213,8 @@ List<ErrorBarLine> _errorBarLinesOf(ErrorBar bar, ErrorBarDirection direction,
       (Offset(xMin, yMin), Offset(xMin, yMax)),
     ];
   } else {
-    final value = jsNumber(d.valueY);
     final xMid = x + offset, xMin = xMid - bar.width, xMax = xMid + bar.width;
-    final yMin = yScale.map(value - jsNumber(low)), yMax = yScale.map(value + jsNumber(high));
+    final yMin = yScale.map(value - low), yMax = yScale.map(value + high);
     if (yMin == null || yMax == null) return const [];
     coords = [
       (Offset(xMin, yMax), Offset(xMax, yMax)),
