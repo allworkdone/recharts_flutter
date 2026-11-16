@@ -440,6 +440,38 @@ void main() {
     expect(m.series[1].scatterPoints![2].cx, x.map('Page C')! + x.bandwidth! / 2);
   });
 
+  group('Scatter.theme.spec.tsx without a theme: tooltip colors (#7976)', () {
+    List<Color?> colors(List<Object?> data, {Color? fill, Color? stroke}) => [
+          for (final e in tooltipPayloadOf(
+              model('ScatterChart', 400, 400, [
+                const XAxis(type: AxisDomainType.number, dataKey: 'x'),
+                const YAxis(type: AxisDomainType.number, dataKey: 'y'),
+                Scatter(data: data, fill: fill, stroke: stroke, isAnimationActive: false),
+              ]),
+              0))
+            e.color,
+        ];
+    const plain = [
+      {'x': 10, 'y': 20},
+      {'x': 20, 'y': 30},
+    ];
+
+    test('the data entry fill wins over the Scatter fill', () {
+      expect(colors(const [{'x': 10, 'y': 20, 'fill': 'red'}, {'x': 20, 'y': 30}], fill: const Color(0xFF123456)),
+          [const Color(0xFFFF0000), const Color(0xFFFF0000)]);
+    });
+    test('the Scatter fill when the entries have no colors', () {
+      expect(colors(plain, fill: const Color(0xFF123456)), [const Color(0xFF123456), const Color(0xFF123456)]);
+    });
+    test('the Scatter stroke when nothing has a fill', () {
+      expect(colors(plain, stroke: const Color(0xFF654321)), [const Color(0xFF654321), const Color(0xFF654321)]);
+    });
+    test('the entry stroke when the entry sets only a stroke', () {
+      expect(colors(const [{'x': 10, 'y': 20, 'stroke': 'blue'}, {'x': 20, 'y': 30}]),
+          [const Color(0xFF0000FF), const Color(0xFF0000FF)]);
+    });
+  });
+
   group('ErrorBar.spec.tsx', () {
     const dataWithError = [
       {'name': 'food', 'uv': 2000, 'pv': 2013, 'time': 1, 'uvError': [100, 50], 'pvError': [110, 20]},

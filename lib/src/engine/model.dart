@@ -1434,14 +1434,17 @@ List<TooltipPayloadEntry> tooltipPayloadOf(CartesianModel m, int? activeIndex,
     if (el is Scatter && scatterPoints != null) {
       final sliced = getSliced(scatterPoints, m.dataStartIndex, m.dataEndIndex);
       final point = activeIndex >= 0 && activeIndex < sliced.length ? sliced[activeIndex] : null;
+      // getScatterEntryColor: the entry fill, the Scatter fill, the entry stroke, the Scatter stroke (no Cell)
+      final entry = point?.payload is Map ? point!.payload as Map : null;
+      final pointColor = cssFillOf(entry?['fill']) ?? el.fill ?? cssStrokeOf(entry?['stroke']) ?? el.stroke;
       for (final e in point?.tooltipPayload ?? const <TooltipPayloadEntry>[]) {
         out.add(TooltipPayloadEntry(
           dataKey: e.dataKey,
           name: e.name,
           value: getValueByDataKey(e.payload, e.dataKey),
           payload: e.payload,
-          color: el.fill,
-          fill: el.fill,
+          color: pointColor,
+          fill: pointColor,
           stroke: el.stroke,
           unit: e.unit,
           hide: el.hide,
