@@ -666,17 +666,15 @@ CartesianModel computeCartesianModel({
     final y1 = hasY1 ? ys.map(r.y1, position: BandPosition.start) : ys.rangeMin;
     final x2 = hasX2 ? xs.map(r.x2, position: BandPosition.end) : xs.rangeMax;
     final y2 = hasY2 ? ys.map(r.y2, position: BandPosition.end) : ys.rangeMax;
-    // CartesianScaleHelper.isInRange: a null coordinate passes.
+    // no area for an edge the scale can't place
+    if (x1 == null || y1 == null || x2 == null || y2 == null) continue;
     if (r.ifOverflow == IfOverflow.discard &&
-        !((x1 == null || xs.isInRange(x1)) && (y1 == null || ys.isInRange(y1)) &&
-            (x2 == null || xs.isInRange(x2)) && (y2 == null || ys.isInRange(y2)))) {
+        !(xs.isInRange(x1) && ys.isInRange(y1) && xs.isInRange(x2) && ys.isInRange(y2))) {
       continue;
     }
-    // rectWithPoints (Math.min/abs turn null into 0)
+    // rectWithPoints
     areaModels.add(ReferenceAreaModel(
-        r,
-        Rect.fromLTRB(math.min(x1 ?? 0, x2 ?? 0), math.min(y1 ?? 0, y2 ?? 0), math.max(x1 ?? 0, x2 ?? 0),
-            math.max(y1 ?? 0, y2 ?? 0))));
+        r, Rect.fromLTRB(math.min(x1, x2), math.min(y1, y2), math.max(x1, x2), math.max(y1, y2))));
   }
 
   // ReferenceDot useCoordinate
@@ -684,9 +682,11 @@ CartesianModel computeCartesianModel({
   for (final r in refDots) {
     final xs = runtimes[(true, r.xAxisId)]?.scale, ys = runtimes[(false, r.yAxisId)]?.scale;
     if (xs == null || ys == null || !isNumOrStr(r.x) || !isNumOrStr(r.y)) continue;
-    final cx = xs.map(r.x, position: BandPosition.middle) ?? 0, cy = ys.map(r.y, position: BandPosition.middle) ?? 0;
-    if (r.ifOverflow == IfOverflow.discard && !(xs.isInRange(cx) && ys.isInRange(cy))) continue;
-    dotModels.add(ReferenceDotModel(r, Offset(cx, cy)));
+    final cx = xs.map(r.x, position: BandPosition.middle), cy = ys.map(r.y, position: BandPosition.middle);
+    // no dot for a coordinate the scale can't place
+    if (!isWellBehavedNumber(cx) || !isWellBehavedNumber(cy)) continue;
+    if (r.ifOverflow == IfOverflow.discard && !(xs.isInRange(cx!) && ys.isInRange(cy!))) continue;
+    dotModels.add(ReferenceDotModel(r, Offset(cx!, cy!)));
   }
 
   // Funnels (collectItems skips them: they have no axes)
