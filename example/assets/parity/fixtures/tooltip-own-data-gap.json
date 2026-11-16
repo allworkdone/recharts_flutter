@@ -1,0 +1,99 @@
+{
+ "name": "tooltip-own-data-gap",
+ "description": "Two Lines with their own data on a number XAxis; series B has no point at x 0..2, so hovering there shows A only and one active dot (recharts #7907).",
+ "width": 500,
+ "height": 300,
+ "chart": {
+  "type": "ComposedChart",
+  "props": {},
+  "children": [
+   {
+    "type": "XAxis",
+    "props": {
+     "dataKey": "x",
+     "type": "number"
+    }
+   },
+   {
+    "type": "YAxis",
+    "props": {}
+   },
+   {
+    "type": "Tooltip",
+    "props": {}
+   },
+   {
+    "type": "Line",
+    "props": {
+     "dataKey": "value",
+     "name": "A",
+     "stroke": "#8884d8",
+     "isAnimationActive": false,
+     "data": [
+      {
+       "x": 0,
+       "value": 1
+      },
+      {
+       "x": 1,
+       "value": 2
+      },
+      {
+       "x": 2,
+       "value": 3
+      },
+      {
+       "x": 3,
+       "value": 4
+      },
+      {
+       "x": 4,
+       "value": 5
+      },
+      {
+       "x": 5,
+       "value": 6
+      }
+     ]
+    }
+   },
+   {
+    "type": "Line",
+    "props": {
+     "dataKey": "value",
+     "name": "B",
+     "stroke": "#82ca9d",
+     "isAnimationActive": false,
+     "data": [
+      {
+       "x": 3,
+       "value": 5
+      },
+      {
+       "x": 4,
+       "value": 6
+      },
+      {
+       "x": 5,
+       "value": 7
+      }
+     ]
+    }
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-a-only",
+   "type": "hover",
+   "x": 151,
+   "y": 150
+  },
+  {
+   "id": "hover-both",
+   "type": "hover",
+   "x": 323,
+   "y": 150
+  }
+ ]
+}

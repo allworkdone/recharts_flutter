@@ -1,0 +1,64 @@
+{
+ "name": "brush-first-point",
+ "description": "A stacked BarChart with a Brush selecting the first data point only: the YAxis domain comes from that point (recharts #7618).",
+ "width": 400,
+ "height": 300,
+ "chart": {
+  "type": "BarChart",
+  "props": {
+   "data": [
+    {
+     "name": "A",
+     "value": 10
+    },
+    {
+     "name": "B",
+     "value": 200
+    },
+    {
+     "name": "C",
+     "value": 300
+    },
+    {
+     "name": "D",
+     "value": 400
+    }
+   ]
+  },
+  "children": [
+   {
+    "type": "YAxis",
+    "props": {}
+   },
+   {
+    "type": "Tooltip",
+    "props": {}
+   },
+   {
+    "type": "Bar",
+    "props": {
+     "dataKey": "value",
+     "stackId": "stack",
+     "fill": "#8884d8",
+     "isAnimationActive": false
+    }
+   },
+   {
+    "type": "Brush",
+    "props": {
+     "dataKey": "name",
+     "startIndex": 0,
+     "endIndex": 0
+    }
+   }
+  ]
+ },
+ "interactions": [
+  {
+   "id": "hover-bar",
+   "type": "hover",
+   "x": 230,
+   "y": 150
+  }
+ ]
+}

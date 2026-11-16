@@ -313,6 +313,7 @@ RechartsElement? _child(Map<String, dynamic> node) {
     case 'Line':
       return Line(
         dataKey: p.raw['dataKey'] as Object,
+        data: (p.raw['data'] as List?)?.cast<Object?>(),
         xAxisId: p.raw['xAxisId'] ?? 0,
         yAxisId: p.raw['yAxisId'] ?? 0,
         type: _enum(CurveType.values, p.str('type')) ?? CurveType.linear,
