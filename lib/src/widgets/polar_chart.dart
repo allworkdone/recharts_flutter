@@ -729,10 +729,13 @@ class _PolarChartState extends State<PolarChart> with TickerProviderStateMixin i
   /// sectors and the tooltip data follow it; Radar points, the axes and the legend ignore it.
   @override
   void receiveBrushSync(({int startIndex, int endIndex}) range) {
-    if (range.startIndex == _dataStart && range.endIndex == _dataEnd) return;
+    // setDataStartEndIndexes keeps both indexes inside the chart data, when there is any.
+    int clamp(int i) => widget.data.isEmpty ? i : i.clamp(0, widget.data.length - 1);
+    final start = clamp(range.startIndex), end = clamp(range.endIndex);
+    if (start == _dataStart && end == _dataEnd) return;
     setState(() {
-      _dataStart = range.startIndex;
-      _dataEnd = range.endIndex;
+      _dataStart = start;
+      _dataEnd = end;
     });
   }
 

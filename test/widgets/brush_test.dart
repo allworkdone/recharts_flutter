@@ -522,6 +522,47 @@ void main() {
     expect([for (final l in layers) (l.startIndex, l.endIndex)], [(6, 13), (6, 13)]);
   });
 
+  group('Brush.spec.tsx / chartDataSlice.spec.ts: start and end index inside the data', () {
+    testWidgets('startIndex and endIndex outside of the data give finite positions', (tester) async {
+      await tester.pumpWidget(host(const LineChart(width: 400, height: 100, data: data, children: [
+        Line(dataKey: 'value', isAnimationActive: false),
+        Brush(dataKey: 'value', startIndex: -3, endIndex: 100),
+      ])));
+      final s = brushState(tester);
+      expect((brushLayer(tester).startIndex, brushLayer(tester).endIndex), (0, 13));
+      expect([s.startX, s.endX].every((x) => x.isFinite), isTrue);
+    });
+
+    testWidgets('a start index from longer data moves to the last item of the new data', (tester) async {
+      Widget chart(List<Object?> d, Brush brush) => host(BarChart(width: 400, height: 100, data: d, children: [brush]));
+      await tester.pumpWidget(chart(data, const Brush(dataKey: 'value', startIndex: 12)));
+      expect((brushLayer(tester).startIndex, brushLayer(tester).endIndex), (12, 13));
+      await tester.pumpWidget(chart(data.sublist(0, 5), const Brush(dataKey: 'value')));
+      expect((brushLayer(tester).startIndex, brushLayer(tester).endIndex), (4, 4));
+    });
+
+    testWidgets('a synchronised range from a chart with more data is limited to this chart\'s data', (tester) async {
+      await tester.pumpWidget(host(Column(mainAxisSize: MainAxisSize.min, children: [
+        const LineChart(width: 400, height: 100, data: data, syncId: 's', children: [
+          Line(dataKey: 'value'),
+          Brush(dataKey: 'value', x: 100, y: 50, width: 400, height: 40),
+        ]),
+        LineChart(width: 400, height: 100, data: data.sublist(0, 5), syncId: 's', children: const [
+          Line(dataKey: 'value'),
+          Brush(dataKey: 'value', x: 100, y: 50, width: 400, height: 40),
+        ]),
+      ])));
+      final mouse = await mouseAt(tester, const Offset(102, 70));
+      await mouse.down(const Offset(102, 70));
+      await mouse.moveTo(const Offset(302, 70));
+      await mouse.up();
+      await tester.pump();
+      await tester.pump();
+      final layers = tester.widgetList<BrushLayer>(find.byType(BrushLayer)).toList();
+      expect([for (final l in layers) (l.startIndex, l.endIndex)], [(6, 13), (4, 4)]);
+    });
+  });
+
   testWidgets('semantics: travellers are sliders labelled with the names', (tester) async {
     final handle = tester.ensureSemantics();
     await tester.pumpWidget(simpleBrush());

@@ -447,12 +447,14 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
     if (dataChanged) {
       _chartData = data;
       if (data.isNotEmpty && _dataEndIndex != data.length - 1) _dataEndIndex = data.length - 1;
+      // A start index from the previous data can point outside the new data.
+      _dataStartIndex = _clampToData(_dataStartIndex);
     }
     final brush = _brush;
     final props = brush == null ? null : (brush.startIndex, brush.endIndex);
     if (props != null && (dataChanged || props != _brushIndexProps)) {
-      if (brush!.startIndex != null) _dataStartIndex = brush.startIndex!;
-      if (brush.endIndex != null) _dataEndIndex = brush.endIndex!;
+      if (brush!.startIndex != null) _dataStartIndex = _clampToData(brush.startIndex!);
+      if (brush.endIndex != null) _dataEndIndex = _clampToData(brush.endIndex!);
     }
     _brushIndexProps = props;
 
@@ -469,12 +471,16 @@ class _CartesianChartState extends State<CategoricalChart> with TickerProviderSt
     }
   }
 
+  /// `setDataStartEndIndexes` keeps both indexes inside the chart data, when there is any.
+  int _clampToData(int index) => widget.data.isEmpty ? index : index.clamp(0, widget.data.length - 1);
+
   @override
   void receiveBrushSync(BrushStartEndIndex range) {
-    if (range.startIndex == _dataStartIndex && range.endIndex == _dataEndIndex) return;
+    final start = _clampToData(range.startIndex), end = _clampToData(range.endIndex);
+    if (start == _dataStartIndex && end == _dataEndIndex) return;
     setState(() {
-      _dataStartIndex = range.startIndex;
-      _dataEndIndex = range.endIndex;
+      _dataStartIndex = start;
+      _dataEndIndex = end;
     });
   }
 
