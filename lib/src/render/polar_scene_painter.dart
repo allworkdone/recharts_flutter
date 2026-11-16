@@ -559,7 +559,7 @@ void _paintRadarDots(Canvas canvas, RadarModel r, List<RadarPoint> points) {
       dot(canvas, props);
     } else {
       paintDot(canvas, props, style?.strokeDasharray ?? radar.strokeDasharray,
-          fill: fill, fillOpacity: entry.fillOpacity ?? style?.fillOpacity ?? 1);
+          fill: fill, fillOpacity: entry.fillOpacity ?? style?.fillOpacity ?? 1, symbol: dotSymbol(dot));
     }
   }
 }
@@ -585,7 +585,7 @@ void _paintRadarActiveDot(Canvas canvas, RadarModel r, PolarHoverState? h) {
   if (activeDot is DotPainter) {
     activeDot(canvas, props);
   } else {
-    paintDot(canvas, props, style?.strokeDasharray);
+    paintDot(canvas, props, style?.strokeDasharray, symbol: dotSymbol(activeDot));
   }
 }
 

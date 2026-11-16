@@ -159,19 +159,21 @@ class ChartFrame {
   }
 }
 
-/// `<Dot>`; [fill] (a Color or Gradient) overrides [DotProps.fill].
-void paintDot(Canvas canvas, DotProps d, List<double>? dash, {Object? fill, double fillOpacity = 1}) {
+/// `<Dot>`, or `<DotSymbol>` for a [symbol] (`2 * r` across); [fill] (a
+/// Color or Gradient) overrides [DotProps.fill].
+void paintDot(Canvas canvas, DotProps d, List<double>? dash, {Object? fill, double fillOpacity = 1, SymbolType? symbol}) {
   // Dot.tsx renders nothing without a numeric position.
   if (d.cx.isNaN || d.cy.isNaN || d.r.isNaN) return;
   final center = Offset(d.cx, d.cy);
+  final path = symbol == null
+      ? (Path()..addOval(Rect.fromCircle(center: center, radius: d.r)))
+      : symbolPath(symbol, 2 * d.r, sizeType: SymbolSizeType.diameter).shift(center);
   final f = fill ?? d.fill;
   if (f != null) {
-    canvas.drawCircle(center, d.r, fillPaintOf(f, Rect.fromCircle(center: center, radius: d.r), opacity: fillOpacity));
+    final paint = fillPaintOf(f, path.getBounds(), opacity: fillOpacity);
+    symbol == null ? canvas.drawCircle(center, d.r, paint) : canvas.drawPath(path, paint);
   }
-  if (d.stroke != null && d.strokeWidth > 0) {
-    final path = Path()..addOval(Rect.fromCircle(center: center, radius: d.r));
-    drawStroke(canvas, path, strokePaint(d.stroke!, d.strokeWidth), dash);
-  }
+  if (d.stroke != null && d.strokeWidth > 0) drawStroke(canvas, path, strokePaint(d.stroke!, d.strokeWidth), dash);
 }
 
 /// `getEntrySvgProps` for a Dot: the SVG props of a data entry that paint a
@@ -566,14 +568,11 @@ class CartesianPainter extends CustomPainter {
       if (dot is DotPainter) {
         dot(canvas, props);
       } else {
-        _paintDot(canvas, props, style?.strokeDasharray ?? dash,
-            fill: dotFill, fillOpacity: entry.fillOpacity ?? style?.fillOpacity ?? 1);
+        paintDot(canvas, props, style?.strokeDasharray ?? dash,
+            fill: dotFill, fillOpacity: entry.fillOpacity ?? style?.fillOpacity ?? 1, symbol: dotSymbol(dot));
       }
     }
   }
-
-  void _paintDot(Canvas canvas, DotProps d, List<double>? dash, {Object? fill, double fillOpacity = 1}) =>
-      paintDot(canvas, d, dash, fill: fill, fillOpacity: fillOpacity);
 
   /// ScatterSymbols: the line, then a symbol per point; the active point
   /// moves to the activeDot layer ([_paintActiveScatterPoints]).
@@ -834,7 +833,7 @@ class CartesianPainter extends CustomPainter {
           if (activeDot is DotPainter) {
             activeDot(canvas, props);
           } else {
-            _paintDot(canvas, props, style?.strokeDasharray);
+            paintDot(canvas, props, style?.strokeDasharray, symbol: dotSymbol(activeDot));
           }
         });
       }

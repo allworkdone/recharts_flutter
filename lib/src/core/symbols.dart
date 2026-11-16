@@ -225,3 +225,25 @@ Path symbolPath(SymbolType type, double size, {SymbolSizeType sizeType = SymbolS
   drawSymbol(sink, type, calculateAreaSize(size, sizeType, type));
   return sink.path;
 }
+
+/// `getSymbolHalfWidth`: how far the symbol reaches horizontally from its center.
+double symbolHalfWidth(SymbolType type, double size, SymbolSizeType sizeType) {
+  final sink = _HalfWidthSink();
+  drawSymbol(sink, type, calculateAreaSize(size, sizeType, type));
+  return sink.halfWidth;
+}
+
+// ponytail: tracks the rounded path points, and arcs by their end points
+// (a symbol's only arcs are the two halves of the circle).
+class _HalfWidthSink implements SymbolPathSink {
+  double halfWidth = 0;
+  void _track(double x) => halfWidth = math.max(halfWidth, x.abs());
+  @override
+  void moveTo(double x, double y) => _track(x);
+  @override
+  void lineTo(double x, double y) => _track(x);
+  @override
+  void arcTo(double rx, double ry, bool largeArc, bool sweep, double x, double y) => _track(x);
+  @override
+  void closePath() {}
+}

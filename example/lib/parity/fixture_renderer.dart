@@ -320,8 +320,8 @@ RechartsElement? _child(Map<String, dynamic> node) {
         strokeWidth: p.dbl('strokeWidth') ?? 1,
         strokeDasharray: p.dash('strokeDasharray'),
         fill: p.color('fill') ?? const Color(0xFFFFFFFF),
-        dot: p.svgOrBool('dot') ?? true,
-        activeDot: p.svgOrBool('activeDot') ?? true,
+        dot: p.dot('dot') ?? true,
+        activeDot: p.dot('activeDot') ?? true,
         connectNulls: p.boolean('connectNulls') ?? false,
         hide: p.boolean('hide') ?? false,
         legendType: _enum(LegendType.values, p.str('legendType')) ?? LegendType.line,
@@ -345,8 +345,8 @@ RechartsElement? _child(Map<String, dynamic> node) {
         strokeDasharray: p.dash('strokeDasharray'),
         fill: p.raw.containsKey('fill') ? p.paint('fill') : const Color(0xFF3182BD),
         fillOpacity: p.dbl('fillOpacity') ?? 0.6,
-        dot: p.svgOrBool('dot') ?? false,
-        activeDot: p.svgOrBool('activeDot') ?? true,
+        dot: p.dot('dot') ?? false,
+        activeDot: p.dot('activeDot') ?? true,
         connectNulls: p.boolean('connectNulls') ?? false,
         stackId: p.raw['stackId'],
         baseValue: p.raw['baseValue'],
@@ -426,7 +426,7 @@ RechartsElement? _child(Map<String, dynamic> node) {
         yAxisId: p.raw['yAxisId'] ?? 0,
         zAxisId: p.raw['zAxisId'] ?? 0,
         data: (p.raw['data'] as List?)?.cast<Object?>(),
-        shape: _enum(SymbolType.values, p.str('shape')) ?? SymbolType.circle,
+        shape: _enum(SymbolType.values, p.str('shape')),
         activeShape: _enum(SymbolType.values, p.str('activeShape')) ?? p.svgOrBool('activeShape'),
         fill: p.color('fill'),
         fillOpacity: p.dbl('fillOpacity'),
@@ -436,7 +436,7 @@ RechartsElement? _child(Map<String, dynamic> node) {
         lineType: _enum(ScatterLineType.values, p.str('lineType')) ?? ScatterLineType.joint,
         lineJointType: _enum(CurveType.values, p.str('lineJointType')) ?? CurveType.linear,
         hide: p.boolean('hide') ?? false,
-        legendType: _enum(LegendType.values, p.str('legendType')) ?? LegendType.circle,
+        legendType: _enum(LegendType.values, p.str('legendType')),
         name: p.raw['name'],
         isAnimationActive: p.boolean('isAnimationActive'),
         animationBegin: p.dbl('animationBegin')?.toInt() ?? 0,
@@ -635,9 +635,9 @@ RechartsElement? _child(Map<String, dynamic> node) {
         radiusAxisId: p.raw['radiusAxisId'] ?? 0,
         name: p.raw['name'],
         hide: p.boolean('hide') ?? false,
-        legendType: _enum(LegendType.values, p.str('legendType')) ?? LegendType.rect,
-        dot: p.svgOrBool('dot') ?? false,
-        activeDot: p.svgOrBool('activeDot') ?? true,
+        legendType: _enum(LegendType.values, p.str('legendType')),
+        dot: p.dot('dot') ?? false,
+        activeDot: p.dot('activeDot') ?? true,
         label: _labelList(p.raw['label']) ?? false,
         connectNulls: p.boolean('connectNulls') ?? false,
         fill: _polarFill(p),
@@ -895,10 +895,14 @@ class _Props {
         strokeDasharray: s.dash('strokeDasharray'),
         r: s.dbl('r'),
         radius: s.raw['radius'],
+        symbol: _enum(SymbolType.values, s.str('symbol')),
       );
     }
     return null;
   }
+
+  /// `dot` / `activeDot`: a boolean, a props object, or a symbol name.
+  Object? dot(String k) => _enum(SymbolType.values, str(k)) ?? svgOrBool(k);
 }
 
 /// `textOptions` of a SunburstChart; absent means the chart's defaults.

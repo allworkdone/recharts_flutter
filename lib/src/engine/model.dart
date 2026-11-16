@@ -22,6 +22,7 @@ import '../components.dart';
 import '../core/curve.dart';
 import '../css_color.dart';
 import '../core/scale.dart';
+import '../core/symbols.dart';
 import '../util.dart';
 import 'axis.dart';
 import 'funnel.dart';
@@ -327,6 +328,13 @@ List<LegendPayload> legendPayloadOf(List<GraphicalItem> items, Legend legend) {
         strokeDasharray: switch (i.element) {
           Line l => l.strokeDasharray,
           Area a => a.strokeDasharray,
+          _ => null,
+        },
+        // the same colors as the dots; a Scatter only for a symbol shape
+        dot: switch (i.element) {
+          Line l => legendPayloadDot(l.dot, l.fill, l.stroke),
+          Area a => legendPayloadDot(a.dot, solidColor(a.fill), a.stroke),
+          Scatter s => s.shape is SymbolType ? (symbol: s.shape as SymbolType, fill: s.fill, stroke: s.stroke) : null,
           _ => null,
         },
       ),

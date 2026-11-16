@@ -390,6 +390,7 @@ LegendPayload radarLegendEntry(Radar r) => LegendPayload(
       color: legendItemColor(r.stroke, r.fill),
       dataKey: r.dataKey,
       inactive: r.hide,
+      dot: legendPayloadDot(r.dot, r.fill, r.stroke),
     );
 
 /// `selectRadialBarLegendPayload`: one entry per data row, in the color of its sector.

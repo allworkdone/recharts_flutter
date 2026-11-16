@@ -94,4 +94,28 @@ void main() {
     expect(b.bottom, closeTo(4.514, 1e-5));
     expect(symbolPath(SymbolType.square, 64).getBounds(), const Rect.fromLTRB(-4, -4, 4, 4));
   });
+
+  // Dots.symbols.spec.tsx: dot="circle" spans the diameter 2r of the default dot.
+  test('a circle 2r across draws the default dot of r 3', () {
+    final sink = _RecordingSink();
+    drawSymbol(sink, SymbolType.circle, calculateAreaSize(6, SymbolSizeType.diameter, SymbolType.circle));
+    expect(sink.calls, _parsePath('M3,0A3,3,0,1,1,-3,0A3,3,0,1,1,3,0'));
+  });
+
+  // Symbols.spec.tsx 'getSymbolHalfWidth'
+  group('symbolHalfWidth', () {
+    test('returns the radius of a circle', () {
+      expect(symbolHalfWidth(SymbolType.circle, 20, SymbolSizeType.diameter), closeTo(10, 0.005));
+    });
+    test('returns half of the side of a square', () {
+      expect(symbolHalfWidth(SymbolType.square, 20, SymbolSizeType.diameter), closeTo(10, 0.005));
+    });
+    test('returns less than half of the size for diamond, which is narrower than it is tall', () {
+      expect(symbolHalfWidth(SymbolType.diamond, 20, SymbolSizeType.diameter), closeTo(5.774, 0.0005));
+    });
+    test('scales with size', () {
+      expect(symbolHalfWidth(SymbolType.star, 40, SymbolSizeType.diameter),
+          closeTo(2 * symbolHalfWidth(SymbolType.star, 20, SymbolSizeType.diameter), 0.005));
+    });
+  });
 }

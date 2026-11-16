@@ -55,6 +55,7 @@ class SvgStyle {
     this.strokeDasharray,
     this.r,
     this.radius,
+    this.symbol,
   });
   /// Like the default constructor, with `fill` and `stroke` as CSS color strings or [Color]s.
   SvgStyle.css({
@@ -66,6 +67,7 @@ class SvgStyle {
     this.strokeDasharray,
     this.r,
     this.radius,
+    this.symbol,
   })  : fill = cssFillOf(fill),
         stroke = cssStrokeOf(stroke);
   final Color? fill;
@@ -80,6 +82,29 @@ class SvgStyle {
 
   /// Rectangle corner radius (a number or `[topLeft, topRight, bottomRight, bottomLeft]`), used by `activeBar`.
   final Object? radius;
+
+  /// `dot` / `activeDot` draw this symbol instead of a circle, `2 * r` across.
+  final SymbolType? symbol;
+}
+
+/// `getDotSymbol`: the symbol a `dot` or `activeDot` option asks for, a
+/// [SymbolType] or an [SvgStyle] with a `symbol`; null for a circle or a painter.
+SymbolType? dotSymbol(Object? option) => switch (option) {
+      SymbolType t => t,
+      SvgStyle s => s.symbol,
+      _ => null,
+    };
+
+/// The legend icon of a symbol.
+LegendType? legendTypeOfSymbol(SymbolType? symbol) => symbol == null ? null : LegendType.values.byName(symbol.name);
+
+/// `getLegendPayloadDot`: the dots of an item for its legend icon, with the
+/// colors in the dot option winning over [fill] and [stroke] of the item.
+LegendPayloadDot? legendPayloadDot(Object? dot, Color? fill, Color? stroke) {
+  final symbol = dotSymbol(dot);
+  if (symbol == null) return null;
+  final style = dot is SvgStyle ? dot : null;
+  return (symbol: symbol, fill: style?.fill ?? fill, stroke: style?.stroke ?? stroke);
 }
 
 /// `interval` of an axis: a strategy name or a fixed number (`AxisInterval.number(0)`).
@@ -663,10 +688,11 @@ class Line extends CartesianSeries {
   /// Dot fill (Line's `fill` prop, default `#fff`).
   final Color? fill;
 
-  /// `true`/`false`, an [SvgStyle], or a [DotPainter].
+  /// `true`/`false`, an [SvgStyle], a [DotPainter], or a [SymbolType] (also
+  /// [SvgStyle.symbol]) that the legend icon draws too.
   final Object dot;
 
-  /// `true`/`false`, an [SvgStyle], or a [DotPainter].
+  /// `true`/`false`, an [SvgStyle], a [DotPainter], or a [SymbolType].
   final Object activeDot;
   final bool connectNulls;
   final List<Object?>? data;
@@ -812,11 +838,12 @@ class Area extends CartesianSeries {
   final Object? fill;
   final double fillOpacity;
 
-  /// `true`/`false`, an [SvgStyle], or a [DotPainter]. Dots take the Area's
-  /// fill, fillOpacity and stroke.
+  /// `true`/`false`, an [SvgStyle], a [DotPainter], or a [SymbolType] (also
+  /// [SvgStyle.symbol]) that the legend icon draws too. Dots take the Area's
+  /// fill and stroke.
   final Object dot;
 
-  /// `true`/`false`, an [SvgStyle], or a [DotPainter].
+  /// `true`/`false`, an [SvgStyle], a [DotPainter], or a [SymbolType].
   final Object activeDot;
   final bool connectNulls;
 
@@ -1157,6 +1184,7 @@ class LegendPayload {
     required this.dataKey,
     this.inactive = false,
     this.strokeDasharray,
+    this.dot,
   });
   final String? value;
   final LegendType type;
@@ -1164,7 +1192,13 @@ class LegendPayload {
   final Object? dataKey;
   final bool inactive;
   final List<double>? strokeDasharray;
+
+  /// The symbol of the item's dots (or Scatter points) and their colors, which the icon draws.
+  final LegendPayloadDot? dot;
 }
+
+/// `LegendPayloadDot`.
+typedef LegendPayloadDot = ({SymbolType symbol, Color? fill, Color? stroke});
 
 class Legend extends RechartsElement {
   const Legend({
@@ -1336,7 +1370,7 @@ class Scatter extends CartesianSeries {
     super.yAxisId,
     this.zAxisId = 0,
     this.data,
-    this.shape = SymbolType.circle,
+    this.shape,
     this.activeShape,
     this.fill,
     this.fillOpacity,
@@ -1346,7 +1380,7 @@ class Scatter extends CartesianSeries {
     this.lineType = ScatterLineType.joint,
     this.lineJointType = CurveType.linear,
     super.hide,
-    super.legendType = LegendType.circle,
+    LegendType? legendType,
     super.name,
     super.tooltipType,
     super.formatter,
@@ -1359,12 +1393,19 @@ class Scatter extends CartesianSeries {
     super.id,
     this.label = false,
     this.children = const [],
-  });
+  })  : _legendType = legendType,
+        super(legendType: LegendType.circle);
   final Object zAxisId;
   final List<Object?>? data;
 
-  /// A [SymbolType] or a [ScatterShapePainter].
-  final Object shape;
+  /// A [SymbolType] or a [ScatterShapePainter]; null is a circle.
+  final Object? shape;
+
+  final LegendType? _legendType;
+
+  /// The legend shows the same symbol as the points unless `legendType` is set.
+  @override
+  LegendType get legendType => _legendType ?? legendTypeOfSymbol(dotSymbol(shape)) ?? LegendType.circle;
 
   /// The shape of the point at the active tooltip index: null/`false` (none),
   /// `true` (a circle), a [SymbolType], an [SvgStyle] merged over the point's

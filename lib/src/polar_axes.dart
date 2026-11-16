@@ -224,7 +224,7 @@ class Radar extends RechartsElement {
     this.radiusAxisId = 0,
     this.name,
     this.hide = false,
-    this.legendType = LegendType.rect,
+    LegendType? legendType,
     this.tooltipType,
     this.dot = false,
     this.activeDot = true,
@@ -255,12 +255,15 @@ class Radar extends RechartsElement {
     this.id,
     this.zIndex = 100,
     this.children = const [],
-  });
+  }) : _legendType = legendType;
   final Object dataKey;
   final Object angleAxisId, radiusAxisId;
   final Object? name;
   final bool hide;
-  final LegendType legendType;
+  final LegendType? _legendType;
+
+  /// The legend shows the symbol of the dots unless `legendType` is set; `rect` by default.
+  LegendType get legendType => _legendType ?? legendTypeOfSymbol(dotSymbol(dot)) ?? LegendType.rect;
   final String? tooltipType;
 
   /// Polygon events: a click on its fill or stroke, and the pointer entering or leaving it.
@@ -272,10 +275,11 @@ class Radar extends RechartsElement {
   /// and touchend keep going to it after the finger leaves it).
   final void Function(PointerEvent event)? onMouseOver, onMouseMove, onMouseOut, onTouchStart, onTouchMove, onTouchEnd;
 
-  /// `true`/`false`, an [SvgStyle], or a [DotPainter].
+  /// `true`/`false`, an [SvgStyle], a [DotPainter], or a [SymbolType] (also
+  /// [SvgStyle.symbol]) that the legend icon draws too.
   final Object dot;
 
-  /// `true`/`false`, an [SvgStyle], or a [DotPainter].
+  /// `true`/`false`, an [SvgStyle], a [DotPainter], or a [SymbolType].
   final Object activeDot;
 
   /// `true`, a [LabelList], or a [LabelPainter] drawing each label.

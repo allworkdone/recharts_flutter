@@ -9,6 +9,7 @@ import 'package:flutter/painting.dart' show Gradient;
 
 import '../components.dart';
 import '../core/symbols.dart';
+import '../css_color.dart' show cssNone;
 import '../util.dart';
 
 /// `getRectanglePath(x, y, width, height, radius)`.
@@ -108,6 +109,15 @@ void paintLegendIcon(Canvas canvas, LegendPayload data, LegendType? iconType, Co
   final color = data.inactive ? inactiveColor : (data.color ?? const Color(0xFF000000));
   final type = iconType ?? data.type;
   if (type == LegendType.none) return;
+  final dot = data.dot;
+  final dotColors = dot == null ? null : legendIconDotColors(dot, data, inactiveColor);
+  // A symbol at the center, filled and stroked 3 wide with round joins.
+  void symbol(SymbolType type, double diameter, Color? fill, Color? stroke) {
+    final path = symbolPath(type, diameter, sizeType: SymbolSizeType.diameter).shift(const Offset(half, half));
+    if (fill != null) canvas.drawPath(path, fillPaint(fill));
+    if (stroke != null) canvas.drawPath(path, strokePaint(stroke, 3)..strokeJoin = StrokeJoin.round);
+  }
+
   canvas.save();
   canvas.scale(iconSize / size);
   switch (type) {
@@ -116,6 +126,16 @@ void paintLegendIcon(Canvas canvas, LegendPayload data, LegendType? iconType, Co
         ..moveTo(0, half)
         ..lineTo(size, half);
       drawStroke(canvas, path, strokePaint(color, 4), data.strokeDasharray);
+    // LineWithSymbolIcon: the line stops at the edge of the dot symbol.
+    case LegendType.line when dot != null:
+      final halfWidth = symbolHalfWidth(dot.symbol, 20, SymbolSizeType.diameter);
+      final path = Path()
+        ..moveTo(0, half)
+        ..lineTo(half - halfWidth, half)
+        ..moveTo(half + halfWidth, half)
+        ..lineTo(size, half);
+      canvas.drawPath(path, strokePaint(color, 4));
+      symbol(dot.symbol, 20, dotColors!.fill, dotColors.stroke ?? color);
     case LegendType.line:
       final path = Path()
         ..moveTo(0, half)
@@ -127,12 +147,26 @@ void paintLegendIcon(Canvas canvas, LegendPayload data, LegendType? iconType, Co
       canvas.drawPath(path, strokePaint(color, 4));
     case LegendType.rect:
       canvas.drawRect(const Rect.fromLTWH(0, size / 8, size, size * 3 / 4), fillPaint(color));
+    // DotSymbolIcon: the stroke stays inside the icon.
+    case _ when dot != null && dot.symbol.name == type.name:
+      final stroke = dotColors!.stroke;
+      final hasStroke = stroke != null && stroke != cssNone;
+      symbol(dot.symbol, hasStroke ? size - 3 : size, dotColors.fill ?? color, hasStroke ? stroke : null);
     default:
       final symbol = SymbolType.values.asNameMap()[type.name] ?? SymbolType.circle;
       canvas.drawPath(symbolPath(symbol, size, sizeType: SymbolSizeType.diameter).shift(const Offset(half, half)),
           fillPaint(color));
   }
   canvas.restore();
+}
+
+/// `getIconDotColors`: a hidden item draws its symbol in [inactiveColor],
+/// except for a fill that is not the item color (Line's white dots).
+({Color? fill, Color? stroke}) legendIconDotColors(LegendPayloadDot dot, LegendPayload data, Color inactiveColor) {
+  if (!data.inactive) return (fill: dot.fill, stroke: dot.stroke);
+  bool hasColor(Color? c) => c != null && c != cssNone;
+  final isItemFill = hasColor(dot.fill) && (dot.fill == data.color || dot.fill == dot.stroke);
+  return (fill: isItemFill ? inactiveColor : dot.fill, stroke: hasColor(dot.stroke) ? inactiveColor : dot.stroke);
 }
 
 /// SVG color with optional opacity.
